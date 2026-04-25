@@ -1,3 +1,4 @@
 src/lib/*.js
 src/common/*.js
 src-ui/js/common/*.js
+src-ui/js/solver.js

@@ -148,6 +148,7 @@
 			diamond: [0, 0, "Diamond Chain", "Diamond Chain"],
 			disloop: [0, 0, "Disorderly Loop", "Disorderly Loop", "tapaloop"],
 			distopia: [0, 0, "Distopia", "Distopia", "statuepark"],
+			travelline: [0, 0, "トラベルライン", "Travel Line"],
 			dominion: [0, 0, "ドミニオン", "Dominion"],
 			doppelblock: [0, 0, "Doppelblock", "Doppelblock", "doppelblock"],
 			dosufuwa: [0, 0, "ドッスンフワリ", "Dosun-Fuwari"],

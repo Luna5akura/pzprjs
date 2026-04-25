@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "eslint --cache --quiet src src-ui && \"./git-hash.sh\" && grunt default",
+    "dev": "concurrently \"find src src-ui -type f | entr -r make\" \"find ../cspuz_core/cspuz_solver_backend/src -type f | entr -r 'cd ../cspuz_core && bash ./build_cspuz_solver_backend.sh debug && cp -r build/cspuz_solver_backend/* ../../pzprjs/dist/wasm/'\" \"cd dist && live-server --port=8080 --no-browser --quiet\"",
     "release": "npm run clean && eslint --cache --quiet src && grunt release",
     "clean": "del dist/* pzpr-*.{zip,tar.gz,tar.bz2,tgz}",
     "format": "prettier --write \"{src,src-ui,test}/**/*.{js,css}\"",
@@ -32,12 +33,14 @@
     "prepublishOnly": "npm test"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "del-cli": "^4.0.1",
     "eslint": "^8.43.0",
     "grunt": "^1.5.3",
     "grunt-contrib-concat": "^1.0.1",
     "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-uglify": "^5.2.1",
+    "live-server": "^1.2.2",
     "mocha": "^10.0.0",
     "nyc": "^15.1.0",
     "prettier": "^1.19.1"

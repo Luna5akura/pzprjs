@@ -165,6 +165,25 @@ div#checkpanel input[type="checkbox"]:disabled + span {
   color: silver;
 }
 
+#solverpanel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+#solverpanel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#solver-status {
+  color: #555;
+  font-size: 0.95em;
+}
+
 div#usepanel div.disabled {
   color: silver;
 }

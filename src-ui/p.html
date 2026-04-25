@@ -24,6 +24,7 @@ if ('serviceWorker' in navigator) {
 </script>
 <script type="text/javascript" src="./js/pzpr.js?<%= git.hash %>"></script>
 <script type="text/javascript" src="./js/pzpr-ui.js?<%= git.hash %>"></script>
+<script type="module" src="./js/solver.js?<%= git.hash %>"></script>
 <title>puzz.link player</title>
 </head>
 
@@ -180,6 +181,22 @@ if ('serviceWorker' in navigator) {
       <div class="child" data-value="peke">__inputmode.peke__</div>
       <div class="child" data-value="diraux">__inputmode.diraux__</div>
       <div class="child" data-value="bar">__inputmode.bar__</div>
+      <div class="child" data-value="travel-sloop">__inputmode.travel-sloop__</div>
+      <div class="child" data-value="travel-ice">__inputmode.travel-ice__</div>
+      <div class="child" data-value="travel-white">__inputmode.travel-white__</div>
+      <div class="child" data-value="travel-black">__inputmode.travel-black__</div>
+      <div class="child" data-value="travel-dotw">__inputmode.travel-dotw__</div>
+      <div class="child" data-value="travel-dotb">__inputmode.travel-dotb__</div>
+      <div class="child" data-value="travel-notouch">__inputmode.travel-notouch__</div>
+      <div class="child" data-value="travel-noadj">__inputmode.travel-noadj__</div>
+      <div class="child" data-value="travel-slither">__inputmode.travel-slither__</div>
+      <div class="child" data-value="travel-div1">__inputmode.travel-div1__</div>
+      <div class="child" data-value="travel-div2">__inputmode.travel-div2__</div>
+      <div class="child" data-value="travel-div3">__inputmode.travel-div3__</div>
+      <div class="child" data-value="travel-yajilin">__inputmode.travel-yajilin__</div>
+      <div class="child" data-value="travel-cw">__inputmode.travel-cw__</div>
+      <div class="child" data-value="country">__inputmode.country__</div>
+      <div class="child" data-value="travel-required">__inputmode.travel-required__</div>
       <div class="child" data-value="akari">__inputmode.akari__</div>
       <div class="child" data-value="star">__inputmode.star__</div>
       <div class="child" data-value="dot">__inputmode.dot__</div>
@@ -363,6 +380,18 @@ if ('serviceWorker' in navigator) {
         <span>__irowakeblk.tool__</span>
       </label>
       <button class="btn" data-button-exec="irowake">__irowakeblk.change__</button>
+     </div>
+    <div id="solverpanel">
+      <label>
+        <input type="checkbox" id="solver-auto">
+        <span>__solver.auto__</span>
+      </label>
+      <button type="button" class="btn" id="solver-run">__solver.run__</button>
+      <label>
+        <input type="checkbox" id="solver-erase">
+        <span>__solver.erase__</span>
+      </label>
+      <span id="solver-status">__solver.idle__</span>
     </div>
   </div>
   <hr class="separator" id="separator1">
@@ -817,6 +846,5 @@ if ('serviceWorker' in navigator) {
   <a id="saveanchor"></a>
 </div>
 <!-- ここまで -->
-
 </body>
 </html>
