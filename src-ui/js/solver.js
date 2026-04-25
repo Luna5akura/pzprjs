@@ -10,9 +10,20 @@ var hasSolverState = false;
 var suppressHistory = false;
 var restartSolveAfterCurrent = false;
 var LOCAL_SOLVER_YIELD_INTERVAL = 1024;
+var TL_FLOOR_FLAGS = {
+	ICE: 1,
+	NOTOUCH: 2,
+	NOADJ: 4,
+	SLOOP: 8,
+	CWFLOOR: 16
+};
 
 function isTravelLinePuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "travelline";
+}
+
+function hasTravelLineCrossingSupportGap() {
+	return false;
 }
 
 function getMessages() {
@@ -30,6 +41,8 @@ function getMessages() {
 				noChange: "反映できる新規結果はありません",
 				cleared: "手入力を検出したため回答を消去しました",
 				unsupported: "この盤面はまだ自動適用に対応していません",
+				crossingUnsupported:
+					"交差対応の travelline solver はまだ実装途中のため、結果は適用しませんでした",
 				incomplete: "solver が全解を調べ切れなかったため、確定部分は適用しませんでした",
 				error: function(message) {
 					return "solver error: " + message;
@@ -53,6 +66,8 @@ function getMessages() {
 				noChange: "no solver result could be applied",
 				cleared: "manual edit detected, cleared current answer",
 				unsupported: "this puzzle is not supported for auto-apply yet",
+				crossingUnsupported:
+					"crossing-aware travel line solver is still in progress, so no result was applied",
 				incomplete:
 					"solver could not finish exhaustive deduction, so no tentative result was applied",
 				error: function(message) {
@@ -192,11 +207,32 @@ async function solveTravelLinePuzzle(requestId) {
 	function idxToCell(idx) {
 		return board.cell[idx];
 	}
+	function floorFlags(idx) {
+		return idxToCell(idx).ques || 0;
+	}
+	function hasFloorFlag(idx, flag) {
+		return !!(floorFlags(idx) & flag);
+	}
 	function getClue(idx) {
 		return idxToCell(idx).qnum;
 	}
 	function isBar(idx) {
 		return getClue(idx) === 1;
+	}
+	function isIce(idx) {
+		return getClue(idx) === 2 || hasFloorFlag(idx, TL_FLOOR_FLAGS.ICE);
+	}
+	function isNoTouch(idx) {
+		return getClue(idx) === 5 || hasFloorFlag(idx, TL_FLOOR_FLAGS.NOTOUCH);
+	}
+	function isNoAdj(idx) {
+		return getClue(idx) === 6 || hasFloorFlag(idx, TL_FLOOR_FLAGS.NOADJ);
+	}
+	function isSloop(idx) {
+		return getClue(idx) === 9 || hasFloorFlag(idx, TL_FLOOR_FLAGS.SLOOP);
+	}
+	function isCwFloor(idx) {
+		return hasFloorFlag(idx, TL_FLOOR_FLAGS.CWFLOOR);
 	}
 	function requiredVisit(idx) {
 		var clue = getClue(idx);
@@ -205,7 +241,7 @@ async function solveTravelLinePuzzle(requestId) {
 			clue === 4 ||
 			clue === 7 ||
 			clue === 8 ||
-			clue === 9 ||
+			isSloop(idx) ||
 			clue === 16
 		);
 	}
@@ -258,6 +294,21 @@ async function solveTravelLinePuzzle(requestId) {
 	function isCurve(a, b, c) {
 		return !isStraight(a, b, c);
 	}
+	function isClockwiseTurn(a, b, c) {
+		var ab = direction(a, b);
+		var bc = direction(b, c);
+		return ab.dx * bc.dy - ab.dy * bc.dx > 0;
+	}
+	function isCrossingCell(idx) {
+		return isIce(idx) || isCwFloor(idx);
+	}
+	function orientationBit(a, b, c) {
+		if (!isStraight(a, b, c)) {
+			return 0;
+		}
+		var ab = direction(a, b);
+		return ab.dx === 0 ? 1 : 2;
+	}
 	function visitedPair(path, a, b) {
 		for (var i = 1; i < path.length; i++) {
 			if (
@@ -296,6 +347,9 @@ async function solveTravelLinePuzzle(requestId) {
 		var index = insideBorderBitIndex[borderId];
 		return index === undefined ? 0n : 1n << BigInt(index);
 	}
+	function isBorderUsed(borderId, edgeMask) {
+		return (edgeMask & getBorderBit(borderId)) !== 0n;
+	}
 	function getForcedStateKey(forcedStates) {
 		var entries = [];
 		Object.keys(forcedStates || {})
@@ -311,8 +365,8 @@ async function solveTravelLinePuzzle(requestId) {
 		var c1 = border.sidecell[0];
 		var c2 = border.sidecell[1];
 		return (
-			(!c1.isnull && c1.qnum >= 0) ||
-			(!c2.isnull && c2.qnum >= 0) ||
+			(!c1.isnull && (c1.qnum >= 0 || c1.ques > 0)) ||
+			(!c2.isnull && (c2.qnum >= 0 || c2.ques > 0)) ||
 			(border.inside &&
 				(border.ques > 0 ||
 					border.sidecross[0].qnum >= 0 ||
@@ -424,7 +478,7 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 		return true;
 	}
-	function directedCluesPossible(path, visited) {
+	function directedCluesPossible(path, visitCount) {
 		for (var cellId = 0; cellId < total; cellId++) {
 			var cell = idxToCell(cellId);
 			if (cell.qnum === 14) {
@@ -436,7 +490,7 @@ async function solveTravelLinePuzzle(requestId) {
 					if (next.isnull) {
 						break;
 					}
-					if (next.qnum !== 1 && !visited[next.id]) {
+					if (next.qnum !== 1 && !(visitCount[next.id] > 0)) {
 						remaining++;
 					}
 				}
@@ -476,15 +530,18 @@ async function solveTravelLinePuzzle(requestId) {
 		var cur = path[index];
 		var next = path[index + 1];
 		var clue = getClue(cur);
-		if (clue === 2 || clue === 3 || clue === 7) {
+		if (isIce(cur) || clue === 3 || clue === 7) {
 			return isStraight(prev, cur, next);
 		}
 		if (clue === 4 || clue === 8) {
 			return isCurve(prev, cur, next);
 		}
+		if (isCwFloor(cur) && isCurve(prev, cur, next)) {
+			return isClockwiseTurn(prev, cur, next);
+		}
 		return true;
 	}
-	function reachableCheck(current, visited, remainingRequired) {
+	function reachableCheck(current, visitCount, remainingRequired, edgeMask) {
 		var queue = [current];
 		var seen = {};
 		seen[current] = true;
@@ -493,10 +550,14 @@ async function solveTravelLinePuzzle(requestId) {
 			var nexts = neighbors(node);
 			for (var i = 0; i < nexts.length; i++) {
 				var next = nexts[i];
-				if (seen[next] || isBar(next)) {
+				var border = getBorderBetweenCells(node, next);
+				if (seen[next] || isBar(next) || isBorderUsed(border.id, edgeMask)) {
 					continue;
 				}
-				if (visited[next] && next !== goal) {
+				if (visitCount[next] > 0 && !isCrossingCell(next) && next !== goal) {
+					continue;
+				}
+				if (visitCount[next] > 1 || (visitCount[next] > 0 && next === goal)) {
 					continue;
 				}
 				seen[next] = true;
@@ -513,24 +574,63 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 		return true;
 	}
-	function finalValidate(path, visited) {
+	function crossingCellStillCompletable(
+		current,
+		visitCount,
+		finishedCrossMask,
+		edgeMask
+	) {
+		for (var idx in finishedCrossMask) {
+			if (!finishedCrossMask[idx] || +idx === current) {
+				continue;
+			}
+			if ((visitCount[idx] || 0) !== 1) {
+				continue;
+			}
+			var cell = idxToCell(+idx);
+			var mask = finishedCrossMask[idx];
+			var candidates =
+				mask === 1
+					? [cell.adjborder.left, cell.adjborder.right]
+					: [cell.adjborder.top, cell.adjborder.bottom];
+			var canFinish = false;
+			for (var i = 0; i < candidates.length; i++) {
+				var border = candidates[i];
+				if (!border.isnull && !isBorderUsed(border.id, edgeMask)) {
+					canFinish = true;
+					break;
+				}
+			}
+			if (!canFinish) {
+				return false;
+			}
+		}
+		return true;
+	}
+	function finalValidate(path, visitCount) {
 		if (path[0] !== start || path[path.length - 1] !== goal) {
 			return false;
 		}
 
 		for (var i = 0; i < total; i++) {
 			var clue = getClue(i);
-			var used = !!visited[i];
+			var used = (visitCount[i] || 0) > 0;
 			if (clue === 1 && used) {
 				return false;
 			}
 			if ((clue === 3 || clue === 4 || clue === 7 || clue === 8) && !used) {
 				return false;
 			}
-			if (clue === 9 && !used) {
+			if (isSloop(i) && !used) {
 				return false;
 			}
 			if (clue === 16 && !used) {
+				return false;
+			}
+			if (!isCrossingCell(i) && (visitCount[i] || 0) > 1) {
+				return false;
+			}
+			if ((visitCount[i] || 0) > 0 && idxToCell(i).lcnt === 4 && (visitCount[i] || 0) !== 2) {
 				return false;
 			}
 		}
@@ -540,10 +640,13 @@ async function solveTravelLinePuzzle(requestId) {
 			var cur = path[p];
 			var next = path[p + 1];
 			var q = getClue(cur);
-			if ((q === 2 || q === 3 || q === 7) && !isStraight(prev, cur, next)) {
+			if ((isIce(cur) || q === 3 || q === 7) && !isStraight(prev, cur, next)) {
 				return false;
 			}
 			if ((q === 4 || q === 8) && !isCurve(prev, cur, next)) {
+				return false;
+			}
+			if (isCwFloor(cur) && isCurve(prev, cur, next) && !isClockwiseTurn(prev, cur, next)) {
 				return false;
 			}
 		}
@@ -585,22 +688,22 @@ async function solveTravelLinePuzzle(requestId) {
 
 		for (var n = 0; n < total; n++) {
 			var cell = idxToCell(n);
-			if (cell.qnum === 5 && visited[n]) {
+			if (isNoTouch(n) && visitCount[n] > 0) {
 				var adj = neighbors(n);
 				for (var a = 0; a < adj.length; a++) {
 					var other = adj[a];
-					if (idxToCell(other).qnum === 5 && visited[other]) {
+					if (isNoTouch(other) && visitCount[other] > 0) {
 						if (!visitedPair(path, n, other)) {
 							return false;
 						}
 					}
 				}
 			}
-			if (cell.qnum === 6 && !visited[n]) {
+			if (!(visitCount[n] > 0) && isNoAdj(n)) {
 				var adj2 = neighbors(n);
 				for (var b = 0; b < adj2.length; b++) {
 					var other2 = adj2[b];
-					if (idxToCell(other2).qnum === 6 && !visited[other2]) {
+					if (isNoAdj(other2) && !(visitCount[other2] > 0)) {
 						return false;
 					}
 				}
@@ -617,8 +720,8 @@ async function solveTravelLinePuzzle(requestId) {
 			}
 			var c1 = border.sidecell[0];
 			var c2 = border.sidecell[1];
-			var v1 = !c1.isnull && visited[c1.id];
-			var v2 = !c2.isnull && visited[c2.id];
+			var v1 = !c1.isnull && visitCount[c1.id] > 0;
+			var v2 = !c2.isnull && visitCount[c2.id] > 0;
 			if (!v1 && !v2) {
 				return false;
 			}
@@ -648,7 +751,7 @@ async function solveTravelLinePuzzle(requestId) {
 					if (nextCell.isnull) {
 						break;
 					}
-					if (nextCell.qnum !== 1 && !visited[nextCell.id]) {
+					if (nextCell.qnum !== 1 && !(visitCount[nextCell.id] > 0)) {
 						count++;
 					}
 				}
@@ -756,10 +859,11 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 
 		var path = [start];
-		var visited = {};
-		visited[start] = true;
+		var visitCount = {};
+		visitCount[start] = 1;
 		var found = null;
 		var edgeMask = 0n;
+		var finishedCrossMask = {};
 		var failedStateCache = new Set();
 
 		function moveRespectsForced(current, next) {
@@ -767,7 +871,57 @@ async function solveTravelLinePuzzle(requestId) {
 			return !forcedStates || forcedStates[border.id] !== false;
 		}
 		function getStateKey(current) {
-			return current + ":" + edgeMask.toString(36);
+			var crossKeys = [];
+			Object.keys(finishedCrossMask)
+				.sort(function(a, b) {
+					return +a - +b;
+				})
+				.forEach(function(id) {
+					if (finishedCrossMask[id]) {
+						crossKeys.push(id + ":" + finishedCrossMask[id]);
+					}
+				});
+			return current + ":" + edgeMask.toString(36) + ":" + crossKeys.join("|");
+		}
+		function canReenterCell(next, current) {
+			if (!isCrossingCell(next)) {
+				return false;
+			}
+			if ((visitCount[next] || 0) >= 2) {
+				return false;
+			}
+			var usedMask = finishedCrossMask[next] || 0;
+			if (!usedMask) {
+				return false;
+			}
+			var stepDir = direction(current, next);
+			var bit = stepDir.dx === 0 ? 1 : 2;
+			return (usedMask & bit) === 0;
+		}
+		function applyFinishedCellState() {
+			if (path.length < 3) {
+				return { ok: true, cellId: -1, prevMask: 0 };
+			}
+			var prev = path[path.length - 3];
+			var cur = path[path.length - 2];
+			var next = path[path.length - 1];
+			if (!validateFinishedCell(path, path.length - 2)) {
+				return { ok: false };
+			}
+			if (!isCrossingCell(cur)) {
+				return { ok: true, cellId: cur, prevMask: finishedCrossMask[cur] || 0 };
+			}
+			var oldMask = finishedCrossMask[cur] || 0;
+			var bit = orientationBit(prev, cur, next);
+			if (bit) {
+				if (oldMask & bit) {
+					return { ok: false };
+				}
+				finishedCrossMask[cur] = oldMask | bit;
+			} else if (oldMask) {
+				return { ok: false };
+			}
+			return { ok: true, cellId: cur, prevMask: oldMask };
 		}
 
 		async function search(current) {
@@ -787,14 +941,24 @@ async function solveTravelLinePuzzle(requestId) {
 
 			var remainingRequired = [];
 			for (var i = 0; i < required.length; i++) {
-				if (!visited[required[i]]) {
+				if (!(visitCount[required[i]] > 0)) {
 					remainingRequired.push(required[i]);
 				}
 			}
-			if (!reachableCheck(current, visited, remainingRequired)) {
+			if (!reachableCheck(current, visitCount, remainingRequired, edgeMask)) {
 				return;
 			}
-			if (!directedCluesPossible(path, visited)) {
+			if (
+				!crossingCellStillCompletable(
+					current,
+					visitCount,
+					finishedCrossMask,
+					edgeMask
+				)
+			) {
+				return;
+			}
+			if (!directedCluesPossible(path, visitCount)) {
 				return;
 			}
 			if (!orderSequencePossible(path)) {
@@ -813,7 +977,7 @@ async function solveTravelLinePuzzle(requestId) {
 			if (current === goal) {
 				var pathStates = getPathBorderStates(path);
 				if (
-					finalValidate(path, visited) &&
+					finalValidate(path, visitCount) &&
 					pathMatchesForcedStates(pathStates, forcedStates || {})
 				) {
 					found = path.slice();
@@ -823,7 +987,14 @@ async function solveTravelLinePuzzle(requestId) {
 
 			var solved = false;
 			var options = neighbors(current).filter(function(next) {
-				return !isBar(next) && !visited[next] && moveRespectsForced(current, next);
+				var border = getBorderBetweenCells(current, next);
+				return (
+					!isBar(next) &&
+					!isBorderUsed(border.id, edgeMask) &&
+					!(next === goal && remainingRequired.length > 0) &&
+					moveRespectsForced(current, next) &&
+					(!(visitCount[next] > 0) || canReenterCell(next, current))
+				);
 			});
 			options.sort(function(a, b) {
 				var borderA = getBorderBetweenCells(current, a);
@@ -844,15 +1015,28 @@ async function solveTravelLinePuzzle(requestId) {
 				var next = options[j];
 				var border = getBorderBetweenCells(current, next);
 				var prevMask = edgeMask;
+				var previousCount = visitCount[next] || 0;
 				edgeMask |= getBorderBit(border.id);
 				path.push(next);
-				visited[next] = true;
+				visitCount[next] = previousCount + 1;
 
-				if (path.length < 3 || validateFinishedCell(path, path.length - 2)) {
+				var finishedInfo = applyFinishedCellState();
+				if (finishedInfo.ok) {
 					await search(next);
 				}
 
-				delete visited[next];
+				if (finishedInfo.cellId >= 0) {
+					if (finishedInfo.prevMask) {
+						finishedCrossMask[finishedInfo.cellId] = finishedInfo.prevMask;
+					} else {
+						delete finishedCrossMask[finishedInfo.cellId];
+					}
+				}
+				if (previousCount > 0) {
+					visitCount[next] = previousCount;
+				} else {
+					delete visitCount[next];
+				}
 				path.pop();
 				edgeMask = prevMask;
 				if (found) {
@@ -1139,6 +1323,10 @@ async function runSolver() {
 
 	try {
 		if (isTravelLinePuzzle()) {
+			if (hasTravelLineCrossingSupportGap()) {
+				setStatus(messages.crossingUnsupported);
+				return;
+			}
 			clearCurrentAnswer();
 			setStatus(messages.solving);
 			var localResult = await solveTravelLinePuzzle(requestId);

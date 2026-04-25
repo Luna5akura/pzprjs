@@ -1,6 +1,13 @@
 //
 // Travel Line / travelline.js
 //
+var TL_FLOOR_FLAGS = {
+	ICE: 1,
+	NOTOUCH: 2,
+	NOADJ: 4,
+	SLOOP: 8,
+	CWFLOOR: 16
+};
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
 		module.exports = [pidlist, classbase];
@@ -17,6 +24,7 @@
 				"travel-sloop",
 				"travel-order",
 				"travel-ice",
+				"travel-cwfloor",
 				"travel-white",
 				"travel-black",
 				"travel-dotw",
@@ -198,14 +206,27 @@
 			if (cell.isnull) {
 				return;
 			}
+			var floorFlag = {
+				"travel-sloop": TL_FLOOR_FLAGS.SLOOP,
+				"travel-ice": TL_FLOOR_FLAGS.ICE,
+				"travel-notouch": TL_FLOOR_FLAGS.NOTOUCH,
+				"travel-noadj": TL_FLOOR_FLAGS.NOADJ,
+				"travel-cwfloor": TL_FLOOR_FLAGS.CWFLOOR
+			}[this.inputMode];
+			if (floorFlag) {
+				if (this.btn === "right") {
+					cell.removeFloorFlag(floorFlag);
+				} else {
+					cell.toggleFloorFlag(floorFlag);
+				}
+				cell.draw();
+				this.mousereset();
+				return;
+			}
 			var clue = {
 				bar: 1,
-				"travel-sloop": 9,
-				"travel-ice": 2,
 				"travel-white": 3,
 				"travel-black": 4,
-				"travel-notouch": 5,
-				"travel-noadj": 6,
 				"travel-dotw": 7,
 				"travel-dotb": 8
 			}[this.inputMode];
@@ -213,7 +234,6 @@
 				return;
 			}
 			if (this.btn === "right") {
-				cell.setQues(0);
 				cell.setQdir(0);
 				cell.setQnum(-1);
 				cell.setQnum2(-1);
@@ -368,6 +388,7 @@
 				cell.setQnum(-1);
 				cell.setQnum2(-1);
 				cell.setQdir(0);
+				cell.setQues(0);
 				cell.draw();
 				this.mousereset();
 				return;
@@ -401,8 +422,9 @@
 					qnum = 1;
 					break;
 				case "i":
-					qnum = 2;
-					break;
+					cell.toggleFloorFlag(TL_FLOOR_FLAGS.ICE);
+					cell.draw();
+					return;
 				case "w":
 					qnum = 3;
 					break;
@@ -410,11 +432,13 @@
 					qnum = 4;
 					break;
 				case "t":
-					qnum = 5;
-					break;
+					cell.toggleFloorFlag(TL_FLOOR_FLAGS.NOTOUCH);
+					cell.draw();
+					return;
 				case "a":
-					qnum = 6;
-					break;
+					cell.toggleFloorFlag(TL_FLOOR_FLAGS.NOADJ);
+					cell.draw();
+					return;
 				case "o":
 					qnum = 7;
 					break;
@@ -422,14 +446,19 @@
 					qnum = 8;
 					break;
 					case "s":
-						qnum = 9;
-						break;
+						cell.toggleFloorFlag(TL_FLOOR_FLAGS.SLOOP);
+						cell.draw();
+						return;
 					case "y":
 						qnum = 14;
 						break;
 					case "c":
 						qnum = 15;
 						break;
+					case "g":
+						cell.toggleFloorFlag(TL_FLOOR_FLAGS.CWFLOOR);
+						cell.draw();
+						return;
 					case "r":
 						qnum = 16;
 						break;
@@ -497,6 +526,28 @@
 		maxnum: 16,
 		minnum: 1,
 
+		hasFloorFlag: function(flag) {
+			return !!(this.ques & flag);
+		},
+		toggleFloorFlag: function(flag) {
+			this.setQues(this.ques ^ flag);
+		},
+		removeFloorFlag: function(flag) {
+			this.setQues(this.ques & ~flag);
+		},
+		setFloorFlag: function(flag) {
+			this.setQues(this.ques | flag);
+		},
+		isClockwiseTurn: function(prev, next) {
+			if (prev === null || next === null || prev === undefined || next === undefined) {
+				return true;
+			}
+			var dx1 = this.bx - this.board.cell[prev].bx;
+			var dy1 = this.by - this.board.cell[prev].by;
+			var dx2 = this.board.cell[next].bx - this.bx;
+			var dy2 = this.board.cell[next].by - this.by;
+			return dx1 * dy2 - dy1 * dx2 > 0;
+		},
 		noLP: function() {
 			return this.qnum === 1;
 		},
@@ -513,7 +564,7 @@
 			return this.qnum === 1;
 		},
 		isIce: function() {
-			return this.qnum === 2;
+			return this.qnum === 2 || this.hasFloorFlag(TL_FLOOR_FLAGS.ICE);
 		},
 		isWhitePearl: function() {
 			return this.qnum === 3;
@@ -522,10 +573,10 @@
 			return this.qnum === 4;
 		},
 		isNoTouch: function() {
-			return this.qnum === 5;
+			return this.qnum === 5 || this.hasFloorFlag(TL_FLOOR_FLAGS.NOTOUCH);
 		},
 		isNoAdj: function() {
-			return this.qnum === 6;
+			return this.qnum === 6 || this.hasFloorFlag(TL_FLOOR_FLAGS.NOADJ);
 		},
 		isDotWhite: function() {
 			return this.qnum === 7;
@@ -534,13 +585,16 @@
 			return this.qnum === 8;
 		},
 		isSloop: function() {
-			return this.qnum === 9;
+			return this.qnum === 9 || this.hasFloorFlag(TL_FLOOR_FLAGS.SLOOP);
 		},
 		isYajilin: function() {
 			return this.qnum === 14;
 		},
 		isCw: function() {
 			return this.qnum === 15;
+		},
+		isCwFloor: function() {
+			return this.hasFloorFlag(TL_FLOOR_FLAGS.CWFLOOR);
 		},
 		isOrder: function() {
 			return this.qnum === 16;
@@ -630,6 +684,10 @@
 	LineGraph: {
 		enabled: true,
 		makeClist: true,
+		isLineCross: true,
+		iscrossing: function(cell) {
+			return cell.isIce() || cell.isCwFloor();
+		},
 		rebuild2: function() {
 			var excells = this.board.excell;
 			for (var c = 0; c < excells.length; c++) {
@@ -778,6 +836,7 @@
 		icecolor: "rgb(163, 216, 255)",
 
 		paint: function() {
+			this._travelLineColorMap = null;
 			this.drawBGCells();
 			this.drawGrid();
 			this.drawBorders();
@@ -859,25 +918,56 @@
 			return rows;
 		},
 
+		mixTravelFloorColor: function(colors) {
+			var totalR = 0;
+			var totalG = 0;
+			var totalB = 0;
+			for (var i = 0; i < colors.length; i++) {
+				var match = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(colors[i]);
+				if (!match) {
+					continue;
+				}
+				totalR += +match[1];
+				totalG += +match[2];
+				totalB += +match[3];
+			}
+			var len = colors.length || 1;
+			return (
+				"rgb(" +
+				Math.round(totalR / len) +
+				"," +
+				Math.round(totalG / len) +
+				"," +
+				Math.round(totalB / len) +
+				")"
+			);
+		},
 		getBGCellColor: function(cell) {
 			var info = cell.error || cell.qinfo;
 			if (cell.isBar()) {
 				return info === 1 ? this.errcolor1 : this.shadecolor;
 			}
-			if (cell.isNoTouch()) {
-				return info === 1 ? this.errbcolor1 : "rgb(246, 207, 207)";
-			}
-			if (cell.isNoAdj()) {
-				return info === 1 ? this.errbcolor1 : "rgb(219, 240, 205)";
-			}
-			if (cell.isSloop()) {
-				return info === 1 ? this.errbcolor1 : "rgb(210,255,210)";
-			}
-			if (cell.isIce()) {
-				return info === 1 ? this.erricecolor : this.icecolor;
-			}
 			if (cell.isYajilin() || cell.isCw()) {
 				return info === 1 ? this.errbcolor1 : "rgb(224,224,224)";
+			}
+			var floors = [];
+			if (cell.isIce()) {
+				floors.push(this.icecolor);
+			}
+			if (cell.isNoTouch()) {
+				floors.push("rgb(246, 207, 207)");
+			}
+			if (cell.isNoAdj()) {
+				floors.push("rgb(219, 240, 205)");
+			}
+			if (cell.isSloop()) {
+				floors.push("rgb(210,255,210)");
+			}
+			if (cell.isCwFloor()) {
+				floors.push("rgb(214, 191, 255)");
+			}
+			if (floors.length) {
+				return info === 1 ? this.errbcolor1 : this.mixTravelFloorColor(floors);
 			}
 			if (info === 1) {
 				return this.errbcolor1;
@@ -901,6 +991,116 @@
 				return "#2f8f2f";
 			}
 			return border.ques ? this.quescolor : null;
+		},
+		getTravelLineConnectedBorders: function(cell, border) {
+			var adb = cell.adjborder;
+			var lines = [];
+			var dirs = ["top", "bottom", "left", "right"];
+			for (var i = 0; i < dirs.length; i++) {
+				var b = adb[dirs[i]];
+				if (b.isLine()) {
+					lines.push(b);
+				}
+			}
+			if (cell.lcnt === 2) {
+				return lines.filter(function(other) {
+					return other !== border;
+				});
+			}
+			if (cell.lcnt === 4 && (cell.isIce() || cell.isCwFloor())) {
+				if (border === adb.top) {
+					return adb.bottom.isLine() ? [adb.bottom] : [];
+				}
+				if (border === adb.bottom) {
+					return adb.top.isLine() ? [adb.top] : [];
+				}
+				if (border === adb.left) {
+					return adb.right.isLine() ? [adb.right] : [];
+				}
+				if (border === adb.right) {
+					return adb.left.isLine() ? [adb.left] : [];
+				}
+				return [];
+			}
+			return lines.filter(function(other) {
+				return other !== border;
+			});
+		},
+		getTravelLineColorMap: function() {
+			if (this._travelLineColorMap) {
+				return this._travelLineColorMap;
+			}
+			var bd = this.board;
+			var map = {};
+			var visited = {};
+			for (var i = 0; i < bd.border.length; i++) {
+				var start = bd.border[i];
+				if (!start.isLine() || visited[start.id]) {
+					continue;
+				}
+				var queue = [start];
+				var component = [];
+				visited[start.id] = true;
+				while (queue.length) {
+					var border = queue.shift();
+					component.push(border);
+					for (var s = 0; s < 2; s++) {
+						var cell = border.sidecell[s];
+						if (cell.isnull || cell.lcnt === 0) {
+							continue;
+						}
+						var nexts = this.getTravelLineConnectedBorders(cell, border);
+						for (var n = 0; n < nexts.length; n++) {
+							var next = nexts[n];
+							if (!visited[next.id]) {
+								visited[next.id] = true;
+								queue.push(next);
+							}
+						}
+					}
+				}
+				component.sort(function(a, b) {
+					return a.id - b.id;
+				});
+				var color = null;
+				for (var c = 0; c < component.length; c++) {
+					if (component[c].path && component[c].path.color) {
+						color = component[c].path.color;
+						break;
+					}
+				}
+				if (!color) {
+					color = this.getNewLineColor();
+				}
+				for (var j = 0; j < component.length; j++) {
+					map[component[j].id] = color;
+				}
+			}
+			this._travelLineColorMap = map;
+			return map;
+		},
+		getLineColor: function(border) {
+			if (border.isLine() && this.puzzle.execConfig("irowake")) {
+				var info = border.error || border.qinfo;
+				if (border.trial) {
+					this.addlw = -this.lm;
+				} else if (info === 1) {
+					this.addlw = 1;
+				} else {
+					this.addlw = 0;
+				}
+				if (info === 1) {
+					return this.errlinecolor;
+				}
+				if (info === -1) {
+					return this.noerrcolor;
+				}
+				return (
+					this.getTravelLineColorMap()[border.id] ||
+					(border.trial ? this.linetrialcolor : this.linecolor)
+				);
+			}
+			return this.common.getLineColor.call(this, border);
 		},
 
 		drawCellClues: function() {
@@ -1121,13 +1321,16 @@
 				this.decodeNumber16();
 				this.decodeCrossExtras();
 				this.decodeDirectedCellExtras();
+				this.decodeFloorCellExtras();
 				this.decodeInOut();
+				this.normalizeLegacyFloorClues();
 			},
 			encodePzpr: function() {
 				this.encodeBorder();
 				this.encodeNumber16();
 				this.encodeCrossExtras();
 				this.encodeDirectedCellExtras();
+				this.encodeFloorCellExtras();
 				this.encodeInOut();
 			},
 		decodeCrossExtras: function() {
@@ -1244,6 +1447,59 @@
 				}
 				this.outbstr += "/" + (list.length ? list.join("+") : "-");
 			},
+			decodeFloorCellExtras: function() {
+				var barray = this.outbstr.split("/");
+				if (barray.length <= 3) {
+					return;
+				}
+				var seg = barray[1] || "-";
+				var bd = this.board;
+				if (seg !== "-") {
+					var items = seg.split("+");
+					for (var i = 0; i < items.length; i++) {
+						if (!items[i]) {
+							continue;
+						}
+						var parts = items[i].split(".");
+						var id = parseInt(parts[0], 36);
+						var cell = bd.cell[id];
+						if (!cell || parts[1] !== "f") {
+							continue;
+						}
+						cell.ques = parseInt(parts[2], 36) || 0;
+					}
+				}
+				this.outbstr = "/" + barray.slice(2).join("/");
+			},
+			encodeFloorCellExtras: function() {
+				var list = [];
+				for (var i = 0; i < this.board.cell.length; i++) {
+					var cell = this.board.cell[i];
+					if (!cell.ques) {
+						continue;
+					}
+					list.push(i.toString(36) + ".f." + cell.ques.toString(36));
+				}
+				this.outbstr += "/" + (list.length ? list.join("+") : "-");
+			},
+			normalizeLegacyFloorClues: function() {
+				for (var i = 0; i < this.board.cell.length; i++) {
+					var cell = this.board.cell[i];
+					if (cell.qnum === 2) {
+						cell.setFloorFlag(TL_FLOOR_FLAGS.ICE);
+						cell.qnum = -1;
+					} else if (cell.qnum === 5) {
+						cell.setFloorFlag(TL_FLOOR_FLAGS.NOTOUCH);
+						cell.qnum = -1;
+					} else if (cell.qnum === 6) {
+						cell.setFloorFlag(TL_FLOOR_FLAGS.NOADJ);
+						cell.qnum = -1;
+					} else if (cell.qnum === 9) {
+						cell.setFloorFlag(TL_FLOOR_FLAGS.SLOOP);
+						cell.qnum = -1;
+					}
+				}
+			},
 			decodeInOut: function() {
 			var barray = this.outbstr.split("/");
 			var bd = this.board;
@@ -1277,16 +1533,25 @@
 						cell.qnum = 14;
 						cell.qdir = +parts[1];
 						cell.qnum2 = +parts[2];
+						cell.ques = parts[3] ? +parts[3] : 0;
 					} else if (parts[0] === "C") {
 						cell.qnum = 15;
 						cell.qdir = +parts[1];
 						cell.qnum2 = +parts[2];
+						cell.ques = parts[3] ? +parts[3] : 0;
 					} else if (parts[0] === "O") {
 						cell.qnum = 16;
 						cell.qdir = 0;
 						cell.qnum2 = +parts[1];
+						cell.ques = parts[2] ? +parts[2] : 0;
+					} else if (parts[0] === "F") {
+						cell.qnum = -1;
+						cell.qdir = 0;
+						cell.qnum2 = -1;
+						cell.ques = +parts[1];
 					} else {
 						cell.qnum = +parts[0];
+						cell.ques = parts[1] ? +parts[1] : 0;
 					}
 				});
 				this.decodeCross(function(cross, ca) {
@@ -1294,6 +1559,7 @@
 						cross.qnum = +ca;
 					}
 				});
+				this.normalizeLegacyFloorClues();
 				this.decodeBorderArrowAns();
 			},
 			encodeData: function() {
@@ -1302,15 +1568,18 @@
 				this.encodeBorderQues();
 				this.encodeCell(function(cell) {
 					if (cell.qnum === 14) {
-						return "Y," + cell.qdir + "," + Math.max(cell.qnum2, 0) + " ";
+						return "Y," + cell.qdir + "," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
 					}
 					if (cell.qnum === 15) {
-						return "C," + cell.qdir + "," + Math.max(cell.qnum2, 0) + " ";
+						return "C," + cell.qdir + "," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
 					}
 					if (cell.qnum === 16) {
-						return "O," + Math.max(cell.qnum2, 0) + " ";
+						return "O," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
 					}
-					return cell.qnum >= 0 ? cell.qnum + " " : ". ";
+					if (cell.qnum >= 0) {
+						return cell.qnum + "," + (cell.ques || 0) + " ";
+					}
+					return cell.ques ? "F," + cell.ques + " " : ". ";
 				});
 				this.encodeCross(function(cross) {
 					return cross.qnum !== -1 ? cross.qnum + " " : ". ";
@@ -1344,6 +1613,7 @@
 			"checkOrderClues",
 			"checkNoLineOnBar",
 			"checkIceStraight",
+			"checkClockwiseFloors",
 			"checkDotWhite",
 			"checkDotBlack",
 			"checkWhitePearl",
@@ -1379,10 +1649,18 @@
 				return cell.lcnt === 1;
 			}, "lnDeadEnd");
 		},
+		checkCrossLine: function() {
+			this.checkAllCell(function(cell) {
+				return cell.lcnt === 4 && !cell.isIce() && !cell.isCwFloor();
+			}, "lnCross");
+		},
 
 		checkTravelPath: function() {
 			var info = this.getTraceInfo();
-			if (info.lastborder !== this.board.arrowout.getb()) {
+			if (
+				info.lastborder !== this.board.arrowout.getb() ||
+				info.blist.length !== info.totalLineCount
+			) {
 				this.failcode.add("tlBadRoute");
 				if (!this.checkOnly) {
 					this.board.border.setnoerr();
@@ -1574,10 +1852,10 @@
 					last = cell.qnum2;
 				}
 
-				var nextborder = this.getNextStep(prevBorder, cell);
-				if (!nextborder || !nextborder.inside) {
-					break;
-				}
+					var nextborder = this.getExitBorder(prevBorder, cell);
+					if (!nextborder || !nextborder.inside) {
+						break;
+					}
 				cell =
 					nextborder.sidecell[0] === cell
 						? nextborder.sidecell[1]
@@ -1609,47 +1887,79 @@
 			}
 		},
 
-		getTraceInfo: function() {
-			var board = this.board;
-			var startBorder = board.arrowin.getb();
-			var goalBorder = board.arrowout.getb();
-			var prevBorder = startBorder;
-			var cell = board.getStartCell();
-			var blist = new this.klass.BorderList();
-			var lastborder = startBorder;
-			var lastcell = board.emptycell;
-			blist.add(startBorder);
-
-			while (!cell.isnull && cell.lcnt > 0) {
-				lastcell = cell;
-				var nextborder = this.getNextStep(prevBorder, cell);
-				if (!nextborder) {
-					break;
+			getTraceInfo: function() {
+				var board = this.board;
+				var startBorder = board.arrowin.getb();
+				var goalBorder = board.arrowout.getb();
+				var prevBorder = startBorder;
+				var cell = board.getStartCell();
+				var blist = new this.klass.BorderList();
+				var lastborder = startBorder;
+				var lastcell = board.emptycell;
+				var visitedBorders = {};
+				var totalLineCount = 0;
+				for (var i = 0; i < board.border.length; i++) {
+					if (board.border[i].isLine()) {
+						totalLineCount++;
+					}
 				}
-				blist.add(nextborder);
-				lastborder = nextborder;
-				if (nextborder === goalBorder || !nextborder.inside) {
-					break;
-				}
-				cell =
-					nextborder.sidecell[0] === cell
-						? nextborder.sidecell[1]
-						: nextborder.sidecell[0];
-				prevBorder = nextborder;
-				if (cell.isnull || cell.lcnt !== 2) {
-					break;
-				}
-			}
+				blist.add(startBorder);
+				visitedBorders[startBorder.id] = true;
 
-			return { lastcell: lastcell, lastborder: lastborder, blist: blist };
-		},
+				while (!cell.isnull && cell.lcnt > 0) {
+					lastcell = cell;
+					var nextborder = this.getExitBorder(prevBorder, cell);
+					if (!nextborder) {
+						break;
+					}
+					if (visitedBorders[nextborder.id]) {
+						break;
+					}
+					blist.add(nextborder);
+					visitedBorders[nextborder.id] = true;
+					lastborder = nextborder;
+					if (nextborder === goalBorder || !nextborder.inside) {
+						break;
+					}
+					cell =
+						nextborder.sidecell[0] === cell
+							? nextborder.sidecell[1]
+							: nextborder.sidecell[0];
+					prevBorder = nextborder;
+					if (cell.isnull || (cell.lcnt !== 2 && cell.lcnt !== 4)) {
+						break;
+					}
+				}
 
-		getNextStep: function(prevBorder, cell) {
-			var adb = cell.adjborder;
-			var nexts = [adb.top, adb.bottom, adb.left, adb.right];
-			for (var i = 0; i < nexts.length; i++) {
-				if (nexts[i].isLine() && nexts[i] !== prevBorder) {
-					return nexts[i];
+				return {
+					lastcell: lastcell,
+					lastborder: lastborder,
+					blist: blist,
+					totalLineCount: totalLineCount
+				};
+			},
+
+			getExitBorder: function(prevBorder, cell) {
+				var adb = cell.adjborder;
+				if (cell.lcnt === 4) {
+					if (prevBorder === adb.top) {
+						return adb.bottom.isLine() ? adb.bottom : null;
+					}
+					if (prevBorder === adb.bottom) {
+						return adb.top.isLine() ? adb.top : null;
+					}
+					if (prevBorder === adb.left) {
+						return adb.right.isLine() ? adb.right : null;
+					}
+					if (prevBorder === adb.right) {
+						return adb.left.isLine() ? adb.left : null;
+					}
+					return null;
+				}
+				var nexts = [adb.top, adb.bottom, adb.left, adb.right];
+				for (var i = 0; i < nexts.length; i++) {
+					if (nexts[i].isLine() && nexts[i] !== prevBorder) {
+						return nexts[i];
 				}
 			}
 			return null;
@@ -1662,8 +1972,49 @@
 		},
 		checkIceStraight: function() {
 			this.checkAllCell(function(cell) {
-				return cell.isIce() && cell.lcnt > 0 && !cell.isLineStraightTravel();
+				return (
+					cell.isIce() &&
+					cell.lcnt > 0 &&
+					cell.lcnt !== 4 &&
+					!cell.isLineStraightTravel()
+				);
 			}, "tlIceTurn");
+		},
+		checkClockwiseFloors: function() {
+			var bd = this.board;
+			var prevBorder = bd.arrowin.getb();
+			var cell = bd.getStartCell();
+			var prevCell = null;
+
+			while (!cell.isnull && cell.lcnt > 0) {
+				var nextborder = this.getExitBorder(prevBorder, cell);
+				var nextCell = null;
+				if (nextborder && nextborder.inside) {
+					nextCell =
+						nextborder.sidecell[0] === cell
+							? nextborder.sidecell[1]
+							: nextborder.sidecell[0];
+				}
+				if (
+					cell.isCwFloor() &&
+					prevCell !== null &&
+					nextCell !== null &&
+					cell.isLineCurveTravel() &&
+					!cell.isClockwiseTurn(prevCell.id, nextCell.id)
+				) {
+					this.failcode.add("tlCwFloor");
+					if (!this.checkOnly) {
+						cell.seterr(1);
+					}
+					return;
+				}
+				if (!nextborder || !nextborder.inside) {
+					break;
+				}
+				prevCell = cell;
+				cell = nextCell;
+				prevBorder = nextborder;
+			}
 		},
 		checkDotWhite: function() {
 			this.checkAllCell(function(cell) {
@@ -1846,6 +2197,7 @@
 		tlBadRoute: ["線が入口セルから出口セルまで一続きになっていません。", "The path does not connect the IN cell to the OUT cell."],
 		tlBarLine: ["黒マスを線が通っています。", "A Bar clue cell is crossed by the path."],
 		tlIceTurn: ["アイスのマスで線が曲がっています。", "The path turns on an Ice clue cell."],
+		tlCwFloor: ["Clockwise floor のマスでは右折しかできません。", "A Clockwise floor cell only allows right turns."],
 		tlDotWhite: ["白ダイヤのマスは直進しなければなりません。", "A white dot clue cell must be passed straight."],
 		tlDotBlack: ["黒ダイヤのマスは曲がらなければなりません。", "A black dot clue cell must turn."],
 		tlWhitePearl: ["白丸の条件を満たしていません。", "A white pearl condition is violated."],
