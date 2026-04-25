@@ -22,13 +22,8 @@ function getMessages() {
 				applied: function(count) {
 					return count + " 個の結果を反映しました";
 				},
-				partial: function(count, solutions) {
-					return (
-						solutions +
-						" 通りの全解に共通する " +
-						count +
-						" 個の結果を反映しました"
-					);
+				partial: function(count) {
+					return count + " 個の確定結果を反映しました";
 				},
 				noChange: "反映できる新規結果はありません",
 				cleared: "手入力を検出したため回答を消去しました",
@@ -45,15 +40,12 @@ function getMessages() {
 				applied: function(count) {
 					return "applied " + count + " solver result" + (count === 1 ? "" : "s");
 				},
-				partial: function(count, solutions) {
+				partial: function(count) {
 					return (
 						"applied " +
 						count +
 						" irrefutable solver result" +
-						(count === 1 ? "" : "s") +
-						" shared by all " +
-						solutions +
-						" solutions"
+						(count === 1 ? "" : "s")
 					);
 				},
 				noChange: "no solver result could be applied",
@@ -237,6 +229,50 @@ function solveTravelLinePuzzle() {
 			return false;
 		}
 		return visitedPair(path, c1.id, c2.id);
+	}
+	function getBorderBetweenCells(a, b) {
+		var cellA = idxToCell(a);
+		var cellB = idxToCell(b);
+		return board.getb((cellA.bx + cellB.bx) >> 1, (cellA.by + cellB.by) >> 1);
+	}
+	function cloneStateMap(source) {
+		var copy = {};
+		if (!source) {
+			return copy;
+		}
+		Object.keys(source).forEach(function(key) {
+			copy[key] = source[key];
+		});
+		return copy;
+	}
+	function borderTouchesClue(border) {
+		var c1 = border.sidecell[0];
+		var c2 = border.sidecell[1];
+		return (
+			(!c1.isnull && c1.qnum >= 0) ||
+			(!c2.isnull && c2.qnum >= 0) ||
+			(border.inside &&
+				(border.ques > 0 ||
+					border.sidecross[0].qnum >= 0 ||
+					border.sidecross[1].qnum >= 0))
+		);
+	}
+	function borderPriority(borderId, baseStates) {
+		var border = board.border[borderId];
+		var score = 0;
+		if (baseStates[borderId]) {
+			score += 50;
+		}
+		if (borderTouchesClue(border)) {
+			score += 100;
+		}
+		if (startBorder && borderId === startBorder.id) {
+			score += 1000;
+		}
+		if (goalBorder && borderId === goalBorder.id) {
+			score += 1000;
+		}
+		return score;
 	}
 	function crossLineCount(cross, path) {
 		var count = 0;
@@ -601,16 +637,26 @@ function solveTravelLinePuzzle() {
 		}
 		return statesByBorder;
 	}
-	function applyTravelLineConsensus(commonStates, solutionCount) {
+	function pathMatchesForcedStates(pathStates, forcedStates) {
+		var ids = Object.keys(forcedStates);
+		for (var i = 0; i < ids.length; i++) {
+			var id = ids[i];
+			if (pathStates[id] !== forcedStates[id]) {
+				return false;
+			}
+		}
+		return true;
+	}
+	function applyTravelLineIrrefutable(irrefutableStates) {
 		var changed = 0;
 		withSuppressedHistory(function() {
 			ui.puzzle.opemgr.newOperation();
-			Object.keys(commonStates).forEach(function(id) {
+			Object.keys(irrefutableStates).forEach(function(id) {
 				var border = board.border[+id];
 				if (!border) {
 					return;
 				}
-				if (commonStates[id]) {
+				if (irrefutableStates[id]) {
 					if (!border.isLine()) {
 						border.setLine();
 						changed++;
@@ -626,26 +672,104 @@ function solveTravelLinePuzzle() {
 		hasSolverState = changed > 0;
 		return {
 			changed: changed,
-			solutions: solutionCount,
-			partial: solutionCount > 1
+			partial: true
 		};
-	}
-	function mergeCommonStates(commonStates, path) {
-		var pathStates = getPathBorderStates(path);
-		if (commonStates === null) {
-			return pathStates;
-		}
-		Object.keys(commonStates).forEach(function(id) {
-			if (commonStates[id] !== pathStates[id]) {
-				delete commonStates[id];
-			}
-		});
-		return commonStates;
 	}
 	function throwIncomplete() {
 		var error = new Error("travel line solver did not finish exhaustive deduction");
 		error.code = "TL_INCOMPLETE";
 		throw error;
+	}
+	function findTravelLineSolution(forcedStates, preferredStates) {
+		var path = [start];
+		var visited = {};
+		visited[start] = true;
+		var found = null;
+
+		function moveRespectsForced(current, next) {
+			var border = getBorderBetweenCells(current, next);
+			return !forcedStates || forcedStates[border.id] !== false;
+		}
+
+		function search(current) {
+			states++;
+			if (states > maxStates || Date.now() > deadline) {
+				throwIncomplete();
+			}
+			if (found) {
+				return;
+			}
+
+			var remainingRequired = [];
+			for (var i = 0; i < required.length; i++) {
+				if (!visited[required[i]]) {
+					remainingRequired.push(required[i]);
+				}
+			}
+			if (!reachableCheck(current, visited, remainingRequired)) {
+				return;
+			}
+			if (!directedCluesPossible(path, visited)) {
+				return;
+			}
+
+			for (var crossId = 0; crossId < board.cross.length; crossId++) {
+				var cross = board.cross[crossId];
+				if (cross.qnum >= 0 && cross.qnum <= 4) {
+					if (crossLineCount(cross, path) > cross.qnum) {
+						return;
+					}
+				}
+			}
+
+			if (current === goal) {
+				var pathStates = getPathBorderStates(path);
+				if (
+					finalValidate(path, visited) &&
+					pathMatchesForcedStates(pathStates, forcedStates || {})
+				) {
+					found = path.slice();
+				}
+				return;
+			}
+
+			var options = neighbors(current).filter(function(next) {
+				return !isBar(next) && !visited[next] && moveRespectsForced(current, next);
+			});
+			options.sort(function(a, b) {
+				var borderA = getBorderBetweenCells(current, a);
+				var borderB = getBorderBetweenCells(current, b);
+				var preferA =
+					preferredStates && preferredStates[borderA.id] ? 0 : 1;
+				var preferB =
+					preferredStates && preferredStates[borderB.id] ? 0 : 1;
+				if (preferA !== preferB) {
+					return preferA - preferB;
+				}
+				var sa = requiredVisit(a) ? 0 : a === goal ? 1 : 2;
+				var sb = requiredVisit(b) ? 0 : b === goal ? 1 : 2;
+				return sa - sb;
+			});
+
+			for (var j = 0; j < options.length; j++) {
+				var next = options[j];
+				path.push(next);
+				visited[next] = true;
+
+				if (path.length < 3 || validateFinishedCell(path, path.length - 2)) {
+					search(next);
+				}
+
+				delete visited[next];
+				path.pop();
+				if (found) {
+					return;
+				}
+			}
+		}
+
+		search(start);
+		return found;
 	}
 
 	if (isBar(start) || isBar(goal)) {
@@ -659,78 +783,44 @@ function solveTravelLinePuzzle() {
 		}
 	}
 
-	var path = [start];
-	var visited = {};
-	visited[start] = true;
-	var solutionCount = 0;
-	var commonStates = null;
-
-	function dfs(current) {
-		states++;
-		if (states > maxStates || Date.now() > deadline) {
-			throwIncomplete();
-		}
-
-		var remainingRequired = [];
-		for (var i = 0; i < required.length; i++) {
-			if (!visited[required[i]]) {
-				remainingRequired.push(required[i]);
-			}
-		}
-		if (!reachableCheck(current, visited, remainingRequired)) {
-			return;
-		}
-		if (!directedCluesPossible(path, visited)) {
-			return;
-		}
-
-		for (var crossId = 0; crossId < board.cross.length; crossId++) {
-			var cross = board.cross[crossId];
-			if (cross.qnum >= 0 && cross.qnum <= 4) {
-				if (crossLineCount(cross, path) > cross.qnum) {
-					return;
-				}
-			}
-		}
-
-		if (current === goal) {
-			if (finalValidate(path, visited)) {
-				solutionCount++;
-				commonStates = mergeCommonStates(commonStates, path);
-			}
-			return;
-		}
-
-		var options = neighbors(current).filter(function(next) {
-			return !isBar(next) && !visited[next];
-		});
-		options.sort(function(a, b) {
-			var sa = requiredVisit(a) ? 0 : a === goal ? 1 : 2;
-			var sb = requiredVisit(b) ? 0 : b === goal ? 1 : 2;
-			return sa - sb;
-		});
-
-		for (var j = 0; j < options.length; j++) {
-			var next = options[j];
-			path.push(next);
-			visited[next] = true;
-
-			if (path.length < 3 || validateFinishedCell(path, path.length - 2)) {
-				dfs(next);
-			}
-
-			delete visited[next];
-			path.pop();
-		}
-
-		return;
-	}
-
-	dfs(start);
-	if (!solutionCount) {
+	var basePath = findTravelLineSolution({}, null);
+	if (!basePath) {
 		throw new Error("travel line solver found no solution");
 	}
-	return applyTravelLineConsensus(commonStates, solutionCount);
+	var baseStates = getPathBorderStates(basePath);
+	var irrefutableStates = {};
+	if (startBorder) {
+		irrefutableStates[startBorder.id] = true;
+	}
+	if (goalBorder) {
+		irrefutableStates[goalBorder.id] = true;
+	}
+	var candidateBorders = [];
+	for (var borderId = 0; borderId < board.border.length; borderId++) {
+		var border = board.border[borderId];
+		if (border.isnull || !border.inside) {
+			continue;
+		}
+		candidateBorders.push(borderId);
+	}
+	candidateBorders.sort(function(a, b) {
+		return borderPriority(b, baseStates) - borderPriority(a, baseStates);
+	});
+
+	for (var i = 0; i < candidateBorders.length; i++) {
+		var borderId = candidateBorders[i];
+		if (irrefutableStates[borderId] !== undefined) {
+			continue;
+		}
+		var forcedStates = cloneStateMap(irrefutableStates);
+		forcedStates[borderId] = !baseStates[borderId];
+		var altPath = findTravelLineSolution(forcedStates, baseStates);
+		if (!altPath) {
+			irrefutableStates[borderId] = baseStates[borderId];
+		}
+	}
+
+	return applyTravelLineIrrefutable(irrefutableStates);
 }
 
 function getItemKind(item) {
@@ -955,7 +1045,7 @@ async function runSolver() {
 			if (localResult.changed > 0) {
 				setStatus(
 					localResult.partial
-						? messages.partial(localResult.changed, localResult.solutions)
+						? messages.partial(localResult.changed)
 						: messages.applied(localResult.changed)
 				);
 			} else {
