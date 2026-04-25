@@ -15,6 +15,7 @@
 				"arrow",
 				"bar",
 				"travel-sloop",
+				"travel-order",
 				"travel-ice",
 				"travel-white",
 				"travel-black",
@@ -47,6 +48,10 @@
 					this.inputMode === "travel-required"
 					) {
 						this.inputCountry();
+						return;
+					}
+					if (this.inputMode === "travel-order") {
+						this.inputOrderClue();
 						return;
 					}
 					if (this.isDirectedInputMode()) {
@@ -106,6 +111,8 @@
 				this.inputMode === "travel-required"
 				) {
 					this.inputCountry();
+				} else if (this.inputMode === "travel-order") {
+					this.inputOrderClue();
 				} else if (this.isDirectedInputMode()) {
 					this.inputDirectedClue();
 				} else if (this.isCrossInputMode()) {
@@ -220,69 +227,90 @@
 			cell.draw();
 			this.mousereset();
 		},
-		inputDirectedClue: function() {
+		inputOrderClue: function() {
+			if (!this.mousestart) {
+				return;
+			}
 			var cell = this.getcell();
-			if (this.mousestart) {
-				if (cell.isnull) {
-					return;
-				}
-				this.mouseCell = cell;
-				this.firstCell = cell;
-				this.inputData = 0;
+			if (cell.isnull) {
 				return;
 			}
-			if (this.mousemove) {
-				if (this.firstCell.isnull || cell.isnull) {
-					return;
+			if (this.btn === "right") {
+				if (cell.qnum === 16 && cell.qnum2 > 0) {
+					cell.setQnum2(cell.qnum2 - 1);
+				} else {
+					cell.setQnum(-1);
+					cell.setQnum2(-1);
+					cell.setQdir(0);
 				}
-				var dx = cell.bx - this.firstCell.bx;
-				var dy = cell.by - this.firstCell.by;
-				if (Math.abs(dx) + Math.abs(dy) < 2) {
-					return;
+			} else {
+				if (cell.qnum !== 16) {
+					cell.setQnum(16);
+					cell.setQnum2(0);
+					cell.setQdir(0);
+				} else {
+					cell.setQnum2(Math.min((cell.qnum2 >= 0 ? cell.qnum2 : 0) + 1, 51));
 				}
-				var dir =
-					Math.abs(dx) > Math.abs(dy)
-						? dx > 0
-							? cell.RT
-							: cell.LT
-						: dy > 0
-						? cell.DN
-						: cell.UP;
-				var type = this.inputMode === "travel-yajilin" ? 14 : 15;
-				if (this.firstCell.qnum !== type) {
-					this.firstCell.setQnum(type);
-					this.firstCell.setQnum2(0);
-				}
-				this.firstCell.setQdir(dir);
-				this.firstCell.draw();
-				this.inputData = 1;
+			}
+			cell.draw();
+			this.mousereset();
+		},
+		inputDirectedClue: function() {
+			if (this.mousestart || this.mousemove) {
+				this.inputDirectedArrow();
 				return;
 			}
-			if (!this.mouseend || this.firstCell.isnull) {
+			if (this.mouseend && this.notInputted()) {
+				this.inputDirectedNumber();
+			}
+		},
+		inputDirectedArrow: function() {
+			var pos = this.getpos(0);
+			if (this.prevPos.equals(pos)) {
 				return;
 			}
 
-			var target = this.firstCell;
-			var clueType = this.inputMode === "travel-yajilin" ? 14 : 15;
-			if (this.inputData !== 1) {
-				if (this.btn === "right") {
-					if (target.qnum === clueType && target.qnum2 > 0) {
-						target.setQnum2(target.qnum2 - 1);
-					} else {
-						target.setQnum(-1);
-						target.setQnum2(-1);
-						target.setQdir(0);
-					}
-				} else {
-					if (target.qnum !== clueType) {
-						target.setQnum(clueType);
-						target.setQnum2(0);
-						target.setQdir(target.UP);
-					}
-					target.setQnum2((target.qnum2 >= 0 ? target.qnum2 : 0) + 1);
+			var type = this.inputMode === "travel-yajilin" ? 14 : 15;
+			var cell = this.prevPos.getc();
+			if (!cell.isnull && cell.qnum === type) {
+				var dir = this.prevPos.getdir(pos, 2);
+				if (dir !== cell.NDIR) {
+					cell.setQdir(cell.qdir !== dir ? dir : 0);
+					cell.draw();
 				}
-				target.draw();
 			}
+			this.prevPos = pos;
+		},
+		inputDirectedNumber: function() {
+			var cell = this.getcell();
+			if (cell.isnull) {
+				return;
+			}
+			var clueType = this.inputMode === "travel-yajilin" ? 14 : 15;
+			if (this.btn === "right") {
+				if (cell.qnum === clueType && cell.qnum2 >= 0) {
+					if (cell.qnum2 > 0) {
+						cell.setQnum2(cell.qnum2 - 1);
+					} else {
+						cell.setQnum(-1);
+						cell.setQnum2(-1);
+						cell.setQdir(0);
+					}
+				} else if (cell.qnum !== clueType) {
+					return;
+				} else {
+					cell.setQnum2(cell.qnum2 - 1);
+				}
+			} else {
+				if (cell.qnum !== clueType) {
+					cell.setQnum(clueType);
+					cell.setQnum2(0);
+					cell.setQdir(cell.UP);
+				} else {
+					cell.setQnum2((cell.qnum2 >= 0 ? cell.qnum2 : 0) + 1);
+				}
+			}
+			cell.draw();
 			this.mousereset();
 		},
 		inputCrossClue: function() {
@@ -402,6 +430,9 @@
 					case "c":
 						qnum = 15;
 						break;
+					case "r":
+						qnum = 16;
+						break;
 					case " ":
 				case "BS":
 				case "-":
@@ -413,6 +444,9 @@
 				if (qnum === 14 || qnum === 15) {
 					cell.setQnum2(cell.qnum2 >= 0 ? cell.qnum2 : 0);
 					cell.setQdir(cell.qdir || cell.UP);
+				} else if (qnum === 16) {
+					cell.setQnum2(cell.qnum2 >= 0 ? cell.qnum2 : 0);
+					cell.setQdir(0);
 				} else {
 					cell.setQnum2(-1);
 					cell.setQdir(0);
@@ -460,7 +494,7 @@
 	},
 
 	Cell: {
-		maxnum: 15,
+		maxnum: 16,
 		minnum: 1,
 
 		noLP: function() {
@@ -507,6 +541,9 @@
 		},
 		isCw: function() {
 			return this.qnum === 15;
+		},
+		isOrder: function() {
+			return this.qnum === 16;
 		},
 		isLineStraightTravel: function() {
 			return (
@@ -744,6 +781,7 @@
 			this.drawBGCells();
 			this.drawGrid();
 			this.drawBorders();
+			this.drawArrowNumbers();
 			this.drawLines();
 			this.drawPekes();
 			this.drawBorderAuxDir();
@@ -826,16 +864,36 @@
 			if (cell.isBar()) {
 				return info === 1 ? this.errcolor1 : this.shadecolor;
 			}
+			if (cell.isNoTouch()) {
+				return info === 1 ? this.errbcolor1 : "rgb(246, 207, 207)";
+			}
+			if (cell.isNoAdj()) {
+				return info === 1 ? this.errbcolor1 : "rgb(219, 240, 205)";
+			}
 			if (cell.isSloop()) {
 				return info === 1 ? this.errbcolor1 : "rgb(210,255,210)";
 			}
 			if (cell.isIce()) {
 				return info === 1 ? this.erricecolor : this.icecolor;
 			}
+			if (cell.isYajilin() || cell.isCw()) {
+				return info === 1 ? this.errbcolor1 : "rgb(224,224,224)";
+			}
 			if (info === 1) {
 				return this.errbcolor1;
 			}
 			return null;
+		},
+
+		getQuesNumberText: function(cell) {
+			if (cell.isYajilin() || cell.isCw()) {
+				return this.getNumberTextCore(Math.max(cell.qnum2, 0));
+			}
+			return "";
+		},
+
+		getQuesNumberColor: function(cell) {
+			return (cell.error || cell.qinfo) === 1 ? this.errcolor1 : this.quescolor;
 		},
 
 		getBorderColor: function(border) {
@@ -862,55 +920,15 @@
 					g.fillStyle = qn === 4 ? this.quescolor : "white";
 					g.strokeStyle = this.quescolor;
 					g.shapeCircle(px, py, rsize);
-				} else if (qn === 5) {
-					g.strokeStyle = "#a33";
-					g.beginPath();
-					g.rect(
-						px - this.cw * 0.22,
-						py - this.ch * 0.22,
-						this.cw * 0.44,
-						this.ch * 0.44
-					);
-					g.stroke();
-				} else if (qn === 6) {
-					g.strokeStyle = "#7a4";
-					g.beginPath();
-					g.moveTo(px, py - this.ch * 0.24);
-					g.lineTo(px + this.cw * 0.22, py);
-					g.lineTo(px, py + this.ch * 0.24);
-					g.lineTo(px - this.cw * 0.22, py);
-					g.closePath();
-					g.stroke();
-					} else if (qn === 7 || qn === 8) {
-						g.fillStyle = qn === 8 ? this.quescolor : "white";
-						g.strokeStyle = this.quescolor;
-						g.shapeCircle(px, py, this.cw * 0.14);
-					} else if (qn === 14 || qn === 15) {
-						g.strokeStyle = this.quescolor;
-						g.beginPath();
-						g.rect(
-							px - this.cw * 0.22,
-							py - this.ch * 0.22,
-							this.cw * 0.44,
-							this.ch * 0.44
-						);
-						g.stroke();
-						this.disptext("" + Math.max(cell.qnum2, 0), px, py, {
-							ratio: qn === 15 && cell.qnum2 >= 10 ? 0.32 : 0.42
-						});
-						g.vid = "c_marker_arrow_" + cell.id;
-						g.fillStyle = this.quescolor;
-						g.beginPath();
-						if (cell.qdir === cell.UP) {
-							g.setOffsetLinePath(px, py - this.ch * 0.28, 0, -this.ch * 0.1, -this.cw * 0.08, 0, this.cw * 0.08, 0, true);
-						} else if (cell.qdir === cell.DN) {
-							g.setOffsetLinePath(px, py + this.ch * 0.28, 0, this.ch * 0.1, -this.cw * 0.08, 0, this.cw * 0.08, 0, true);
-						} else if (cell.qdir === cell.LT) {
-							g.setOffsetLinePath(px - this.cw * 0.28, py, -this.cw * 0.1, 0, 0, -this.ch * 0.08, 0, this.ch * 0.08, true);
-						} else if (cell.qdir === cell.RT) {
-							g.setOffsetLinePath(px + this.cw * 0.28, py, this.cw * 0.1, 0, 0, -this.ch * 0.08, 0, this.ch * 0.08, true);
-						}
-						g.fill();
+				} else if (qn === 7 || qn === 8) {
+					g.fillStyle = qn === 8 ? this.quescolor : "white";
+					g.strokeStyle = this.quescolor;
+					g.shapeCircle(px, py, this.cw * 0.14);
+				} else if (qn === 16) {
+					g.fillStyle = this.getQuesNumberColor(cell);
+					this.disptext(this.getNumberTextCore_letter(Math.max(cell.qnum2, 0) + 1), px, py, {
+						ratio: 0.52
+					});
 					} else {
 						g.vhide();
 					}
@@ -1186,9 +1204,15 @@
 						if (!cell) {
 							continue;
 						}
-						cell.qnum = parts[1] === "y" ? 14 : 15;
-						cell.qdir = parseInt(parts[2], 10);
-						cell.qnum2 = parseInt(parts[3], 36);
+						if (parts[1] === "o") {
+							cell.qnum = 16;
+							cell.qdir = 0;
+							cell.qnum2 = parseInt(parts[2], 36);
+						} else {
+							cell.qnum = parts[1] === "y" ? 14 : 15;
+							cell.qdir = parseInt(parts[2], 10);
+							cell.qnum2 = parseInt(parts[3], 36);
+						}
 					}
 				}
 				this.outbstr = "/" + barray.slice(2).join("/");
@@ -1197,18 +1221,26 @@
 				var list = [];
 				for (var i = 0; i < this.board.cell.length; i++) {
 					var cell = this.board.cell[i];
-					if (cell.qnum !== 14 && cell.qnum !== 15) {
+					if (cell.qnum !== 14 && cell.qnum !== 15 && cell.qnum !== 16) {
 						continue;
 					}
-					list.push(
-						i.toString(36) +
-							"." +
-							(cell.qnum === 14 ? "y" : "c") +
-							"." +
-							cell.qdir +
-							"." +
-							Math.max(cell.qnum2, 0).toString(36)
-					);
+					if (cell.qnum === 16) {
+						list.push(
+							i.toString(36) +
+								".o." +
+								Math.max(cell.qnum2, 0).toString(36)
+						);
+					} else {
+						list.push(
+							i.toString(36) +
+								"." +
+								(cell.qnum === 14 ? "y" : "c") +
+								"." +
+								cell.qdir +
+								"." +
+								Math.max(cell.qnum2, 0).toString(36)
+						);
+					}
 				}
 				this.outbstr += "/" + (list.length ? list.join("+") : "-");
 			},
@@ -1249,6 +1281,10 @@
 						cell.qnum = 15;
 						cell.qdir = +parts[1];
 						cell.qnum2 = +parts[2];
+					} else if (parts[0] === "O") {
+						cell.qnum = 16;
+						cell.qdir = 0;
+						cell.qnum2 = +parts[1];
 					} else {
 						cell.qnum = +parts[0];
 					}
@@ -1270,6 +1306,9 @@
 					}
 					if (cell.qnum === 15) {
 						return "C," + cell.qdir + "," + Math.max(cell.qnum2, 0) + " ";
+					}
+					if (cell.qnum === 16) {
+						return "O," + Math.max(cell.qnum2, 0) + " ";
 					}
 					return cell.qnum >= 0 ? cell.qnum + " " : ". ";
 				});
@@ -1302,6 +1341,7 @@
 			"checkDivideRegions",
 			"checkYajilinClues",
 			"checkCwClues",
+			"checkOrderClues",
 			"checkNoLineOnBar",
 			"checkIceStraight",
 			"checkDotWhite",
@@ -1488,6 +1528,83 @@
 						cell.seterr(1);
 					}
 					return;
+				}
+			}
+		},
+		checkOrderClues: function() {
+			var bd = this.board;
+			var required = {};
+			var requiredCount = 0;
+			for (var i = 0; i < bd.cell.length; i++) {
+				var orderCell = bd.cell[i];
+				if (orderCell.isOrder()) {
+					required[orderCell.qnum2] = orderCell;
+					requiredCount++;
+				}
+			}
+			if (!requiredCount) {
+				return;
+			}
+
+			var startBorder = bd.arrowin.getb();
+			var prevBorder = startBorder;
+			var cell = bd.getStartCell();
+			var seen = {};
+			var seenCount = 0;
+			var last = -1;
+
+			while (!cell.isnull && cell.lcnt > 0) {
+				if (cell.isOrder()) {
+					if (seen[cell.qnum2]) {
+						this.failcode.add("tlOrder");
+						if (!this.checkOnly) {
+							cell.seterr(1);
+						}
+						return;
+					}
+					if (cell.qnum2 <= last) {
+						this.failcode.add("tlOrder");
+						if (!this.checkOnly) {
+							cell.seterr(1);
+						}
+						return;
+					}
+					seen[cell.qnum2] = true;
+					seenCount++;
+					last = cell.qnum2;
+				}
+
+				var nextborder = this.getNextStep(prevBorder, cell);
+				if (!nextborder || !nextborder.inside) {
+					break;
+				}
+				cell =
+					nextborder.sidecell[0] === cell
+						? nextborder.sidecell[1]
+						: nextborder.sidecell[0];
+				prevBorder = nextborder;
+			}
+
+			if (cell.isOrder()) {
+				if (seen[cell.qnum2] || cell.qnum2 <= last) {
+					this.failcode.add("tlOrder");
+					if (!this.checkOnly) {
+						cell.seterr(1);
+					}
+					return;
+				}
+				seen[cell.qnum2] = true;
+				seenCount++;
+			}
+
+			if (seenCount !== requiredCount) {
+				this.failcode.add("tlOrder");
+				if (!this.checkOnly) {
+					for (var key in required) {
+						if (!seen[key]) {
+							required[key].seterr(1);
+						}
+					}
 				}
 			}
 		},
@@ -1740,6 +1857,7 @@
 		tlDivide: ["同じ Divide 領域に複数タイプがあります。", "A Divide region contains multiple Divide types."],
 		tlYajilin: ["Yajilin の矢印数字条件を満たしていません。", "A Yajilin clue count is violated."],
 		tlCw: ["CW の矢印数字条件を満たしていません。", "A CW clue count is violated."],
+		tlOrder: ["Order の文字順条件を満たしていません。", "An Order clue sequence is violated."],
 		tlReqLine: ["Required line が通っていません。", "A required line edge is not used."],
 		tlCountry: ["Country の境界の両側が未訪問です。", "Neither side of a Country border is visited."]
 	}

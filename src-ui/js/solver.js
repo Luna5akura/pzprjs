@@ -8,6 +8,8 @@ var isApplying = false;
 var solveRequestId = 0;
 var hasSolverState = false;
 var suppressHistory = false;
+var restartSolveAfterCurrent = false;
+var LOCAL_SOLVER_YIELD_INTERVAL = 1024;
 
 function isTravelLinePuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "travelline";
@@ -150,7 +152,7 @@ async function solveCurrentPuzzle() {
 	}
 }
 
-function solveTravelLinePuzzle() {
+async function solveTravelLinePuzzle(requestId) {
 	var board = ui.puzzle.board;
 	var cols = board.cols;
 	var rows = board.rows;
@@ -164,6 +166,28 @@ function solveTravelLinePuzzle() {
 	var maxStates = 2000000;
 	var deadline = Date.now() + 20000;
 	var states = 0;
+	var insideBorderBitIndex = {};
+	var nextBorderBit = 0;
+	var searchResultCache = new Map();
+
+	function throwAborted() {
+		var error = new Error("travel line solver aborted");
+		error.code = "TL_ABORTED";
+		throw error;
+	}
+	async function checkpoint() {
+		if (requestId !== solveRequestId) {
+			throwAborted();
+		}
+		if ((states & (LOCAL_SOLVER_YIELD_INTERVAL - 1)) === 0) {
+			await new Promise(function(resolve) {
+				setTimeout(resolve, 0);
+			});
+			if (requestId !== solveRequestId) {
+				throwAborted();
+			}
+		}
+	}
 
 	function idxToCell(idx) {
 		return board.cell[idx];
@@ -176,7 +200,30 @@ function solveTravelLinePuzzle() {
 	}
 	function requiredVisit(idx) {
 		var clue = getClue(idx);
-		return clue === 3 || clue === 4 || clue === 7 || clue === 8 || clue === 9;
+		return (
+			clue === 3 ||
+			clue === 4 ||
+			clue === 7 ||
+			clue === 8 ||
+			clue === 9 ||
+			clue === 16
+		);
+	}
+	function orderSequencePossible(path) {
+		var last = -1;
+		var seen = {};
+		for (var i = 0; i < path.length; i++) {
+			var cell = idxToCell(path[i]);
+			if (cell.qnum !== 16) {
+				continue;
+			}
+			if (seen[cell.qnum2] || cell.qnum2 <= last) {
+				return false;
+			}
+			seen[cell.qnum2] = true;
+			last = cell.qnum2;
+		}
+		return true;
 	}
 	function neighbors(idx) {
 		var x = idx % cols;
@@ -244,6 +291,21 @@ function solveTravelLinePuzzle() {
 			copy[key] = source[key];
 		});
 		return copy;
+	}
+	function getBorderBit(borderId) {
+		var index = insideBorderBitIndex[borderId];
+		return index === undefined ? 0n : 1n << BigInt(index);
+	}
+	function getForcedStateKey(forcedStates) {
+		var entries = [];
+		Object.keys(forcedStates || {})
+			.sort(function(a, b) {
+				return +a - +b;
+			})
+			.forEach(function(id) {
+				entries.push(id + ":" + (forcedStates[id] ? "1" : "0"));
+			});
+		return entries.join(",");
 	}
 	function borderTouchesClue(border) {
 		var c1 = border.sidecell[0];
@@ -468,6 +530,9 @@ function solveTravelLinePuzzle() {
 			if (clue === 9 && !used) {
 				return false;
 			}
+			if (clue === 16 && !used) {
+				return false;
+			}
 		}
 
 		for (var p = 1; p < path.length - 1; p++) {
@@ -614,6 +679,10 @@ function solveTravelLinePuzzle() {
 			}
 		}
 
+		if (!orderSequencePossible(path)) {
+			return false;
+		}
+
 		return true;
 	}
 	function getPathBorderStates(path) {
@@ -680,19 +749,35 @@ function solveTravelLinePuzzle() {
 		error.code = "TL_INCOMPLETE";
 		throw error;
 	}
-	function findTravelLineSolution(forcedStates, preferredStates) {
+	async function findTravelLineSolution(forcedStates, preferredStates) {
+		var forcedKey = getForcedStateKey(forcedStates || {});
+		if (searchResultCache.has(forcedKey)) {
+			return searchResultCache.get(forcedKey);
+		}
+
 		var path = [start];
 		var visited = {};
 		visited[start] = true;
 		var found = null;
+		var edgeMask = 0n;
+		var failedStateCache = new Set();
 
 		function moveRespectsForced(current, next) {
 			var border = getBorderBetweenCells(current, next);
 			return !forcedStates || forcedStates[border.id] !== false;
 		}
+		function getStateKey(current) {
+			return current + ":" + edgeMask.toString(36);
+		}
 
-		function search(current) {
+		async function search(current) {
+			var stateKey = getStateKey(current);
+			if (failedStateCache.has(stateKey)) {
+				return;
+			}
+
 			states++;
+			await checkpoint();
 			if (states > maxStates || Date.now() > deadline) {
 				throwIncomplete();
 			}
@@ -710,6 +795,9 @@ function solveTravelLinePuzzle() {
 				return;
 			}
 			if (!directedCluesPossible(path, visited)) {
+				return;
+			}
+			if (!orderSequencePossible(path)) {
 				return;
 			}
 
@@ -733,6 +821,7 @@ function solveTravelLinePuzzle() {
 				return;
 			}
 
+			var solved = false;
 			var options = neighbors(current).filter(function(next) {
 				return !isBar(next) && !visited[next] && moveRespectsForced(current, next);
 			});
@@ -753,22 +842,31 @@ function solveTravelLinePuzzle() {
 
 			for (var j = 0; j < options.length; j++) {
 				var next = options[j];
+				var border = getBorderBetweenCells(current, next);
+				var prevMask = edgeMask;
+				edgeMask |= getBorderBit(border.id);
 				path.push(next);
 				visited[next] = true;
 
 				if (path.length < 3 || validateFinishedCell(path, path.length - 2)) {
-					search(next);
+					await search(next);
 				}
 
 				delete visited[next];
 				path.pop();
+				edgeMask = prevMask;
 				if (found) {
+					solved = true;
 					return;
 				}
 			}
+			if (!solved) {
+				failedStateCache.add(stateKey);
+			}
 		}
 
-		search(start);
+		await search(start);
+		searchResultCache.set(forcedKey, found);
 		return found;
 	}
 
@@ -782,8 +880,18 @@ function solveTravelLinePuzzle() {
 			required.push(r);
 		}
 	}
+	var candidateBorders = [];
+	for (var borderId = 0; borderId < board.border.length; borderId++) {
+		var border = board.border[borderId];
+		if (border.isnull || !border.inside) {
+			continue;
+		}
+		insideBorderBitIndex[borderId] = nextBorderBit;
+		nextBorderBit++;
+		candidateBorders.push(borderId);
+	}
 
-	var basePath = findTravelLineSolution({}, null);
+	var basePath = await findTravelLineSolution({}, null);
 	if (!basePath) {
 		throw new Error("travel line solver found no solution");
 	}
@@ -794,14 +902,6 @@ function solveTravelLinePuzzle() {
 	}
 	if (goalBorder) {
 		irrefutableStates[goalBorder.id] = true;
-	}
-	var candidateBorders = [];
-	for (var borderId = 0; borderId < board.border.length; borderId++) {
-		var border = board.border[borderId];
-		if (border.isnull || !border.inside) {
-			continue;
-		}
-		candidateBorders.push(borderId);
 	}
 	candidateBorders.sort(function(a, b) {
 		return borderPriority(b, baseStates) - borderPriority(a, baseStates);
@@ -814,7 +914,7 @@ function solveTravelLinePuzzle() {
 		}
 		var forcedStates = cloneStateMap(irrefutableStates);
 		forcedStates[borderId] = !baseStates[borderId];
-		var altPath = findTravelLineSolution(forcedStates, baseStates);
+		var altPath = await findTravelLineSolution(forcedStates, baseStates);
 		if (!altPath) {
 			irrefutableStates[borderId] = baseStates[borderId];
 		}
@@ -1041,7 +1141,7 @@ async function runSolver() {
 		if (isTravelLinePuzzle()) {
 			clearCurrentAnswer();
 			setStatus(messages.solving);
-			var localResult = solveTravelLinePuzzle();
+			var localResult = await solveTravelLinePuzzle(requestId);
 			if (localResult.changed > 0) {
 				setStatus(
 					localResult.partial
@@ -1072,6 +1172,9 @@ async function runSolver() {
 			appliedCount > 0 ? messages.applied(appliedCount) : messages.noChange
 		);
 	} catch (error) {
+		if (error && error.code === "TL_ABORTED") {
+			return;
+		}
 		if (error && error.code === "TL_INCOMPLETE") {
 			setStatus(messages.incomplete);
 		} else {
@@ -1082,6 +1185,10 @@ async function runSolver() {
 	} finally {
 		isApplying = false;
 		setBusy(false);
+		if (restartSolveAfterCurrent) {
+			restartSolveAfterCurrent = false;
+			scheduleRestartSolve();
+		}
 	}
 }
 
@@ -1097,9 +1204,26 @@ function scheduleAutoSolve() {
 		runSolver();
 	}, AUTO_SOLVE_DELAY);
 }
+function scheduleRestartSolve() {
+	if (isApplying) {
+		return;
+	}
+	if (autoSolveTimer) {
+		clearTimeout(autoSolveTimer);
+	}
+	autoSolveTimer = setTimeout(function() {
+		autoSolveTimer = null;
+		runSolver();
+	}, AUTO_SOLVE_DELAY);
+}
 
 function onHistoryChange() {
-	if (suppressHistory || isApplying) {
+	if (suppressHistory) {
+		return;
+	}
+	if (isApplying) {
+		solveRequestId++;
+		restartSolveAfterCurrent = true;
 		return;
 	}
 
