@@ -46,14 +46,10 @@ function readSolverResult(module, resultPtr) {
 function solveProblem(url) {
 	return getSolverModule().then(function(module) {
 		var encoded = new TextEncoder().encode(url);
-		var ptr = module._malloc(encoded.length);
+		var ptr = module._prepare_input_buffer(encoded.length);
 		module.HEAPU8.set(encoded, ptr);
 
-		try {
-			return readSolverResult(module, module._solve_problem(ptr, encoded.length));
-		} finally {
-			module._free(ptr);
-		}
+		return readSolverResult(module, module._solve_problem(ptr, encoded.length));
 	});
 }
 
@@ -64,17 +60,13 @@ function solveCustomTravelLine(payload) {
 		}
 
 		var encoded = new TextEncoder().encode(JSON.stringify(payload));
-		var ptr = module._malloc(encoded.length);
+		var ptr = module._prepare_input_buffer(encoded.length);
 		module.HEAPU8.set(encoded, ptr);
 
-		try {
-			return readSolverResult(
-				module,
-				module._solve_custom_travelline(ptr, encoded.length)
-			);
-		} finally {
-			module._free(ptr);
-		}
+		return readSolverResult(
+			module,
+			module._solve_custom_travelline(ptr, encoded.length)
+		);
 	});
 }
 
