@@ -2,6 +2,7 @@ import Module from "../wasm/cspuz_solver_backend.js";
 
 var AUTO_SOLVE_DELAY = 250;
 var solverModulePromise = null;
+var backendWorkerTask = null;
 var controls = null;
 var autoSolveTimer = null;
 var isApplying = false;
@@ -146,25 +147,300 @@ function clearCurrentAnswer() {
 }
 
 async function solveCurrentPuzzle() {
-	var module = await getSolverModule();
-	var encoded = new TextEncoder().encode(getSolverUrl());
-	var ptr = module._malloc(encoded.length);
-	module.HEAPU8.set(encoded, ptr);
+	return runBackendWorker("solve_problem", getSolverUrl());
+}
 
-	try {
-		var resultPtr = module._solve_problem(ptr, encoded.length);
-		var length =
-			module.HEAPU8[resultPtr] |
-			(module.HEAPU8[resultPtr + 1] << 8) |
-			(module.HEAPU8[resultPtr + 2] << 16) |
-			(module.HEAPU8[resultPtr + 3] << 24);
-		var json = new TextDecoder().decode(
-			module.HEAPU8.slice(resultPtr + 4, resultPtr + 4 + length)
-		);
-		return JSON.parse(json);
-	} finally {
-		module._free(ptr);
+function readSolverResult(module, resultPtr) {
+	var length =
+		module.HEAPU8[resultPtr] |
+		(module.HEAPU8[resultPtr + 1] << 8) |
+		(module.HEAPU8[resultPtr + 2] << 16) |
+		(module.HEAPU8[resultPtr + 3] << 24);
+	var json = new TextDecoder().decode(
+		module.HEAPU8.slice(resultPtr + 4, resultPtr + 4 + length)
+	);
+	return JSON.parse(json);
+}
+
+function makeAbortError(message) {
+	var error = new Error(message || "solver aborted");
+	error.code = "TL_ABORTED";
+	return error;
+}
+
+function cancelBackendWorker(message) {
+	if (!backendWorkerTask) {
+		return;
 	}
+	var task = backendWorkerTask;
+	backendWorkerTask = null;
+	task.worker.onmessage = null;
+	task.worker.onerror = null;
+	task.worker.terminate();
+	task.reject(makeAbortError(message || "solver worker aborted"));
+}
+
+function runBackendWorker(action, payload) {
+	cancelBackendWorker("superseded by a newer solver request");
+	return new Promise(function(resolve, reject) {
+		var worker = new Worker(new URL("./solver-worker.js", import.meta.url), {
+			type: "module"
+		});
+		backendWorkerTask = { worker: worker, reject: reject };
+
+		worker.onmessage = function(event) {
+			if (backendWorkerTask && backendWorkerTask.worker === worker) {
+				backendWorkerTask = null;
+			}
+			worker.terminate();
+			resolve(event.data);
+		};
+		worker.onerror = function(event) {
+			if (backendWorkerTask && backendWorkerTask.worker === worker) {
+				backendWorkerTask = null;
+			}
+			worker.terminate();
+			reject(
+				new Error(
+					event && event.message
+						? event.message
+						: "solver worker failed unexpectedly"
+				)
+			);
+		};
+		worker.postMessage({
+			action: action,
+			payload: payload
+		});
+	});
+}
+
+function getTravelLineBorderSide(board, border) {
+	if (!border || border.isnull) {
+		return null;
+	}
+	if (border.by === board.minby + 2) {
+		return "up";
+	}
+	if (border.by === board.maxby - 2) {
+		return "down";
+	}
+	if (border.bx === board.minbx + 2) {
+		return "left";
+	}
+	if (border.bx === board.maxbx - 2) {
+		return "right";
+	}
+	return null;
+}
+
+function getTravelLineBackendPayload() {
+	var board = ui.puzzle.board;
+	var rows = board.rows;
+	var cols = board.cols;
+	var startBorder = board.arrowin ? board.arrowin.getb() : null;
+	var goalBorder = board.arrowout ? board.arrowout.getb() : null;
+	var startCell = board.getStartCell ? board.getStartCell() : board.startpos.getc();
+	var goalCell = board.getGoalCell ? board.getGoalCell() : board.goalpos.getc();
+	var bars = [];
+	var ice = [];
+	var cwfloor = [];
+	var noadj = [];
+	var notouch = [];
+	var sloop = [];
+	var specials = [];
+	var order = [];
+	var divide = [];
+	var slither = [];
+	var countryH = [];
+	var countryV = [];
+	var directed = [];
+	var requiredH = [];
+	var requiredV = [];
+
+	for (var y = 0; y < rows; y++) {
+		var barRow = [];
+		var iceRow = [];
+		var cwfloorRow = [];
+		var noadjRow = [];
+		var notouchRow = [];
+		var sloopRow = [];
+		var specialsRow = [];
+		var orderRow = [];
+		var directedRow = [];
+		var reqHRow = [];
+		var countryHRow = [];
+		for (var x = 0; x < cols; x++) {
+			var cell = board.cell[y * cols + x];
+			var qnum = cell.qnum;
+			var floors = cell.ques || 0;
+			barRow.push(qnum === 1);
+			iceRow.push(qnum === 2 || !!(floors & TL_FLOOR_FLAGS.ICE));
+			cwfloorRow.push(!!(floors & TL_FLOOR_FLAGS.CWFLOOR));
+			noadjRow.push(qnum === 6 || !!(floors & TL_FLOOR_FLAGS.NOADJ));
+			notouchRow.push(qnum === 5 || !!(floors & TL_FLOOR_FLAGS.NOTOUCH));
+			sloopRow.push(qnum === 9 || !!(floors & TL_FLOOR_FLAGS.SLOOP));
+			if (qnum === 14 || qnum === 15) {
+				var sideMap = {};
+				sideMap[cell.UP] = "up";
+				sideMap[cell.DN] = "down";
+				sideMap[cell.LT] = "left";
+				sideMap[cell.RT] = "right";
+				directedRow.push({
+					kind: qnum,
+					side: sideMap[cell.qdir] || "up",
+					value: Math.max(cell.qnum2, 0)
+				});
+			} else {
+				directedRow.push(null);
+			}
+			if (qnum === 3 || qnum === 4 || qnum === 7 || qnum === 8) {
+				specialsRow.push(qnum);
+			} else {
+				specialsRow.push(-1);
+			}
+			orderRow.push(qnum === 16 ? Math.max(cell.qnum2, 0) : -1);
+			if (
+				qnum !== -1 &&
+				qnum !== 1 &&
+				qnum !== 2 &&
+				qnum !== 3 &&
+				qnum !== 4 &&
+				qnum !== 5 &&
+				qnum !== 6 &&
+				qnum !== 7 &&
+				qnum !== 8 &&
+				qnum !== 9 &&
+				qnum !== 14 &&
+				qnum !== 15 &&
+				qnum !== 16
+			) {
+				return null;
+			}
+			if (
+				floors &
+				~(
+					TL_FLOOR_FLAGS.ICE |
+					TL_FLOOR_FLAGS.NOTOUCH |
+					TL_FLOOR_FLAGS.NOADJ |
+					TL_FLOOR_FLAGS.SLOOP |
+					TL_FLOOR_FLAGS.CWFLOOR
+				)
+			) {
+				return null;
+			}
+			if (x + 1 < cols) {
+				var borderH = board.getb(cell.bx + 1, cell.by);
+				reqHRow.push(borderH.ques === 2);
+				countryHRow.push(borderH.ques === 1);
+			}
+		}
+		bars.push(barRow);
+		ice.push(iceRow);
+		cwfloor.push(cwfloorRow);
+		noadj.push(noadjRow);
+		notouch.push(notouchRow);
+		sloop.push(sloopRow);
+		specials.push(specialsRow);
+		order.push(orderRow);
+		directed.push(directedRow);
+		requiredH.push(reqHRow);
+		countryH.push(countryHRow);
+	}
+	for (var dy = 0; dy <= rows; dy++) {
+		var divideRow = [];
+		for (var dx = 0; dx <= cols; dx++) {
+			var cross2 = board.cross[dy * (cols + 1) + dx];
+			if (!cross2 || cross2.qnum === -1) {
+				divideRow.push(0);
+			} else if (cross2.qnum >= 11 && cross2.qnum <= 13) {
+				divideRow.push(cross2.qnum - 10);
+			} else {
+				divideRow.push(0);
+			}
+		}
+		divide.push(divideRow);
+	}
+	for (var sy = 0; sy <= rows; sy++) {
+		var crossRow = [];
+		for (var sx = 0; sx <= cols; sx++) {
+			var cross = board.cross[sy * (cols + 1) + sx];
+			if (!cross) {
+				crossRow.push(-1);
+				continue;
+			}
+			if (cross.qnum >= 0 && cross.qnum <= 4) {
+				crossRow.push(cross.qnum);
+			} else if (
+				cross.qnum === -1 ||
+				(cross.qnum >= 11 && cross.qnum <= 13)
+			) {
+				crossRow.push(-1);
+			} else {
+				return null;
+			}
+		}
+		slither.push(crossRow);
+	}
+
+	for (var y2 = 0; y2 + 1 < rows; y2++) {
+		var reqVRow = [];
+		var countryVRow = [];
+		for (var x2 = 0; x2 < cols; x2++) {
+			var cell2 = board.cell[y2 * cols + x2];
+			var borderV = board.getb(cell2.bx, cell2.by + 1);
+			reqVRow.push(borderV.ques === 2);
+			countryVRow.push(borderV.ques === 1);
+		}
+		requiredV.push(reqVRow);
+		countryV.push(countryVRow);
+	}
+
+	var startSide = getTravelLineBorderSide(board, startBorder);
+	var goalSide = getTravelLineBorderSide(board, goalBorder);
+	if (!startSide || !goalSide) {
+		return null;
+	}
+
+	// Cross clues are currently supported only for slither-style 0..4.
+	for (var borderId = 0; borderId < board.border.length; borderId++) {
+		var border = board.border[borderId];
+		if (border.inside && border.qnum !== -1) {
+			return null;
+		}
+	}
+
+	return {
+		rows: rows,
+		cols: cols,
+		start: startCell.id,
+		goal: goalCell.id,
+		startSide: startSide,
+		goalSide: goalSide,
+		bars: bars,
+		ice: ice,
+		cwfloor: cwfloor,
+		noadj: noadj,
+		notouch: notouch,
+		sloop: sloop,
+		specials: specials,
+		order: order,
+		divide: divide,
+		slither: slither,
+		countryH: countryH,
+		countryV: countryV,
+		directed: directed,
+		requiredH: requiredH,
+		requiredV: requiredV
+	};
+}
+
+async function solveTravelLineWithBackend() {
+	var payload = getTravelLineBackendPayload();
+	if (!payload) {
+		return null;
+	}
+	return runBackendWorker("solve_custom_travelline", payload);
 }
 
 async function solveTravelLinePuzzle(requestId) {
@@ -185,10 +461,41 @@ async function solveTravelLinePuzzle(requestId) {
 	var nextBorderBit = 0;
 	var searchResultCache = new Map();
 
+	var backendResult = await solveTravelLineWithBackend();
+	if (backendResult && backendResult.status === "ok") {
+		var changed = applyDescription(backendResult);
+		var endpointChanged = 0;
+		withSuppressedHistory(function() {
+			if (startBorder && !startBorder.isLine()) {
+				startBorder.setLine();
+				endpointChanged++;
+			}
+			if (goalBorder && !goalBorder.isLine()) {
+				goalBorder.setLine();
+				endpointChanged++;
+			}
+			if (endpointChanged > 0) {
+				board.rebuildInfo();
+				ui.puzzle.redraw();
+			}
+		});
+		hasSolverState = changed + endpointChanged > 0;
+		return { changed: changed + endpointChanged, partial: true };
+	}
+	if (
+		backendResult &&
+		backendResult.status === "error" &&
+		typeof backendResult.description === "string" &&
+		backendResult.description.indexOf("unsupported travelline") !== -1
+	) {
+		backendResult = null;
+	}
+	if (backendResult && backendResult.status === "error") {
+		throw new Error(backendResult.description || "travelline backend failed");
+	}
+
 	function throwAborted() {
-		var error = new Error("travel line solver aborted");
-		error.code = "TL_ABORTED";
-		throw error;
+		throw makeAbortError("travel line solver aborted");
 	}
 	async function checkpoint() {
 		if (requestId !== solveRequestId) {
@@ -478,11 +785,38 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 		return true;
 	}
-	function directedCluesPossible(path, visitCount) {
+	function computeReachableCells(current, visitCount, edgeMask) {
+		var queue = [current];
+		var seen = {};
+		seen[current] = true;
+		while (queue.length) {
+			var node = queue.shift();
+			var nexts = neighbors(node);
+			for (var i = 0; i < nexts.length; i++) {
+				var next = nexts[i];
+				var border = getBorderBetweenCells(node, next);
+				if (seen[next] || isBar(next) || isBorderUsed(border.id, edgeMask)) {
+					continue;
+				}
+				if (visitCount[next] > 0 && !isCrossingCell(next) && next !== goal) {
+					continue;
+				}
+				if (visitCount[next] > 1 || (visitCount[next] > 0 && next === goal)) {
+					continue;
+				}
+				seen[next] = true;
+				queue.push(next);
+			}
+		}
+		return seen;
+	}
+	function directedCluesPossible(path, visitCount, reachable) {
 		for (var cellId = 0; cellId < total; cellId++) {
 			var cell = idxToCell(cellId);
 			if (cell.qnum === 14) {
-				var remaining = 0;
+				var totalCells = 0;
+				var currentVisited = 0;
+				var maybeVisitable = 0;
 				var pos = cell.getaddr().clone();
 				while (true) {
 					pos.movedir(cell.qdir, 2);
@@ -490,11 +824,21 @@ async function solveTravelLinePuzzle(requestId) {
 					if (next.isnull) {
 						break;
 					}
-					if (next.qnum !== 1 && !(visitCount[next.id] > 0)) {
-						remaining++;
+					if (next.qnum !== 1) {
+						totalCells++;
+						if (visitCount[next.id] > 0) {
+							currentVisited++;
+						} else if (reachable[next.id]) {
+							maybeVisitable++;
+						}
 					}
 				}
-				if (remaining < Math.max(cell.qnum2, 0)) {
+				var targetUnvisited = Math.max(cell.qnum2, 0);
+				var requiredVisited = totalCells - targetUnvisited;
+				if (currentVisited > requiredVisited) {
+					return false;
+				}
+				if (currentVisited + maybeVisitable < requiredVisited) {
 					return false;
 				}
 			} else if (cell.qnum === 15) {
@@ -541,35 +885,32 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 		return true;
 	}
-	function reachableCheck(current, visitCount, remainingRequired, edgeMask) {
-		var queue = [current];
-		var seen = {};
-		seen[current] = true;
-		while (queue.length) {
-			var node = queue.shift();
-			var nexts = neighbors(node);
-			for (var i = 0; i < nexts.length; i++) {
-				var next = nexts[i];
-				var border = getBorderBetweenCells(node, next);
-				if (seen[next] || isBar(next) || isBorderUsed(border.id, edgeMask)) {
-					continue;
-				}
-				if (visitCount[next] > 0 && !isCrossingCell(next) && next !== goal) {
-					continue;
-				}
-				if (visitCount[next] > 1 || (visitCount[next] > 0 && next === goal)) {
-					continue;
-				}
-				seen[next] = true;
-				queue.push(next);
-			}
-		}
-		if (!seen[goal]) {
+	function reachableCheck(reachable, remainingRequired) {
+		if (!reachable[goal]) {
 			return false;
 		}
 		for (var j = 0; j < remainingRequired.length; j++) {
-			if (!seen[remainingRequired[j]]) {
+			if (!reachable[remainingRequired[j]]) {
 				return false;
+			}
+		}
+		return true;
+	}
+	function noAdjStillPossible(visitCount, reachable) {
+		for (var n = 0; n < total; n++) {
+			if (!isNoAdj(n) || visitCount[n] > 0 || reachable[n]) {
+				continue;
+			}
+			var adj = neighbors(n);
+			for (var i = 0; i < adj.length; i++) {
+				var other = adj[i];
+				if (
+					isNoAdj(other) &&
+					!(visitCount[other] > 0) &&
+					!reachable[other]
+				) {
+					return false;
+				}
 			}
 		}
 		return true;
@@ -945,7 +1286,8 @@ async function solveTravelLinePuzzle(requestId) {
 					remainingRequired.push(required[i]);
 				}
 			}
-			if (!reachableCheck(current, visitCount, remainingRequired, edgeMask)) {
+			var reachable = computeReachableCells(current, visitCount, edgeMask);
+			if (!reachableCheck(reachable, remainingRequired)) {
 				return;
 			}
 			if (
@@ -958,7 +1300,10 @@ async function solveTravelLinePuzzle(requestId) {
 			) {
 				return;
 			}
-			if (!directedCluesPossible(path, visitCount)) {
+			if (!noAdjStillPossible(visitCount, reachable)) {
+				return;
+			}
+			if (!directedCluesPossible(path, visitCount, reachable)) {
 				return;
 			}
 			if (!orderSequencePossible(path)) {
@@ -1371,6 +1716,7 @@ async function runSolver() {
 			);
 		}
 	} finally {
+		cancelBackendWorker("solver request finished");
 		isApplying = false;
 		setBusy(false);
 		if (restartSolveAfterCurrent) {
@@ -1412,6 +1758,7 @@ function onHistoryChange() {
 	if (isApplying) {
 		solveRequestId++;
 		restartSolveAfterCurrent = true;
+		cancelBackendWorker("board changed during solve");
 		return;
 	}
 
