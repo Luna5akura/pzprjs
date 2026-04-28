@@ -2,8 +2,9 @@
 
 var solverModuleFactoryPromise = null;
 var solverModulePromise = null;
-var solverModuleUrl = new URL("../wasm/cspuz_solver_backend.js", import.meta.url).href;
-var solverWasmUrl = new URL("../wasm/cspuz_solver_backend.wasm", import.meta.url).href;
+var solverBaseUrl = self.location && self.location.href ? self.location.href : "";
+var solverModuleUrl = new URL("../wasm/cspuz_solver_backend.js", solverBaseUrl).href;
+var solverWasmUrl = new URL("../wasm/cspuz_solver_backend.wasm", solverBaseUrl).href;
 
 function getSolverModuleFactory() {
 	if (!solverModuleFactoryPromise) {
