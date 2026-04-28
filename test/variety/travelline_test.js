@@ -442,6 +442,39 @@ describe("Variety:travelline", function() {
 		});
 	});
 
+	it("checks clockwise floors against the in and out arrow direction at endpoints", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var board = puzzle.board;
+		var cells = [0, 1, 2, 3, 4, 5, 6, 7].map(function(id) {
+			return board.cell[id];
+		});
+		var path = [4, 0, 1, 2, 3, 7];
+		var checker = puzzle.checker;
+
+		function borderBetween(a, b) {
+			return board.getb((a.bx + b.bx) >> 1, (a.by + b.by) >> 1);
+		}
+
+		cells.forEach(function(cell) {
+			cell.setFloorFlag(16);
+		});
+		board.arrowin.set(board.getb(0, 3));
+		board.arrowout.set(board.getb(8, 3));
+		board.arrowin.getb().setLine();
+		board.arrowout.getb().setLine();
+		for (var i = 1; i < path.length; i++) {
+			borderBetween(board.cell[path[i - 1]], board.cell[path[i]]).setLine();
+		}
+
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkClockwiseFloors();
+		assert.equal(checker.failcode[0], "tlCwFloor");
+	});
+
 	it("swaps in and out when dragging the opposite direction on the same edge bar", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		puzzle.setMode("edit");

@@ -2758,6 +2758,75 @@ var TL_FLOOR_FLAGS = {
 			}
 			return null;
 		},
+		getTravelNeighborByBorder: function(border, cell) {
+			if (!border || border.isnull || !cell || cell.isnull) {
+				return null;
+			}
+			if (border.sidecell[0] === cell) {
+				return border.sidecell[1];
+			}
+			if (border.sidecell[1] === cell) {
+				return border.sidecell[0];
+			}
+			return null;
+		},
+		isTravelStraightBetween: function(cell, prevObj, nextObj) {
+			if (
+				!cell ||
+				cell.isnull ||
+				!prevObj ||
+				prevObj.isnull ||
+				!nextObj ||
+				nextObj.isnull
+			) {
+				return true;
+			}
+			var dx1 = cell.bx - prevObj.bx;
+			var dy1 = cell.by - prevObj.by;
+			var dx2 = nextObj.bx - cell.bx;
+			var dy2 = nextObj.by - cell.by;
+			return dx1 === -dx2 && dy1 === -dy2;
+		},
+		isTravelClockwiseBetween: function(cell, prevObj, nextObj) {
+			if (
+				!cell ||
+				cell.isnull ||
+				!prevObj ||
+				prevObj.isnull ||
+				!nextObj ||
+				nextObj.isnull
+			) {
+				return true;
+			}
+			var dx1 = cell.bx - prevObj.bx;
+			var dy1 = cell.by - prevObj.by;
+			var dx2 = nextObj.bx - cell.bx;
+			var dy2 = nextObj.by - cell.by;
+			return dx1 * dy2 - dy1 * dx2 > 0;
+		},
+		forEachTravelPass: function(callback) {
+			var bd = this.board;
+			var prevBorder = bd.arrowin.getb();
+			if (bd.arrowin.oncell()) {
+				prevBorder = null;
+			}
+			var cell = bd.getStartCell();
+
+			while (!cell.isnull && cell.lcnt > 0) {
+				var nextborder = this.getExitBorder(prevBorder, cell);
+				var prevObj = this.getTravelNeighborByBorder(prevBorder, cell);
+				var nextObj = this.getTravelNeighborByBorder(nextborder, cell);
+				if (callback.call(this, cell, prevObj, nextObj)) {
+					return true;
+				}
+				if (!nextborder || !nextborder.inside || !nextObj || nextObj.isnull) {
+					break;
+				}
+				cell = nextObj;
+				prevBorder = nextborder;
+			}
+			return false;
+		},
 
 		checkNoLineOnBar: function() {
 			this.checkAllCell(function(cell) {
@@ -2765,53 +2834,38 @@ var TL_FLOOR_FLAGS = {
 			}, "tlBarLine");
 		},
 		checkIceStraight: function() {
-			this.checkAllCell(function(cell) {
-				return (
+			this.forEachTravelPass(function(cell, prevObj, nextObj) {
+				if (
 					cell.isIce() &&
 					cell.lcnt > 0 &&
 					cell.lcnt !== 4 &&
-					!cell.isLineStraightTravel()
-				);
-			}, "tlIceTurn");
+					!this.isTravelStraightBetween(cell, prevObj, nextObj)
+				) {
+					this.failcode.add("tlIceTurn");
+					if (!this.checkOnly) {
+						cell.seterr(1);
+					}
+					return true;
+				}
+				return false;
+			});
 		},
 		checkClockwiseFloors: function() {
-			var bd = this.board;
-			var prevBorder = bd.arrowin.getb();
-			if (bd.arrowin.oncell()) {
-				prevBorder = null;
-			}
-			var cell = bd.getStartCell();
-			var prevCell = null;
-
-			while (!cell.isnull && cell.lcnt > 0) {
-				var nextborder = this.getExitBorder(prevBorder, cell);
-				var nextCell = null;
-				if (nextborder && nextborder.inside) {
-					nextCell =
-						nextborder.sidecell[0] === cell
-							? nextborder.sidecell[1]
-							: nextborder.sidecell[0];
-				}
+			this.forEachTravelPass(function(cell, prevObj, nextObj) {
 				if (
 					cell.isCwFloor() &&
-					prevCell !== null &&
-					nextCell !== null &&
-					cell.isLineCurveTravel() &&
-					!cell.isClockwiseTurn(prevCell.id, nextCell.id)
+					cell.lcnt !== 4 &&
+					!this.isTravelStraightBetween(cell, prevObj, nextObj) &&
+					!this.isTravelClockwiseBetween(cell, prevObj, nextObj)
 				) {
 					this.failcode.add("tlCwFloor");
 					if (!this.checkOnly) {
 						cell.seterr(1);
 					}
-					return;
+					return true;
 				}
-				if (!nextborder || !nextborder.inside) {
-					break;
-				}
-				prevCell = cell;
-				cell = nextCell;
-				prevBorder = nextborder;
-			}
+				return false;
+			});
 		},
 		checkDotWhite: function() {
 			this.checkAllCell(function(cell) {

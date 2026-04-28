@@ -266,6 +266,34 @@ function getTravelLineOppositeSide(side) {
 	return null;
 }
 
+function getTravelLineClockwiseExitSide(side) {
+	switch (side) {
+		case "up":
+			return "left";
+		case "left":
+			return "down";
+		case "down":
+			return "right";
+		case "right":
+			return "up";
+	}
+	return null;
+}
+
+function getTravelLineClockwiseEntrySide(side) {
+	switch (side) {
+		case "up":
+			return "right";
+		case "right":
+			return "down";
+		case "down":
+			return "left";
+		case "left":
+			return "up";
+	}
+	return null;
+}
+
 function getTravelLineCellEdgeSide(address, type) {
 	if (!address || !address.oncell || !address.oncell()) {
 		return null;
@@ -320,6 +348,26 @@ function getTravelLineEndpointPayload(board, address, type) {
 		outerSide: outerSide,
 		dir: dir
 	};
+}
+
+function getTravelLineNeighborSide(fromIdx, toIdx, cols) {
+	var fx = fromIdx % cols;
+	var fy = (fromIdx / cols) | 0;
+	var tx = toIdx % cols;
+	var ty = (toIdx / cols) | 0;
+	if (tx === fx && ty === fy - 1) {
+		return "up";
+	}
+	if (tx === fx && ty === fy + 1) {
+		return "down";
+	}
+	if (tx === fx - 1 && ty === fy) {
+		return "left";
+	}
+	if (tx === fx + 1 && ty === fy) {
+		return "right";
+	}
+	return null;
 }
 
 function getTravelLineBarEndpointNeighborIndex(address, type, rows, cols) {
@@ -622,6 +670,10 @@ async function solveTravelLinePuzzle(requestId) {
 			: null;
 	var start = startCell.id;
 	var goal = goalCell.id;
+	var startEndpoint = getTravelLineEndpointPayload(board, board.arrowin, "in");
+	var goalEndpoint = getTravelLineEndpointPayload(board, board.arrowout, "out");
+	var startOuterSide = startEndpoint ? startEndpoint.outerSide : null;
+	var goalOuterSide = goalEndpoint ? goalEndpoint.outerSide : null;
 	var startBarNeighbor = getTravelLineBarEndpointNeighborIndex(
 		board.arrowin,
 		"in",
@@ -740,6 +792,27 @@ async function solveTravelLinePuzzle(requestId) {
 			isSloop(idx) ||
 			clue === 16
 		);
+	}
+	function endpointCellTravelAllowed(cellIdx, neighborIdx, outerSide, isStartEndpoint) {
+		var side = getTravelLineNeighborSide(cellIdx, neighborIdx, cols);
+		var straightSide;
+		var turnSide;
+		if (!side || !outerSide) {
+			return true;
+		}
+		straightSide = getTravelLineOppositeSide(outerSide);
+		if (isIce(cellIdx) && side !== straightSide) {
+			return false;
+		}
+		if (isCwFloor(cellIdx)) {
+			turnSide = isStartEndpoint
+				? getTravelLineClockwiseExitSide(outerSide)
+				: getTravelLineClockwiseEntrySide(outerSide);
+			if (side !== straightSide && side !== turnSide) {
+				return false;
+			}
+		}
+		return true;
 	}
 	function orderSequencePossible(path) {
 		var last = -1;
@@ -1171,6 +1244,25 @@ async function solveTravelLinePuzzle(requestId) {
 		if (
 			goalBarNeighbor !== null &&
 			(path.length < 2 || path[path.length - 2] !== goalBarNeighbor)
+		) {
+			return false;
+		}
+		if (
+			startOuterSide &&
+			path.length >= 2 &&
+			!endpointCellTravelAllowed(start, path[1], startOuterSide, true)
+		) {
+			return false;
+		}
+		if (
+			goalOuterSide &&
+			path.length >= 2 &&
+			!endpointCellTravelAllowed(
+				goal,
+				path[path.length - 2],
+				goalOuterSide,
+				false
+			)
 		) {
 			return false;
 		}
