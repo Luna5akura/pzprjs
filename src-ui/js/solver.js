@@ -37,6 +37,7 @@ function getMessages() {
 				},
 					noChange: "反映できる新規結果はありません",
 					cleared: "手入力を検出したため回答を消去しました",
+					clearedOverlay: "手入力を検出したため solver 表示を消去しました",
 					unsupported: "この盤面はまだ自動適用に対応していません",
 					error: function(message) {
 						return "solver error: " + message;
@@ -59,6 +60,7 @@ function getMessages() {
 				},
 					noChange: "no solver result could be applied",
 					cleared: "manual edit detected, cleared current answer",
+					clearedOverlay: "manual edit detected, cleared the solver overlay",
 					unsupported: "this puzzle is not supported for auto-apply yet",
 					error: function(message) {
 						return "solver error: " + message;
@@ -133,6 +135,29 @@ function clearCurrentAnswer() {
 		ui.puzzle.redraw();
 	});
 	hasSolverState = false;
+}
+
+function clearTravelLineSolverOverlay() {
+	if (!isTravelLinePuzzle() || !ui.puzzle || !ui.puzzle.board) {
+		hasSolverState = false;
+		return 0;
+	}
+
+	var board = ui.puzzle.board;
+	var changed = 0;
+	withSuppressedHistory(function() {
+		for (var i = 0; i < board.border.length; i++) {
+			if (board.border[i]._travellineSolverState) {
+				board.border[i]._travellineSolverState = null;
+				changed++;
+			}
+		}
+		if (changed > 0) {
+			ui.puzzle.redraw();
+		}
+	});
+	hasSolverState = false;
+	return changed;
 }
 
 async function solveCurrentPuzzle() {
@@ -589,19 +614,24 @@ async function solveTravelLinePuzzle(requestId) {
 	if (requestId !== solveRequestId) {
 		throw makeAbortError("travel line solver aborted");
 	}
-	var changed = applyDescription(backendResult);
+	var changed = applyTravelLineDescription(backendResult);
 	var endpointChanged = 0;
 	withSuppressedHistory(function() {
-		if (startBorder && !startBorder.isLine()) {
-			startBorder.setLine();
+		if (
+			startBorder &&
+			startBorder._travellineSolverState !== "line"
+		) {
+			startBorder._travellineSolverState = "line";
 			endpointChanged++;
 		}
-		if (goalBorder && !goalBorder.isLine()) {
-			goalBorder.setLine();
+		if (
+			goalBorder &&
+			goalBorder._travellineSolverState !== "line"
+		) {
+			goalBorder._travellineSolverState = "line";
 			endpointChanged++;
 		}
 		if (endpointChanged > 0) {
-			board.rebuildInfo();
 			ui.puzzle.redraw();
 		}
 	});
@@ -775,6 +805,60 @@ function applyEntry(entry) {
 	return null;
 }
 
+function getTravelLineOverlayKind(entry) {
+	var kind = getItemKind(entry.item);
+	if (kind === "line" || kind === "wall") {
+		return "line";
+	}
+	if (kind === "cross") {
+		return "cross";
+	}
+	return null;
+}
+
+function applyTravelLineDescription(result) {
+	if (!result || result.status !== "ok" || !result.description) {
+		throw new Error(
+			(result && result.description) || "solver did not return a board description"
+		);
+	}
+
+	var description = result.description;
+	var data = description.data || [];
+	var changed = 0;
+	var recognized = 0;
+	clearTravelLineSolverOverlay();
+
+	withSuppressedHistory(function() {
+		for (var i = 0; i < data.length; i++) {
+			var entry = data[i];
+			if (!isAnswerColor(entry) || !isBorderCoordinate(entry)) {
+				continue;
+			}
+			var border = ui.puzzle.board.getb(entry.x, entry.y);
+			var state = getTravelLineOverlayKind(entry);
+			if (border.isnull || !state) {
+				continue;
+			}
+			recognized++;
+			if (border._travellineSolverState !== state) {
+				border._travellineSolverState = state;
+				changed++;
+			}
+		}
+		if (changed > 0) {
+			ui.puzzle.redraw();
+		}
+	});
+
+	if (!recognized && data.length) {
+		throw new Error(getMessages().unsupported);
+	}
+
+	hasSolverState = recognized > 0;
+	return changed;
+}
+
 function applyDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
@@ -825,7 +909,7 @@ async function runSolver() {
 
 		try {
 			if (isTravelLinePuzzle()) {
-				clearCurrentAnswer();
+				clearTravelLineSolverOverlay();
 				setStatus(messages.solving);
 				var backendResult = await solveTravelLinePuzzle(requestId);
 				if (backendResult.changed > 0) {
@@ -912,8 +996,13 @@ function onHistoryChange() {
 	}
 
 	if (hasSolverState) {
-		clearCurrentAnswer();
-		setStatus(getMessages().cleared);
+		if (isTravelLinePuzzle()) {
+			clearTravelLineSolverOverlay();
+			setStatus(getMessages().clearedOverlay);
+		} else {
+			clearCurrentAnswer();
+			setStatus(getMessages().cleared);
+		}
 	}
 
 	scheduleAutoSolve();

@@ -18,6 +18,7 @@ var TL_FLOOR_FLAGS = {
 })(["travelline"], {
 	MouseEvent: {
 		draggingSG: false,
+		directedCluePlacedOnStart: false,
 		inputModes: {
 			edit: [
 				"arrow",
@@ -326,6 +327,9 @@ var TL_FLOOR_FLAGS = {
 			if (cell.isnull || cell === this.mouseCell) {
 				return;
 			}
+			if (cell !== this.cursor.getc()) {
+				this.setcursor(cell);
+			}
 			var floorFlag = {
 				bar: TL_FLOOR_FLAGS.BAR,
 				"travel-sloop": TL_FLOOR_FLAGS.SLOOP,
@@ -393,6 +397,9 @@ var TL_FLOOR_FLAGS = {
 			if (cell.isnull) {
 				return;
 			}
+			if (cell !== this.cursor.getc()) {
+				this.setcursor(cell);
+			}
 			var wasBar = cell.isBar();
 			if (this.btn === "right") {
 				if (cell.qnum === 16 && cell.qnum2 > 0) {
@@ -418,24 +425,45 @@ var TL_FLOOR_FLAGS = {
 			this.mousereset();
 		},
 		inputDirectedClue: function() {
-			if (this.mousestart || this.mousemove) {
-				if (this.notInputted()) {
-					this.inputDirectedArrow();
+			if (this.mousestart) {
+				this.directedCluePlacedOnStart = false;
+				this.inputDirectedArrow(true);
+			} else if (this.mousemove) {
+				if (this.notInputted() || this.directedCluePlacedOnStart) {
+					this.inputDirectedArrow(false);
 				}
 			} else if (this.mouseend && this.notInputted()) {
-				if (this.prevPos.getc() === this.getcell()) {
+				if (
+					!this.directedCluePlacedOnStart &&
+					this.prevPos.getc() === this.getcell()
+				) {
 					this.inputDirectedNumber();
 				}
 			}
 		},
-		inputDirectedArrow: function() {
+		inputDirectedArrow: function(onStart) {
 			var pos = this.getpos(0);
+			var type = this.inputMode === "travel-yajilin" ? 14 : 15;
+			var cell = pos.getc();
+
+			if (
+				onStart &&
+				this.btn === "left" &&
+				!cell.isnull &&
+				cell.qnum !== type
+			) {
+				cell.setQnum(type);
+				cell.setQnum2(0);
+				cell.setQdir(cell.qdir || cell.UP);
+				cell.draw();
+				this.directedCluePlacedOnStart = true;
+			}
+
 			if (this.prevPos.equals(pos)) {
 				return;
 			}
 
-			var type = this.inputMode === "travel-yajilin" ? 14 : 15;
-			var cell = this.prevPos.getc();
+			cell = this.prevPos.getc();
 			if (!cell.isnull && cell.qnum === type) {
 				var dir = this.prevPos.getdir(pos, 2);
 				if (dir !== cell.NDIR) {
@@ -449,6 +477,9 @@ var TL_FLOOR_FLAGS = {
 			var cell = this.getcell();
 			if (cell.isnull) {
 				return;
+			}
+			if (cell !== this.cursor.getc()) {
+				this.setcursor(cell);
 			}
 			var wasBar = cell.isBar();
 			var clueType = this.inputMode === "travel-yajilin" ? 14 : 15;
@@ -488,6 +519,9 @@ var TL_FLOOR_FLAGS = {
 			var cross = this.getpos(0.25).getx();
 			if (cross.isnull) {
 				return;
+			}
+			if (cross !== this.cursor.getx()) {
+				this.setcursor(cross);
 			}
 
 			if (this.inputMode === "travel-slither") {
@@ -530,9 +564,22 @@ var TL_FLOOR_FLAGS = {
 			if (!this.mousestart) {
 				return;
 			}
+			var cross = this.getpos(0.25).getx();
+			if (!cross.isnull) {
+				if (cross !== this.cursor.getx()) {
+					this.setcursor(cross);
+				}
+				cross.setQnum(-1);
+				cross.draw();
+				this.mousereset();
+				return;
+			}
 			var pos = this.getpos(0);
 			var cell = pos.getc();
 			if (!cell.isnull) {
+				if (cell !== this.cursor.getc()) {
+					this.setcursor(cell);
+				}
 				var wasBar = cell.isBar();
 				cell.setQnum(-1);
 				cell.setQnum2(-1);
@@ -542,13 +589,6 @@ var TL_FLOOR_FLAGS = {
 					this.board.relocateEndpointsFromClearedBar(cell);
 				}
 				cell.draw();
-				this.mousereset();
-				return;
-			}
-			var cross = pos.getx();
-			if (!cross.isnull) {
-				cross.setQnum(-1);
-				cross.draw();
 				this.mousereset();
 				return;
 			}
@@ -563,6 +603,21 @@ var TL_FLOOR_FLAGS = {
 
 	KeyEvent: {
 		enablemake: true,
+		keyinputTravelCrossNumber: function(cross, ca) {
+			if (cross.isnull) {
+				return false;
+			}
+			var current = cross.qnum >= 0 ? cross.qnum : -1;
+			var next = this.getNewNumber(cross, ca, current);
+			if (next === null) {
+				return false;
+			}
+			cross.setQnum(next);
+			cross.draw();
+			this.prev = cross;
+			this.cancelDefault = true;
+			return true;
+		},
 		keyinputTravelNumber: function(cell, ca, clueType, withDirection) {
 			var current = cell.qnum === clueType ? cell.qnum2 : -1;
 			var next = this.getNewNumber(
@@ -596,6 +651,14 @@ var TL_FLOOR_FLAGS = {
 			return true;
 		},
 		keyinput: function(ca) {
+			var cross = this.cursor.getx();
+			if (
+				!cross.isnull &&
+				this.keyinputTravelCrossNumber(cross, ca)
+			) {
+				return;
+			}
+
 			var cell = this.cursor.getc();
 			if (cell.isnull) {
 				return;
@@ -651,7 +714,7 @@ var TL_FLOOR_FLAGS = {
 					case "y":
 						qnum = 14;
 						break;
-					case "c":
+				case "c":
 						qnum = 15;
 						break;
 					case "g":
@@ -685,6 +748,16 @@ var TL_FLOOR_FLAGS = {
 				}
 				cell.draw();
 			}
+		}
+	},
+
+	TargetCursor: {
+		setminmax_customize: function() {
+			var bd = this.board;
+			this.minx = bd.minbx;
+			this.miny = bd.minby;
+			this.maxx = bd.maxbx;
+			this.maxy = bd.maxby;
 		}
 	},
 
@@ -756,9 +829,9 @@ var TL_FLOOR_FLAGS = {
 			var dy2 = this.board.cell[next].by - this.by;
 			return dx1 * dy2 - dy1 * dx2 > 0;
 		},
-		noLP: function() {
-			return (this.isBar() && !this.board.isBarEndpointCell(this)) || this.isYajilin();
-		},
+			noLP: function() {
+				return this.isBar() && !this.board.isBarEndpointCell(this);
+			},
 		isOnBoardEdge: function() {
 			return (
 				this.adjacent.top.group !== "cell" ||
@@ -1247,6 +1320,8 @@ var TL_FLOOR_FLAGS = {
 		irowake: true,
 		gridcolor_type: "LIGHT",
 		icecolor: "rgb(163, 216, 255)",
+		travellineSolverLineColor: "rgba(64, 128, 255, 0.55)",
+		travellineSolverPekeColor: "rgba(64, 128, 255, 0.8)",
 
 		paint: function() {
 			this._travelLineColorMap = null;
@@ -1254,8 +1329,11 @@ var TL_FLOOR_FLAGS = {
 			this.drawGrid();
 			this.drawBorders();
 			this.drawArrowNumbers();
+			this.drawCastleWallClueFrames();
 			this.drawLines();
 			this.drawPekes();
+			this.drawSolverOverlayLines();
+			this.drawSolverOverlayPekes();
 			this.drawBorderAuxDir();
 			this.drawCellClues();
 			this.drawCrossClues();
@@ -1536,7 +1614,7 @@ var TL_FLOOR_FLAGS = {
 				} else if (qn === 7 || qn === 8) {
 					g.fillStyle = qn === 8 ? this.quescolor : "white";
 					g.strokeStyle = this.quescolor;
-					g.shapeCircle(px, py, this.cw * 0.14);
+					g.shapeCircle(px, py, this.cw * 0.1);
 				} else if (qn === 16) {
 					g.fillStyle = this.getQuesNumberColor(cell);
 					this.disptext(this.getNumberTextCore_letter(Math.max(cell.qnum2, 0) + 1), px, py, {
@@ -1545,6 +1623,66 @@ var TL_FLOOR_FLAGS = {
 					} else {
 						g.vhide();
 					}
+			}
+		},
+		drawCastleWallClueFrames: function() {
+			var g = this.vinc("castle_wall_clue", "auto", true);
+			var clist = this.range.cells;
+			var size = this.cw * 0.68;
+			g.lineWidth = Math.max(this.cw / 28, 1.5);
+
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				g.vid = "cw_frame_" + cell.id;
+				if (cell.isCw()) {
+					g.strokeStyle = this.getQuesNumberColor(cell);
+					g.strokeRectCenter(cell.bx * this.bw, cell.by * this.bh, size, size);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+		drawSolverOverlayLines: function() {
+			var g = this.vinc("travelline_solver_line", "crispEdges");
+			var blist = this.range.borders;
+			var lm = Math.max(this.lm * 0.72, 1);
+
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				g.vid = "b_solver_line_" + border.id;
+				if (border._travellineSolverState === "line") {
+					var px = border.bx * this.bw;
+					var py = border.by * this.bh;
+					var isvert = this.board.borderAsLine === border.isVert();
+					g.fillStyle = this.travellineSolverLineColor;
+					if (isvert) {
+						g.fillRectCenter(px, py, lm, this.bh + lm);
+					} else {
+						g.fillRectCenter(px, py, this.bw + lm, lm);
+					}
+				} else {
+					g.vhide();
+				}
+			}
+		},
+		drawSolverOverlayPekes: function() {
+			var g = this.vinc("travelline_solver_peke", "auto", true);
+			var size = this.cw * 0.13 + 1;
+			if (size < 4) {
+				size = 4;
+			}
+			g.lineWidth = Math.max((1 + this.cw / 45) | 0, 1);
+			g.strokeStyle = this.travellineSolverPekeColor;
+
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				g.vid = "b_solver_peke_" + border.id;
+				if (border._travellineSolverState === "cross") {
+					g.strokeCross(border.bx * this.bw, border.by * this.bh, size - 1);
+				} else {
+					g.vhide();
+				}
 			}
 		},
 		drawCrossClues: function() {
@@ -1558,20 +1696,28 @@ var TL_FLOOR_FLAGS = {
 				var py = cross.by * this.bh;
 				var divideType = cross.getDivideType();
 
-				g.vid = "x_marker_" + cross.id;
+				g.vid = "x_slither_" + cross.id;
 				if (cross.isSlither()) {
 					g.fillStyle = this.quescolor;
 					this.disptext("" + cross.qnum, px, py, { ratio: 0.45 });
+					g.vid = "x_divide_" + cross.id;
+					g.vhide();
 				} else if (divideType > 0) {
+					g.vid = "x_slither_" + cross.id;
+					g.vhide();
 					var colors = {
 						1: "#d04a4a",
 						2: "#3f8c4f",
 						3: "#4d6fd0"
 					};
+					g.vid = "x_divide_" + cross.id;
 					g.fillStyle = colors[divideType];
 					g.strokeStyle = this.quescolor;
 					g.shapeCircle(px, py, this.cw * 0.12);
 				} else {
+					g.vid = "x_slither_" + cross.id;
+					g.vhide();
+					g.vid = "x_divide_" + cross.id;
 					g.vhide();
 				}
 			}
@@ -1774,6 +1920,7 @@ var TL_FLOOR_FLAGS = {
 		getCellEndpointArrowLayout: function(px, py, dir, ll, key) {
 			var dirs = this.board.emptycell;
 			if (key === "out") {
+				dir = this.getOppositeTravelDir(dir);
 				var edge = this.cw * 0.5;
 				var outside = Math.min(
 					Math.max(ll * 1.6, this.cw * 0.46),
@@ -1856,10 +2003,7 @@ var TL_FLOOR_FLAGS = {
 			}
 			return { x: px, y: py - offset };
 		},
-		getCellEndpointArrowDir: function(key, dir) {
-			if (key !== "out") {
-				return dir;
-			}
+		getOppositeTravelDir: function(dir) {
 			var dirs = this.board.emptycell;
 			switch (dir) {
 				case dirs.UP:
@@ -1871,6 +2015,9 @@ var TL_FLOOR_FLAGS = {
 				case dirs.RT:
 					return dirs.LT;
 			}
+			return dir;
+		},
+		getCellEndpointArrowDir: function(key, dir) {
 			return dir;
 		},
 		drawCellEndpointArrow: function(g, key, px, py, dir, ll, lm) {
@@ -2518,22 +2665,15 @@ var TL_FLOOR_FLAGS = {
 				}
 			}
 		},
-		checkYajilinClues: function() {
-			var bd = this.board;
-			for (var i = 0; i < bd.cell.length; i++) {
-				var cell = bd.cell[i];
-				if (!cell.isYajilin()) {
-					continue;
-				}
-				if (cell.lcnt > 0) {
-					this.failcode.add("tlYajilin");
-					if (!this.checkOnly) {
-						cell.seterr(1);
+			checkYajilinClues: function() {
+				var bd = this.board;
+				for (var i = 0; i < bd.cell.length; i++) {
+					var cell = bd.cell[i];
+					if (!cell.isYajilin()) {
+						continue;
 					}
-					return;
-				}
-				var count = 0;
-				var pos = cell.getaddr();
+					var count = 0;
+					var pos = cell.getaddr();
 				while (true) {
 					pos = pos.movedir(cell.qdir, 2);
 					var next = pos.getc();
@@ -3059,7 +3199,10 @@ var TL_FLOOR_FLAGS = {
 		tlSlither: ["Slither の数字条件を満たしていません。", "A Slither clue count is violated."],
 		tlDivide: ["同じ Divide 領域に複数タイプがあります。", "A Divide region contains multiple Divide types."],
 		tlYajilin: ["Yajilin の矢印数字条件を満たしていません。", "A Yajilin clue count is violated."],
-		tlCw: ["CW の矢印数字条件を満たしていません。", "A CW clue count is violated."],
+		tlCw: [
+			"Castle wall の矢印数字条件を満たしていません。",
+			"A Castle wall clue count is violated."
+		],
 		tlOrder: ["Order の文字順条件を満たしていません。", "An Order clue sequence is violated."],
 		tlReqLine: ["Required line が通っていません。", "A required line edge is not used."],
 		tlCountry: ["Country の境界の両側が未訪問です。", "Neither side of a Country border is visited."]

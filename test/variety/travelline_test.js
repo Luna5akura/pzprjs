@@ -26,6 +26,89 @@ describe("Variety:travelline", function() {
 		assert.equal(cell.qdir, 0);
 	});
 
+	it("clears a slither cross before placing a divide clue on the same point", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var cross = puzzle.board.getx(0, 0);
+
+		puzzle.mouse.setInputMode("travel-slither");
+		puzzle.mouse.inputPath("left", 0, 0);
+		assert.equal(cross.qnum, 0);
+
+		puzzle.mouse.setInputMode("clear");
+		puzzle.mouse.inputPath("left", 0, 0);
+		assert.equal(cross.qnum, -1);
+
+		puzzle.mouse.setInputMode("travel-div2");
+		puzzle.mouse.inputPath("left", 0, 0);
+		assert.equal(cross.qnum, 12);
+	});
+
+	it("places a directed clue as soon as a drag starts from an empty cell", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var mouse = puzzle.mouse;
+		mouse.setInputMode("travel-yajilin");
+		var cell = puzzle.board.getc(1, 1);
+
+		mouse.mousereset();
+		mouse.btn = "left";
+		mouse.inputPoint.init(1, 1);
+		mouse.mousestart = true;
+		mouse.inputDirectedClue();
+
+		assert.equal(cell.qnum, 14);
+		assert.equal(cell.qnum2, 0);
+
+		mouse.inputPoint.init(3, 1);
+		mouse.mousestart = false;
+		mouse.mousemove = true;
+		mouse.inputDirectedClue();
+
+		assert.equal(cell.qdir, cell.RT);
+	});
+
+	it("supports keyboard number entry on cross clues", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("travel-slither");
+		puzzle.mouse.inputPath("left", 2, 2);
+		var cross = puzzle.board.getx(2, 2);
+
+		assert.equal(puzzle.cursor.bx, 2);
+		assert.equal(puzzle.cursor.by, 2);
+		puzzle.key.inputKeys("4");
+		assert.equal(cross.qnum, 4);
+
+		puzzle.key.inputKeys("BS");
+		assert.equal(cross.qnum, -1);
+	});
+
+	it("supports keyboard number entry on directed and order clues after selecting the cell", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var cell = puzzle.board.getc(1, 1);
+
+		puzzle.mouse.setInputMode("travel-yajilin");
+		puzzle.mouse.inputPath("left", 1, 1);
+		assert.equal(puzzle.cursor.bx, 1);
+		assert.equal(puzzle.cursor.by, 1);
+
+		puzzle.key.inputKeys("3");
+		assert.equal(cell.qnum, 14);
+		assert.equal(cell.qnum2, 3);
+
+		puzzle.key.inputKeys("c");
+		puzzle.key.inputKeys("1");
+		assert.equal(cell.qnum, 15);
+		assert.equal(cell.qnum2, 1);
+
+		puzzle.key.inputKeys("r");
+		puzzle.key.inputKeys("2");
+		assert.equal(cell.qnum, 16);
+		assert.equal(cell.qnum2, 2);
+	});
+
 	it("exports and reloads URL with custom clues", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		var board = puzzle.board;
@@ -105,6 +188,33 @@ describe("Variety:travelline", function() {
 		board.cell[2].setQnum(14);
 		board.cell[2].setQdir(board.cell[2].RT);
 		board.cell[2].setQnum2(1);
+
+		var checker = puzzle.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkYajilinClues();
+		assert.equal(checker.failcode[0], undefined);
+	});
+
+	it("allows the travel line to pass through a yajilin clue cell", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/1");
+		var board = puzzle.board;
+
+		board.arrowin.set(board.getb(0, 1));
+		board.arrowout.set(board.getb(6, 1));
+		board.arrowin.getb().setLine();
+		board.arrowout.getb().setLine();
+		board.getb(2, 1).setLine();
+		board.getb(4, 1).setLine();
+
+		board.cell[1].setQnum(14);
+		board.cell[1].setQdir(board.cell[1].RT);
+		board.cell[1].setQnum2(0);
+
+		assert.equal(board.cell[1].noLP(), false);
 
 		var checker = puzzle.checker;
 		checker.failcode = [];
@@ -308,18 +418,88 @@ describe("Variety:travelline", function() {
 		var px = 100;
 		var py = 80;
 		var ll = 12;
-		var topEdge = py - graphic.cw * 0.5;
+		var leftEdge = px - graphic.cw * 0.5;
 
-		var inDir = graphic.getCellEndpointArrowDir("in", cell.UP);
-		var outDir = graphic.getCellEndpointArrowDir("out", cell.UP);
-		var inLayout = graphic.getCellEndpointArrowLayout(px, py, cell.UP, ll, "in");
-		var outLayout = graphic.getCellEndpointArrowLayout(px, py, cell.UP, ll, "out");
+		var inDir = graphic.getCellEndpointArrowDir("in", cell.RT);
+		var outDir = graphic.getCellEndpointArrowDir("out", cell.RT);
+		var inLayout = graphic.getCellEndpointArrowLayout(px, py, cell.RT, ll, "in");
+		var outLayout = graphic.getCellEndpointArrowLayout(px, py, cell.RT, ll, "out");
 
-		assert.equal(inDir, cell.UP);
-		assert.equal(outDir, cell.DN);
-		assert(inLayout.ey < py);
-		assert(outLayout.sy < topEdge);
-		assert.equal(outLayout.ey, topEdge);
+		assert.equal(inDir, cell.RT);
+		assert.equal(outDir, cell.RT);
+		assert(inLayout.ex > px);
+		assert(outLayout.sx < leftEdge);
+		assert.equal(outLayout.ex, leftEdge);
+	});
+
+	it("draws solver overlay lines without mutating answer lines", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var border = puzzle.board.getb(2, 1);
+		var calls = [];
+		var graphic = puzzle.painter;
+		var g = {
+			vid: "",
+			fillStyle: null,
+			fillRectCenter: function() {
+				calls.push("line");
+			},
+			vhide: function() {
+				calls.push("hide:" + this.vid);
+			}
+		};
+
+		border._travellineSolverState = "line";
+		assert.equal(border.isLine(), false);
+
+		graphic.range = { borders: [border] };
+		graphic.context = g;
+		graphic.vinc = function() {
+			return g;
+		};
+		graphic.drawSolverOverlayLines();
+
+		assert.deepEqual(calls, ["line"]);
+		assert.equal(border.isLine(), false);
+	});
+
+	it("hides stale slither text when a cross clue changes to divide", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var graphic = puzzle.painter;
+		var cross = puzzle.board.getx(0, 0);
+		var calls = [];
+		var g = {
+			vid: "",
+			fillStyle: null,
+			strokeStyle: null,
+			shapeCircle: function() {
+				calls.push(["circle", this.vid]);
+			},
+			vhide: function() {
+				calls.push(["hide", this.vid]);
+			}
+		};
+
+		cross.setQnum(12);
+		graphic.range = { crosses: [cross] };
+		graphic.context = g;
+		graphic.vinc = function() {
+			return g;
+		};
+		graphic.disptext = function(text) {
+			calls.push([text, g.vid]);
+		};
+
+		graphic.drawCrossClues();
+
+		assert(calls.some(function(entry) {
+			return entry[0] === "hide" && entry[1] === "x_slither_" + cross.id;
+		}));
+		assert(calls.some(function(entry) {
+			return entry[0] === "circle" && entry[1] === "x_divide_" + cross.id;
+		}));
+		assert(!calls.some(function(entry) {
+			return entry[0] === "0" || entry[0] === "1" || entry[0] === "2" || entry[0] === "3" || entry[0] === "4";
+		}));
 	});
 
 	it("maps edge border placement onto bar endpoints with the same drag direction", function() {
