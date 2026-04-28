@@ -1658,9 +1658,15 @@ async function solveTravelLinePuzzle(requestId) {
 					(current !== start ||
 						startBarNeighbor === null ||
 						next === startBarNeighbor) &&
+					(current !== start ||
+						!startOuterSide ||
+						endpointCellTravelAllowed(start, next, startOuterSide, true)) &&
 					(next !== goal ||
 						goalBarNeighbor === null ||
 						current === goalBarNeighbor) &&
+					(next !== goal ||
+						!goalOuterSide ||
+						endpointCellTravelAllowed(goal, current, goalOuterSide, false)) &&
 					!isLineBlocked(next) &&
 					!isBorderUsed(border.id, edgeMask) &&
 					!(next === goal && remainingRequired.length > 0) &&

@@ -2,13 +2,15 @@
 
 var solverModuleFactoryPromise = null;
 var solverModulePromise = null;
+var solverModuleUrl = new URL("../wasm/cspuz_solver_backend.js", import.meta.url).href;
+var solverWasmUrl = new URL("../wasm/cspuz_solver_backend.wasm", import.meta.url).href;
 
 function getSolverModuleFactory() {
 	if (!solverModuleFactoryPromise) {
 		solverModuleFactoryPromise = new Function(
 			"path",
 			"return import(path);"
-		)("../wasm/cspuz_solver_backend.js").then(function(imported) {
+		)(solverModuleUrl).then(function(imported) {
 			return imported.default || imported;
 		});
 	}
@@ -21,7 +23,7 @@ function getSolverModule() {
 			return factory({
 				locateFile: function(path) {
 					if (path.endsWith(".wasm")) {
-						return "../wasm/cspuz_solver_backend.wasm";
+						return solverWasmUrl;
 					}
 					return path;
 				}
