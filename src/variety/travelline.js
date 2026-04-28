@@ -277,11 +277,13 @@ var TL_FLOOR_FLAGS = {
 		},
 		inputDirectedClue: function() {
 			if (this.mousestart || this.mousemove) {
-				this.inputDirectedArrow();
-				return;
-			}
-			if (this.mouseend && this.notInputted()) {
-				this.inputDirectedNumber();
+				if (this.notInputted()) {
+					this.inputDirectedArrow();
+				}
+			} else if (this.mouseend && this.notInputted()) {
+				if (this.prevPos.getc() === this.getcell()) {
+					this.inputDirectedNumber();
+				}
 			}
 		},
 		inputDirectedArrow: function() {
@@ -307,28 +309,28 @@ var TL_FLOOR_FLAGS = {
 				return;
 			}
 			var clueType = this.inputMode === "travel-yajilin" ? 14 : 15;
-			if (this.btn === "right") {
-				if (cell.qnum === clueType && cell.qnum2 >= 0) {
-					if (cell.qnum2 > 0) {
-						cell.setQnum2(cell.qnum2 - 1);
-					} else {
-						cell.setQnum(-1);
-						cell.setQnum2(-1);
-						cell.setQdir(0);
-					}
-				} else if (cell.qnum !== clueType) {
-					return;
-				} else {
-					cell.setQnum2(cell.qnum2 - 1);
-				}
+			var current = cell.qnum === clueType ? cell.qnum2 : -1;
+			var next = this.getNewNumber(
+				{
+					getmaxnum: function() {
+						return 51;
+					},
+					getminnum: function() {
+						return 0;
+					},
+					disInputHatena: true,
+					qsub: 0
+				},
+				current
+			);
+			if (next === -1) {
+				cell.setQnum(-1);
+				cell.setQnum2(-1);
+				cell.setQdir(0);
 			} else {
-				if (cell.qnum !== clueType) {
-					cell.setQnum(clueType);
-					cell.setQnum2(0);
-					cell.setQdir(cell.UP);
-				} else {
-					cell.setQnum2((cell.qnum2 >= 0 ? cell.qnum2 : 0) + 1);
-				}
+				cell.setQnum(clueType);
+				cell.setQnum2(next);
+				cell.setQdir(cell.qdir || cell.UP);
 			}
 			cell.draw();
 			this.mousereset();
@@ -525,6 +527,11 @@ var TL_FLOOR_FLAGS = {
 	Cell: {
 		maxnum: 16,
 		minnum: 1,
+		prehook: {
+			qnum2: function() {
+				return false;
+			}
+		},
 
 		hasFloorFlag: function(flag) {
 			return !!(this.ques & flag);
@@ -549,7 +556,7 @@ var TL_FLOOR_FLAGS = {
 			return dx1 * dy2 - dy1 * dx2 > 0;
 		},
 		noLP: function() {
-			return this.qnum === 1;
+			return this.qnum === 1 || this.isYajilin();
 		},
 		isOnBoardEdge: function() {
 			var bd = this.board;
@@ -1319,6 +1326,7 @@ var TL_FLOOR_FLAGS = {
 			decodePzpr: function() {
 				this.decodeBorder();
 				this.decodeNumber16();
+				this.decodeRequiredBorderExtras();
 				this.decodeCrossExtras();
 				this.decodeDirectedCellExtras();
 				this.decodeFloorCellExtras();
@@ -1326,13 +1334,69 @@ var TL_FLOOR_FLAGS = {
 				this.normalizeLegacyFloorClues();
 			},
 			encodePzpr: function() {
-				this.encodeBorder();
-				this.encodeNumber16();
+				this.encodeBaseBorder();
+				this.encodeTravelNumber16();
+				this.encodeRequiredBorderExtras();
 				this.encodeCrossExtras();
 				this.encodeDirectedCellExtras();
 				this.encodeFloorCellExtras();
 				this.encodeInOut();
 			},
+		encodeTravelNumber16: function() {
+			var bd = this.board;
+			this.genericEncodeNumber16(bd.cell.length, function(c) {
+				var qnum = bd.cell[c].qnum;
+				return qnum === 14 || qnum === 15 || qnum === 16 ? -1 : qnum;
+			});
+		},
+		encodeBaseBorder: function() {
+			var saved = [];
+			for (var i = 0; i < this.board.border.length; i++) {
+				var border = this.board.border[i];
+				if (border.inside && border.ques === 2) {
+					saved.push([border, border.ques]);
+					border.ques = 0;
+				}
+			}
+			this.encodeBorder();
+			for (var j = 0; j < saved.length; j++) {
+				saved[j][0].ques = saved[j][1];
+			}
+		},
+		decodeRequiredBorderExtras: function() {
+			var barray = this.outbstr.split("/");
+			if (barray.length <= 3) {
+				return;
+			}
+			var seg = barray[1] || "-";
+			var bd = this.board;
+			if (seg !== "-") {
+				var items = seg.split("+");
+				for (var i = 0; i < items.length; i++) {
+					if (!items[i]) {
+						continue;
+					}
+					var parts = items[i].split(".");
+					var id = parseInt(parts[0], 36);
+					if (!bd.border[id] || !bd.border[id].inside || parts[1] !== "r") {
+						continue;
+					}
+					bd.border[id].ques = 2;
+				}
+			}
+			this.outbstr = "/" + barray.slice(2).join("/");
+		},
+		encodeRequiredBorderExtras: function() {
+			var list = [];
+			for (var i = 0; i < this.board.border.length; i++) {
+				var border = this.board.border[i];
+				if (!border.inside || border.ques !== 2) {
+					continue;
+				}
+				list.push(i.toString(36) + ".r");
+			}
+			this.outbstr += "/" + (list.length ? list.join("+") : "-");
+		},
 		decodeCrossExtras: function() {
 			var barray = this.outbstr.split("/");
 			if (barray.length <= 3) {
@@ -1757,6 +1821,13 @@ var TL_FLOOR_FLAGS = {
 				if (!cell.isYajilin()) {
 					continue;
 				}
+				if (cell.lcnt > 0) {
+					this.failcode.add("tlYajilin");
+					if (!this.checkOnly) {
+						cell.seterr(1);
+					}
+					return;
+				}
 				var count = 0;
 				var pos = cell.getaddr();
 				while (true) {
@@ -1765,7 +1836,7 @@ var TL_FLOOR_FLAGS = {
 					if (next.isnull) {
 						break;
 					}
-					if (!next.isBar() && next.lcnt === 0) {
+					if (!next.isBar() && !next.isYajilin() && next.lcnt === 0) {
 						count++;
 					}
 				}

@@ -257,6 +257,8 @@ function getTravelLineBackendPayload() {
 	var directed = [];
 	var requiredH = [];
 	var requiredV = [];
+	var forcedH = [];
+	var forcedV = [];
 
 	for (var y = 0; y < rows; y++) {
 		var barRow = [];
@@ -270,6 +272,7 @@ function getTravelLineBackendPayload() {
 		var directedRow = [];
 		var reqHRow = [];
 		var countryHRow = [];
+		var forcedHRow = [];
 		for (var x = 0; x < cols; x++) {
 			var cell = board.cell[y * cols + x];
 			var qnum = cell.qnum;
@@ -333,6 +336,13 @@ function getTravelLineBackendPayload() {
 				var borderH = board.getb(cell.bx + 1, cell.by);
 				reqHRow.push(borderH.ques === 2);
 				countryHRow.push(borderH.ques === 1);
+				if (borderH.isLine()) {
+					forcedHRow.push(1);
+				} else if (borderH.qsub === 2) {
+					forcedHRow.push(0);
+				} else {
+					forcedHRow.push(-1);
+				}
 			}
 		}
 		bars.push(barRow);
@@ -346,6 +356,7 @@ function getTravelLineBackendPayload() {
 		directed.push(directedRow);
 		requiredH.push(reqHRow);
 		countryH.push(countryHRow);
+		forcedH.push(forcedHRow);
 	}
 	for (var dy = 0; dy <= rows; dy++) {
 		var divideRow = [];
@@ -386,14 +397,23 @@ function getTravelLineBackendPayload() {
 	for (var y2 = 0; y2 + 1 < rows; y2++) {
 		var reqVRow = [];
 		var countryVRow = [];
+		var forcedVRow = [];
 		for (var x2 = 0; x2 < cols; x2++) {
 			var cell2 = board.cell[y2 * cols + x2];
 			var borderV = board.getb(cell2.bx, cell2.by + 1);
 			reqVRow.push(borderV.ques === 2);
 			countryVRow.push(borderV.ques === 1);
+			if (borderV.isLine()) {
+				forcedVRow.push(1);
+			} else if (borderV.qsub === 2) {
+				forcedVRow.push(0);
+			} else {
+				forcedVRow.push(-1);
+			}
 		}
 		requiredV.push(reqVRow);
 		countryV.push(countryVRow);
+		forcedV.push(forcedVRow);
 	}
 
 	var startSide = getTravelLineBorderSide(board, startBorder);
@@ -431,7 +451,9 @@ function getTravelLineBackendPayload() {
 		countryV: countryV,
 		directed: directed,
 		requiredH: requiredH,
-		requiredV: requiredV
+		requiredV: requiredV,
+		forcedH: forcedH,
+		forcedV: forcedV
 	};
 }
 
@@ -525,6 +547,12 @@ async function solveTravelLinePuzzle(requestId) {
 	}
 	function isBar(idx) {
 		return getClue(idx) === 1;
+	}
+	function isYajilin(idx) {
+		return getClue(idx) === 14;
+	}
+	function isLineBlocked(idx) {
+		return isBar(idx) || isYajilin(idx);
 	}
 	function isIce(idx) {
 		return getClue(idx) === 2 || hasFloorFlag(idx, TL_FLOOR_FLAGS.ICE);
@@ -649,6 +677,27 @@ async function solveTravelLinePuzzle(requestId) {
 			copy[key] = source[key];
 		});
 		return copy;
+	}
+	function getCurrentTravelLineForcedStates() {
+		var states = {};
+		for (var borderId = 0; borderId < board.border.length; borderId++) {
+			var border = board.border[borderId];
+			if (border.isnull) {
+				continue;
+			}
+			if (border.isLine()) {
+				states[border.id] = true;
+			} else if (border.qsub === 2) {
+				states[border.id] = false;
+			}
+		}
+		if (startBorder) {
+			states[startBorder.id] = true;
+		}
+		if (goalBorder) {
+			states[goalBorder.id] = true;
+		}
+		return states;
 	}
 	function getBorderBit(borderId) {
 		var index = insideBorderBitIndex[borderId];
@@ -795,7 +844,7 @@ async function solveTravelLinePuzzle(requestId) {
 			for (var i = 0; i < nexts.length; i++) {
 				var next = nexts[i];
 				var border = getBorderBetweenCells(node, next);
-				if (seen[next] || isBar(next) || isBorderUsed(border.id, edgeMask)) {
+				if (seen[next] || isLineBlocked(next) || isBorderUsed(border.id, edgeMask)) {
 					continue;
 				}
 				if (visitCount[next] > 0 && !isCrossingCell(next) && next !== goal) {
@@ -824,7 +873,7 @@ async function solveTravelLinePuzzle(requestId) {
 					if (next.isnull) {
 						break;
 					}
-					if (next.qnum !== 1) {
+					if (!isLineBlocked(next.id)) {
 						totalCells++;
 						if (visitCount[next.id] > 0) {
 							currentVisited++;
@@ -874,6 +923,9 @@ async function solveTravelLinePuzzle(requestId) {
 		var cur = path[index];
 		var next = path[index + 1];
 		var clue = getClue(cur);
+		if (clue === 14) {
+			return false;
+		}
 		if (isIce(cur) || clue === 3 || clue === 7) {
 			return isStraight(prev, cur, next);
 		}
@@ -957,6 +1009,9 @@ async function solveTravelLinePuzzle(requestId) {
 			var clue = getClue(i);
 			var used = (visitCount[i] || 0) > 0;
 			if (clue === 1 && used) {
+				return false;
+			}
+			if (clue === 14 && used) {
 				return false;
 			}
 			if ((clue === 3 || clue === 4 || clue === 7 || clue === 8) && !used) {
@@ -1092,7 +1147,11 @@ async function solveTravelLinePuzzle(requestId) {
 					if (nextCell.isnull) {
 						break;
 					}
-					if (nextCell.qnum !== 1 && !(visitCount[nextCell.id] > 0)) {
+					if (
+						nextCell.qnum !== 1 &&
+						nextCell.qnum !== 14 &&
+						!(visitCount[nextCell.id] > 0)
+					) {
 						count++;
 					}
 				}
@@ -1334,7 +1393,7 @@ async function solveTravelLinePuzzle(requestId) {
 			var options = neighbors(current).filter(function(next) {
 				var border = getBorderBetweenCells(current, next);
 				return (
-					!isBar(next) &&
+					!isLineBlocked(next) &&
 					!isBorderUsed(border.id, edgeMask) &&
 					!(next === goal && remainingRequired.length > 0) &&
 					moveRespectsForced(current, next) &&
@@ -1399,7 +1458,7 @@ async function solveTravelLinePuzzle(requestId) {
 		return found;
 	}
 
-	if (isBar(start) || isBar(goal)) {
+	if (isLineBlocked(start) || isLineBlocked(goal)) {
 		throw new Error("start or goal is blocked");
 	}
 
@@ -1420,7 +1479,8 @@ async function solveTravelLinePuzzle(requestId) {
 		candidateBorders.push(borderId);
 	}
 
-	var basePath = await findTravelLineSolution({}, null);
+	var initialForcedStates = getCurrentTravelLineForcedStates();
+	var basePath = await findTravelLineSolution(initialForcedStates, null);
 	if (!basePath) {
 		throw new Error("travel line solver found no solution");
 	}
@@ -1441,7 +1501,10 @@ async function solveTravelLinePuzzle(requestId) {
 		if (irrefutableStates[borderId] !== undefined) {
 			continue;
 		}
-		var forcedStates = cloneStateMap(irrefutableStates);
+		var forcedStates = cloneStateMap(initialForcedStates);
+		Object.keys(irrefutableStates).forEach(function(id) {
+			forcedStates[id] = irrefutableStates[id];
+		});
 		forcedStates[borderId] = !baseStates[borderId];
 		var altPath = await findTravelLineSolution(forcedStates, baseStates);
 		if (!altPath) {

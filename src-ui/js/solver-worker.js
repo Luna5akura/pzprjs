@@ -43,13 +43,42 @@ function readSolverResult(module, resultPtr) {
 	return JSON.parse(json);
 }
 
+function allocateSolverInput(module, encoded) {
+	if (typeof module._prepare_input_buffer === "function") {
+		return {
+			ptr: module._prepare_input_buffer(encoded.length),
+			release: function() {}
+		};
+	}
+	if (typeof module._malloc === "function") {
+		var ptr = module._malloc(encoded.length);
+		return {
+			ptr: ptr,
+			release: function() {
+				if (ptr) {
+					module._free(ptr);
+				}
+			}
+		};
+	}
+	throw new Error(
+		"solver backend does not provide _prepare_input_buffer or _malloc"
+	);
+}
+
 function solveProblem(url) {
 	return getSolverModule().then(function(module) {
 		var encoded = new TextEncoder().encode(url);
-		var ptr = module._prepare_input_buffer(encoded.length);
-		module.HEAPU8.set(encoded, ptr);
-
-		return readSolverResult(module, module._solve_problem(ptr, encoded.length));
+		var input = allocateSolverInput(module, encoded);
+		module.HEAPU8.set(encoded, input.ptr);
+		try {
+			return readSolverResult(
+				module,
+				module._solve_problem(input.ptr, encoded.length)
+			);
+		} finally {
+			input.release();
+		}
 	});
 }
 
@@ -60,13 +89,16 @@ function solveCustomTravelLine(payload) {
 		}
 
 		var encoded = new TextEncoder().encode(JSON.stringify(payload));
-		var ptr = module._prepare_input_buffer(encoded.length);
-		module.HEAPU8.set(encoded, ptr);
-
-		return readSolverResult(
-			module,
-			module._solve_custom_travelline(ptr, encoded.length)
-		);
+		var input = allocateSolverInput(module, encoded);
+		module.HEAPU8.set(encoded, input.ptr);
+		try {
+			return readSolverResult(
+				module,
+				module._solve_custom_travelline(input.ptr, encoded.length)
+			);
+		} finally {
+			input.release();
+		}
 	});
 }
 
