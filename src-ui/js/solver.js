@@ -12,6 +12,7 @@ var suppressHistory = false;
 var restartSolveAfterCurrent = false;
 var LOCAL_SOLVER_YIELD_INTERVAL = 1024;
 var TL_FLOOR_FLAGS = {
+	BAR: 32,
 	ICE: 1,
 	NOTOUCH: 2,
 	NOADJ: 4,
@@ -234,12 +235,147 @@ function getTravelLineBorderSide(board, border) {
 	return null;
 }
 
+function getTravelLineDirSide(cell, dir) {
+	if (!cell || cell.isnull) {
+		return null;
+	}
+	switch (dir) {
+		case cell.UP:
+			return "up";
+		case cell.DN:
+			return "down";
+		case cell.LT:
+			return "left";
+		case cell.RT:
+			return "right";
+	}
+	return null;
+}
+
+function getTravelLineOppositeSide(side) {
+	switch (side) {
+		case "up":
+			return "down";
+		case "down":
+			return "up";
+		case "left":
+			return "right";
+		case "right":
+			return "left";
+	}
+	return null;
+}
+
+function getTravelLineCellEdgeSide(address, type) {
+	if (!address || !address.oncell || !address.oncell()) {
+		return null;
+	}
+	var cell = address.getc();
+	if (!cell || cell.isnull || !cell.isOnBoardEdge()) {
+		return null;
+	}
+	var side = getTravelLineDirSide(cell, address.getdir());
+	if (!side) {
+		return null;
+	}
+	if (type === "in") {
+		return getTravelLineOppositeSide(side);
+	}
+	if (type === "out") {
+		return side;
+	}
+	return null;
+}
+
+function getTravelLineEndpointSide(board, address, type) {
+	if (!address) {
+		return null;
+	}
+	if (address.onborder && address.onborder()) {
+		return getTravelLineBorderSide(board, address.getb());
+	}
+	if (address.oncell && address.oncell()) {
+		return getTravelLineCellEdgeSide(address, type);
+	}
+	return null;
+}
+
+function getTravelLineEndpointDir(address) {
+	if (!address || !address.oncell || !address.oncell()) {
+		return null;
+	}
+	return getTravelLineDirSide(address.getc(), address.getdir());
+}
+
+function getTravelLineEndpointPayload(board, address, type) {
+	if (!address) {
+		return null;
+	}
+	var outerSide = getTravelLineEndpointSide(board, address, type);
+	var dir = getTravelLineEndpointDir(address);
+	if (!outerSide && !dir) {
+		return null;
+	}
+	return {
+		outerSide: outerSide,
+		dir: dir
+	};
+}
+
+function getTravelLineBarEndpointNeighborIndex(address, type, rows, cols) {
+	if (!address || !address.oncell || !address.oncell()) {
+		return null;
+	}
+	var cell = address.getc();
+	if (
+		!cell ||
+		cell.isnull ||
+		!cell.isBar() ||
+		cell.isOnBoardEdge()
+	) {
+		// Edge-bar endpoints encode the boundary arrow direction, not a unique
+		// in-grid exit edge, so only internal bar endpoints can be pinned here.
+		return null;
+	}
+
+	var dx = 0;
+	var dy = 0;
+	switch (address.getdir()) {
+		case cell.UP:
+			dy = -1;
+			break;
+		case cell.DN:
+			dy = 1;
+			break;
+		case cell.LT:
+			dx = -1;
+			break;
+		case cell.RT:
+			dx = 1;
+			break;
+		default:
+			return null;
+	}
+
+	if (type === "out") {
+		dx = -dx;
+		dy = -dy;
+	}
+
+	var x = cell.id % cols;
+	var y = (cell.id / cols) | 0;
+	var nx = x + dx;
+	var ny = y + dy;
+	if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) {
+		return null;
+	}
+	return ny * cols + nx;
+}
+
 function getTravelLineBackendPayload() {
 	var board = ui.puzzle.board;
 	var rows = board.rows;
 	var cols = board.cols;
-	var startBorder = board.arrowin ? board.arrowin.getb() : null;
-	var goalBorder = board.arrowout ? board.arrowout.getb() : null;
 	var startCell = board.getStartCell ? board.getStartCell() : board.startpos.getc();
 	var goalCell = board.getGoalCell ? board.getGoalCell() : board.goalpos.getc();
 	var bars = [];
@@ -277,7 +413,7 @@ function getTravelLineBackendPayload() {
 			var cell = board.cell[y * cols + x];
 			var qnum = cell.qnum;
 			var floors = cell.ques || 0;
-			barRow.push(qnum === 1);
+			barRow.push(cell.isBar());
 			iceRow.push(qnum === 2 || !!(floors & TL_FLOOR_FLAGS.ICE));
 			cwfloorRow.push(!!(floors & TL_FLOOR_FLAGS.CWFLOOR));
 			noadjRow.push(qnum === 6 || !!(floors & TL_FLOOR_FLAGS.NOADJ));
@@ -305,7 +441,6 @@ function getTravelLineBackendPayload() {
 			orderRow.push(qnum === 16 ? Math.max(cell.qnum2, 0) : -1);
 			if (
 				qnum !== -1 &&
-				qnum !== 1 &&
 				qnum !== 2 &&
 				qnum !== 3 &&
 				qnum !== 4 &&
@@ -323,6 +458,7 @@ function getTravelLineBackendPayload() {
 			if (
 				floors &
 				~(
+					TL_FLOOR_FLAGS.BAR |
 					TL_FLOOR_FLAGS.ICE |
 					TL_FLOOR_FLAGS.NOTOUCH |
 					TL_FLOOR_FLAGS.NOADJ |
@@ -416,9 +552,9 @@ function getTravelLineBackendPayload() {
 		forcedV.push(forcedVRow);
 	}
 
-	var startSide = getTravelLineBorderSide(board, startBorder);
-	var goalSide = getTravelLineBorderSide(board, goalBorder);
-	if (!startSide || !goalSide) {
+	var startEndpoint = getTravelLineEndpointPayload(board, board.arrowin, "in");
+	var goalEndpoint = getTravelLineEndpointPayload(board, board.arrowout, "out");
+	if (!startEndpoint || !goalEndpoint) {
 		return null;
 	}
 
@@ -435,8 +571,12 @@ function getTravelLineBackendPayload() {
 		cols: cols,
 		start: startCell.id,
 		goal: goalCell.id,
-		startSide: startSide,
-		goalSide: goalSide,
+		startSide: startEndpoint.outerSide,
+		goalSide: goalEndpoint.outerSide,
+		startOuterSide: startEndpoint.outerSide,
+		goalOuterSide: goalEndpoint.outerSide,
+		startDir: startEndpoint.dir,
+		goalDir: goalEndpoint.dir,
 		bars: bars,
 		ice: ice,
 		cwfloor: cwfloor,
@@ -472,10 +612,28 @@ async function solveTravelLinePuzzle(requestId) {
 	var total = cols * rows;
 	var startCell = board.getStartCell ? board.getStartCell() : board.startpos.getc();
 	var goalCell = board.getGoalCell ? board.getGoalCell() : board.goalpos.getc();
-	var startBorder = board.arrowin ? board.arrowin.getb() : null;
-	var goalBorder = board.arrowout ? board.arrowout.getb() : null;
+	var startBorder =
+		board.arrowin && board.arrowin.onborder && board.arrowin.onborder()
+			? board.arrowin.getb()
+			: null;
+	var goalBorder =
+		board.arrowout && board.arrowout.onborder && board.arrowout.onborder()
+			? board.arrowout.getb()
+			: null;
 	var start = startCell.id;
 	var goal = goalCell.id;
+	var startBarNeighbor = getTravelLineBarEndpointNeighborIndex(
+		board.arrowin,
+		"in",
+		rows,
+		cols
+	);
+	var goalBarNeighbor = getTravelLineBarEndpointNeighborIndex(
+		board.arrowout,
+		"out",
+		rows,
+		cols
+	);
 	var maxStates = 2000000;
 	var deadline = Date.now() + 20000;
 	var states = 0;
@@ -546,13 +704,16 @@ async function solveTravelLinePuzzle(requestId) {
 		return idxToCell(idx).qnum;
 	}
 	function isBar(idx) {
-		return getClue(idx) === 1;
+		return hasFloorFlag(idx, TL_FLOOR_FLAGS.BAR);
+	}
+	function isBarEndpoint(idx) {
+		return isBar(idx) && (idx === start || idx === goal);
 	}
 	function isYajilin(idx) {
 		return getClue(idx) === 14;
 	}
 	function isLineBlocked(idx) {
-		return isBar(idx) || isYajilin(idx);
+		return (isBar(idx) && !isBarEndpoint(idx)) || isYajilin(idx);
 	}
 	function isIce(idx) {
 		return getClue(idx) === 2 || hasFloorFlag(idx, TL_FLOOR_FLAGS.ICE);
@@ -873,7 +1034,7 @@ async function solveTravelLinePuzzle(requestId) {
 					if (next.isnull) {
 						break;
 					}
-					if (!isLineBlocked(next.id)) {
+					if (!isBar(next.id)) {
 						totalCells++;
 						if (visitCount[next.id] > 0) {
 							currentVisited++;
@@ -1004,11 +1165,20 @@ async function solveTravelLinePuzzle(requestId) {
 		if (path[0] !== start || path[path.length - 1] !== goal) {
 			return false;
 		}
+		if (startBarNeighbor !== null && (path.length < 2 || path[1] !== startBarNeighbor)) {
+			return false;
+		}
+		if (
+			goalBarNeighbor !== null &&
+			(path.length < 2 || path[path.length - 2] !== goalBarNeighbor)
+		) {
+			return false;
+		}
 
 		for (var i = 0; i < total; i++) {
 			var clue = getClue(i);
 			var used = (visitCount[i] || 0) > 0;
-			if (clue === 1 && used) {
+			if (clue === 1 && used && i !== start && i !== goal) {
 				return false;
 			}
 			if (clue === 14 && used) {
@@ -1148,7 +1318,7 @@ async function solveTravelLinePuzzle(requestId) {
 						break;
 					}
 					if (
-						nextCell.qnum !== 1 &&
+						!nextCell.isBar() &&
 						nextCell.qnum !== 14 &&
 						!(visitCount[nextCell.id] > 0)
 					) {
@@ -1393,6 +1563,12 @@ async function solveTravelLinePuzzle(requestId) {
 			var options = neighbors(current).filter(function(next) {
 				var border = getBorderBetweenCells(current, next);
 				return (
+					(current !== start ||
+						startBarNeighbor === null ||
+						next === startBarNeighbor) &&
+					(next !== goal ||
+						goalBarNeighbor === null ||
+						current === goalBarNeighbor) &&
 					!isLineBlocked(next) &&
 					!isBorderUsed(border.id, edgeMask) &&
 					!(next === goal && remainingRequired.length > 0) &&

@@ -6,7 +6,8 @@ var TL_FLOOR_FLAGS = {
 	NOTOUCH: 2,
 	NOADJ: 4,
 	SLOOP: 8,
-	CWFLOOR: 16
+	CWFLOOR: 16,
+	BAR: 32
 };
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
@@ -74,7 +75,7 @@ var TL_FLOOR_FLAGS = {
 					this.inputClearClue();
 					return;
 				}
-				if (this.mousestart) {
+				if (this.mousestart || this.mousemove) {
 					this.inputClue();
 				}
 				return;
@@ -127,7 +128,7 @@ var TL_FLOOR_FLAGS = {
 					this.inputCrossClue();
 				} else if (this.inputMode === "clear") {
 				this.inputClearClue();
-			} else if (this.mousestart) {
+			} else if (this.mousestart || this.mousemove) {
 				this.inputClue();
 			}
 			},
@@ -148,24 +149,134 @@ var TL_FLOOR_FLAGS = {
 
 		inputarrow_line: function() {
 			var pos = this.getpos(0);
+			if (this.mousestart) {
+				this.firstPoint = this.inputPoint.clone();
+			}
 			if (this.prevPos.equals(pos)) {
+				if (!this.mousestart) {
+					this.inputarrow_edgecell();
+				}
 				return;
 			}
 
 			var border = this.prevPos.getnb(pos);
+			if (border.isnull) {
+				border = pos.getb();
+			}
+			if (border.isnull) {
+				border = this.prevPos.getb();
+			}
 			if (!border.isnull && !this.mousestart) {
 				var dir = this.prevPos.getdir(pos, 2);
-				if (!border.inside && this.inputData === null) {
+				if (dir === border.NDIR) {
+					dir = this.prevPos.getdir(pos, 1);
+				}
+				if (border.inside && this.inputData === null) {
+					this.inputarrow_internal(pos, dir);
+				} else if (!border.inside && this.inputData === null) {
 					this.inputarrow_inout(border, dir);
 				}
 				border.draw();
 			}
 			this.prevPos = pos;
 		},
+		inputarrow_internal: function(pos, dir) {
+			if (dir === this.board.emptyborder.NDIR) {
+				return;
+			}
+			var cell1 = this.prevPos.getc();
+			var cell2 = pos.getc();
+			if (cell1.isnull || cell2.isnull) {
+				return;
+			}
+			if (cell1.isBar() && !cell2.isBar()) {
+				this.board.arrowin.input(cell1, dir);
+				this.inputData = 1;
+				this.mousereset();
+			} else if (!cell1.isBar() && cell2.isBar()) {
+				this.board.arrowout.input(cell2, dir);
+				this.inputData = 1;
+				this.mousereset();
+			}
+		},
+		inputarrow_edgecell: function() {
+			if (this.inputData !== null || !this.firstPoint) {
+				return;
+			}
+			var cell = this.getcell();
+			if (cell.isnull || !cell.isOnBoardEdge()) {
+				return;
+			}
+			var dx = this.inputPoint.bx - this.firstPoint.bx;
+			var dy = this.inputPoint.by - this.firstPoint.by;
+			if (Math.abs(dx) < 0.25 && Math.abs(dy) < 0.25) {
+				return;
+			}
+			var bd = this.board;
+			var edgeInfo = this.getEdgeDragInfo(cell, dx, dy);
+			if (cell.isBar() && edgeInfo.dir !== bd.emptyborder.NDIR) {
+				if (edgeInfo.type === 1) {
+					bd.arrowin.input(cell, edgeInfo.dir);
+				} else if (edgeInfo.type === 2) {
+					bd.arrowout.input(cell, edgeInfo.dir);
+				}
+				this.mousereset();
+				return;
+			}
+			var border = bd.emptyborder;
+			var dir = 0;
+			if (cell.by === bd.minby + 1 && Math.abs(dy) >= Math.abs(dx)) {
+				border = bd.getb(cell.bx, cell.by - 1);
+				dir = dy > 0 ? border.DN : border.UP;
+			} else if (cell.by === bd.maxby - 1 && Math.abs(dy) >= Math.abs(dx)) {
+				border = bd.getb(cell.bx, cell.by + 1);
+				dir = dy > 0 ? border.DN : border.UP;
+			} else if (cell.bx === bd.minbx + 1 && Math.abs(dx) >= Math.abs(dy)) {
+				border = bd.getb(cell.bx - 1, cell.by);
+				dir = dx > 0 ? border.RT : border.LT;
+			} else if (cell.bx === bd.maxbx - 1 && Math.abs(dx) >= Math.abs(dy)) {
+				border = bd.getb(cell.bx + 1, cell.by);
+				dir = dx > 0 ? border.RT : border.LT;
+			}
+			if (!border.isnull && !border.inside && dir !== border.NDIR) {
+				this.inputarrow_inout(border, dir);
+			}
+		},
+		getEdgeDragInfo: function(cell, dx, dy) {
+			var bd = this.board;
+			var dir = bd.emptyborder.NDIR;
+			var type = 0;
+			if (cell.adjacent.top.group !== "cell" && Math.abs(dy) >= Math.abs(dx)) {
+				dir = dy > 0 ? cell.DN : cell.UP;
+				type = dy > 0 ? 1 : 2;
+			} else if (
+				cell.adjacent.bottom.group !== "cell" &&
+				Math.abs(dy) >= Math.abs(dx)
+			) {
+				dir = dy > 0 ? cell.DN : cell.UP;
+				type = dy < 0 ? 1 : 2;
+			} else if (
+				cell.adjacent.left.group !== "cell" &&
+				Math.abs(dx) >= Math.abs(dy)
+			) {
+				dir = dx > 0 ? cell.RT : cell.LT;
+				type = dx > 0 ? 1 : 2;
+			} else if (
+				cell.adjacent.right.group !== "cell" &&
+				Math.abs(dx) >= Math.abs(dy)
+			) {
+				dir = dx > 0 ? cell.RT : cell.LT;
+				type = dx < 0 ? 1 : 2;
+			}
+			return {
+				dir: dir,
+				type: type
+			};
+		},
 		inputarrow_inout: function(border, dir) {
 			var val = this.checkinout(border, dir);
 			if (val > 0) {
-				this.setEndpointByBorder(border, val);
+				this.setEndpointByBorder(border, val, dir);
 				this.mousereset();
 			}
 		},
@@ -193,7 +304,16 @@ var TL_FLOOR_FLAGS = {
 			}
 			return 0;
 		},
-		setEndpointByBorder: function(border, type) {
+		setEndpointByBorder: function(border, type, dir) {
+			var entryCell = this.board.getEntryCellByBorder(border);
+			if (!entryCell.isnull && entryCell.isBar()) {
+				if (type === 1) {
+					this.board.arrowin.input(entryCell, dir);
+				} else if (type === 2) {
+					this.board.arrowout.input(entryCell, dir);
+				}
+				return;
+			}
 			if (type === 1) {
 				this.board.arrowin.input(border);
 			} else if (type === 2) {
@@ -203,10 +323,11 @@ var TL_FLOOR_FLAGS = {
 
 		inputClue: function() {
 			var cell = this.getcell();
-			if (cell.isnull) {
+			if (cell.isnull || cell === this.mouseCell) {
 				return;
 			}
 			var floorFlag = {
+				bar: TL_FLOOR_FLAGS.BAR,
 				"travel-sloop": TL_FLOOR_FLAGS.SLOOP,
 				"travel-ice": TL_FLOOR_FLAGS.ICE,
 				"travel-notouch": TL_FLOOR_FLAGS.NOTOUCH,
@@ -214,17 +335,24 @@ var TL_FLOOR_FLAGS = {
 				"travel-cwfloor": TL_FLOOR_FLAGS.CWFLOOR
 			}[this.inputMode];
 			if (floorFlag) {
-				if (this.btn === "right") {
-					cell.removeFloorFlag(floorFlag);
+				var wasBarFlag = cell.isBar();
+				if (this.inputData === null) {
+					this.inputData =
+						this.btn === "right" || cell.hasFloorFlag(floorFlag) ? 0 : 1;
+				}
+				if (this.inputData === 1) {
+					cell.setFloorFlag(floorFlag);
 				} else {
-					cell.toggleFloorFlag(floorFlag);
+					cell.removeFloorFlag(floorFlag);
+				}
+				if (wasBarFlag && floorFlag === TL_FLOOR_FLAGS.BAR && !cell.isBar()) {
+					this.board.relocateEndpointsFromClearedBar(cell);
 				}
 				cell.draw();
-				this.mousereset();
+				this.mouseCell = cell;
 				return;
 			}
 			var clue = {
-				bar: 1,
 				"travel-white": 3,
 				"travel-black": 4,
 				"travel-dotw": 7,
@@ -233,19 +361,29 @@ var TL_FLOOR_FLAGS = {
 			if (!clue) {
 				return;
 			}
-			if (this.btn === "right") {
+			if (this.inputData === null) {
+				this.inputData = this.btn === "right" || cell.qnum === clue ? 0 : 1;
+			}
+			var wasBar = cell.isBar();
+			if (this.inputData === 0) {
 				cell.setQdir(0);
 				cell.setQnum(-1);
 				cell.setQnum2(-1);
+				if (wasBar) {
+					this.board.relocateEndpointsFromClearedBar(cell);
+				}
 				cell.draw();
-				this.mousereset();
+				this.mouseCell = cell;
 				return;
 			}
 			cell.setQdir(0);
 			cell.setQnum2(-1);
-			cell.setQnum(cell.qnum !== clue ? clue : -1);
+			cell.setQnum(clue);
+			if (wasBar && clue !== 1) {
+				this.board.relocateEndpointsFromClearedBar(cell);
+			}
 			cell.draw();
-			this.mousereset();
+			this.mouseCell = cell;
 		},
 		inputOrderClue: function() {
 			if (!this.mousestart) {
@@ -255,6 +393,7 @@ var TL_FLOOR_FLAGS = {
 			if (cell.isnull) {
 				return;
 			}
+			var wasBar = cell.isBar();
 			if (this.btn === "right") {
 				if (cell.qnum === 16 && cell.qnum2 > 0) {
 					cell.setQnum2(cell.qnum2 - 1);
@@ -271,6 +410,9 @@ var TL_FLOOR_FLAGS = {
 				} else {
 					cell.setQnum2(Math.min((cell.qnum2 >= 0 ? cell.qnum2 : 0) + 1, 51));
 				}
+			}
+			if (wasBar && !cell.isBar()) {
+				this.board.relocateEndpointsFromClearedBar(cell);
 			}
 			cell.draw();
 			this.mousereset();
@@ -308,6 +450,7 @@ var TL_FLOOR_FLAGS = {
 			if (cell.isnull) {
 				return;
 			}
+			var wasBar = cell.isBar();
 			var clueType = this.inputMode === "travel-yajilin" ? 14 : 15;
 			var current = cell.qnum === clueType ? cell.qnum2 : -1;
 			var next = this.getNewNumber(
@@ -331,6 +474,9 @@ var TL_FLOOR_FLAGS = {
 				cell.setQnum(clueType);
 				cell.setQnum2(next);
 				cell.setQdir(cell.qdir || cell.UP);
+			}
+			if (wasBar && !cell.isBar()) {
+				this.board.relocateEndpointsFromClearedBar(cell);
 			}
 			cell.draw();
 			this.mousereset();
@@ -387,10 +533,14 @@ var TL_FLOOR_FLAGS = {
 			var pos = this.getpos(0);
 			var cell = pos.getc();
 			if (!cell.isnull) {
+				var wasBar = cell.isBar();
 				cell.setQnum(-1);
 				cell.setQnum2(-1);
 				cell.setQdir(0);
 				cell.setQues(0);
+				if (wasBar) {
+					this.board.relocateEndpointsFromClearedBar(cell);
+				}
 				cell.draw();
 				this.mousereset();
 				return;
@@ -413,16 +563,63 @@ var TL_FLOOR_FLAGS = {
 
 	KeyEvent: {
 		enablemake: true,
+		keyinputTravelNumber: function(cell, ca, clueType, withDirection) {
+			var current = cell.qnum === clueType ? cell.qnum2 : -1;
+			var next = this.getNewNumber(
+				{
+					getmaxnum: function() {
+						return 51;
+					},
+					getminnum: function() {
+						return 0;
+					},
+					disInputHatena: true
+				},
+				ca,
+				current
+			);
+			if (next === null) {
+				return false;
+			}
+			if (next === -1) {
+				cell.setQnum(-1);
+				cell.setQnum2(-1);
+				cell.setQdir(0);
+			} else {
+				cell.setQnum(clueType);
+				cell.setQnum2(next);
+				cell.setQdir(withDirection ? cell.qdir || cell.UP : 0);
+			}
+			cell.draw();
+			this.prev = cell;
+			this.cancelDefault = true;
+			return true;
+		},
 		keyinput: function(ca) {
 			var cell = this.cursor.getc();
 			if (cell.isnull) {
 				return;
 			}
+			if ((cell.isYajilin() || cell.isCw()) && this.key_inputdirec(ca)) {
+				return;
+			}
+			if (
+				(cell.isYajilin() && this.keyinputTravelNumber(cell, ca, 14, true)) ||
+				(cell.isCw() && this.keyinputTravelNumber(cell, ca, 15, true)) ||
+				(cell.isOrder() && this.keyinputTravelNumber(cell, ca, 16, false))
+			) {
+				return;
+			}
 			var qnum = null;
 			switch (ca) {
 				case "x":
-					qnum = 1;
-					break;
+					var wasBar = cell.isBar();
+					cell.toggleFloorFlag(TL_FLOOR_FLAGS.BAR);
+					if (wasBar && !cell.isBar()) {
+						cell.board.relocateEndpointsFromClearedBar(cell);
+					}
+					cell.draw();
+					return;
 				case "i":
 					cell.toggleFloorFlag(TL_FLOOR_FLAGS.ICE);
 					cell.draw();
@@ -471,6 +668,7 @@ var TL_FLOOR_FLAGS = {
 					break;
 			}
 			if (qnum !== null) {
+				var wasBar = cell.isBar();
 				cell.setQnum(qnum);
 				if (qnum === 14 || qnum === 15) {
 					cell.setQnum2(cell.qnum2 >= 0 ? cell.qnum2 : 0);
@@ -481,6 +679,9 @@ var TL_FLOOR_FLAGS = {
 				} else {
 					cell.setQnum2(-1);
 					cell.setQdir(0);
+				}
+				if (wasBar && !cell.isBar()) {
+					cell.board.relocateEndpointsFromClearedBar(cell);
 				}
 				cell.draw();
 			}
@@ -556,19 +757,18 @@ var TL_FLOOR_FLAGS = {
 			return dx1 * dy2 - dy1 * dx2 > 0;
 		},
 		noLP: function() {
-			return this.qnum === 1 || this.isYajilin();
+			return (this.isBar() && !this.board.isBarEndpointCell(this)) || this.isYajilin();
 		},
 		isOnBoardEdge: function() {
-			var bd = this.board;
 			return (
-				this.bx === bd.minbx + 1 ||
-				this.bx === bd.maxbx - 1 ||
-				this.by === bd.minby + 1 ||
-				this.by === bd.maxby - 1
+				this.adjacent.top.group !== "cell" ||
+				this.adjacent.bottom.group !== "cell" ||
+				this.adjacent.left.group !== "cell" ||
+				this.adjacent.right.group !== "cell"
 			);
 		},
 		isBar: function() {
-			return this.qnum === 1;
+			return this.hasFloorFlag(TL_FLOOR_FLAGS.BAR);
 		},
 		isIce: function() {
 			return this.qnum === 2 || this.hasFloorFlag(TL_FLOOR_FLAGS.ICE);
@@ -656,9 +856,131 @@ var TL_FLOOR_FLAGS = {
 			this.arrowin.draw();
 			this.arrowout.draw();
 		},
+		getEntryCellByBorder: function(border) {
+			return border.sidecell[0].group === "cell"
+				? border.sidecell[0]
+				: border.sidecell[1];
+		},
 		getEntryCell: function(address) {
-			var border = address.getb();
-			return border.sidecell[0].isnull ? border.sidecell[1] : border.sidecell[0];
+			if (address.oncell()) {
+				return address.getc();
+			}
+			return this.getEntryCellByBorder(address.getb());
+		},
+		isInternalEndpointCell: function(cell) {
+			if (cell.isnull) {
+				return false;
+			}
+			return (
+				(this.arrowin.oncell() && this.arrowin.getc() === cell) ||
+				(this.arrowout.oncell() && this.arrowout.getc() === cell)
+			);
+		},
+		isBarEndpointCell: function(cell) {
+			if (cell.isnull || !cell.isBar()) {
+				return false;
+			}
+			var startCell = this.getEntryCell(this.arrowin);
+			var goalCell = this.getEntryCell(this.arrowout);
+			return startCell === cell || goalCell === cell;
+		},
+		getEndpointArrowDir: function(type, border) {
+			var bd = this;
+			var reverse = this.getEntryCellByBorder(border).isBar();
+			var resolvedType = reverse
+				? type === "in"
+					? "out"
+					: "in"
+				: type;
+			if (resolvedType === "in") {
+				if (border.by === bd.maxby - 2) {
+					return border.UP;
+				} else if (border.by === bd.minby + 2) {
+					return border.DN;
+				} else if (border.bx === bd.maxbx - 2) {
+					return border.LT;
+				} else if (border.bx === bd.minbx + 2) {
+					return border.RT;
+				}
+			} else {
+				if (border.by === bd.minby + 2) {
+					return border.UP;
+				} else if (border.by === bd.maxby - 2) {
+					return border.DN;
+				} else if (border.bx === bd.minbx + 2) {
+					return border.LT;
+				} else if (border.bx === bd.maxbx - 2) {
+					return border.RT;
+				}
+			}
+			return border.NDIR;
+		},
+		getEndpointFallbackBorder: function(type, partnerBorder) {
+			var preferred =
+				type === "in"
+					? [1, 0]
+					: this.cols >= 3
+						? [5, 0]
+						: [1, 2 * this.rows];
+			var coords = [];
+			var seen = {};
+			function pushCoord(list, bx, by) {
+				var key = bx + "," + by;
+				if (!seen[key]) {
+					seen[key] = true;
+					list.push([bx, by]);
+				}
+			}
+			pushCoord(coords, preferred[0], preferred[1]);
+			for (var x = 1; x <= 2 * this.cols - 1; x += 2) {
+				pushCoord(coords, x, 0);
+			}
+			for (var x2 = 1; x2 <= 2 * this.cols - 1; x2 += 2) {
+				pushCoord(coords, x2, 2 * this.rows);
+			}
+			for (var y = 1; y <= 2 * this.rows - 1; y += 2) {
+				pushCoord(coords, 0, y);
+			}
+			for (var y2 = 1; y2 <= 2 * this.rows - 1; y2 += 2) {
+				pushCoord(coords, 2 * this.cols, y2);
+			}
+
+			var passes = [true, false];
+			for (var p = 0; p < passes.length; p++) {
+				for (var i = 0; i < coords.length; i++) {
+					var border = this.getb(coords[i][0], coords[i][1]);
+					if (
+						border.isnull ||
+						(partnerBorder && border === partnerBorder) ||
+						(passes[p] && this.getEntryCellByBorder(border).isBar())
+					) {
+						continue;
+					}
+					return border;
+				}
+			}
+			return this.getb(preferred[0], preferred[1]);
+		},
+		relocateEndpointFromClearedBar: function(type, cell) {
+			var address = type === "in" ? this.arrowin : this.arrowout;
+			if (this.getEntryCell(address) !== cell) {
+				return;
+			}
+			var oldBorder = address.onborder() ? address.getb() : this.emptyborder;
+			if (!oldBorder.isnull) {
+				oldBorder.setArrow(0);
+				oldBorder.removeLine();
+			}
+			var target = this.getEndpointFallbackBorder(type, address.partner.getb());
+			address.set(target);
+			if (!oldBorder.isnull) {
+				oldBorder.draw();
+			}
+			address.draw();
+		},
+		relocateEndpointsFromClearedBar: function(cell) {
+			this.relocateEndpointFromClearedBar("in", cell);
+			this.relocateEndpointFromClearedBar("out", cell);
 		},
 		getStartCell: function() {
 			return this.getEntryCell(this.arrowin);
@@ -671,15 +993,32 @@ var TL_FLOOR_FLAGS = {
 		adjustBoardData: function(key, d) {
 			var bd = this.board;
 			this.adjustBorderArrow(key, d);
-			this.posinfo_in = this.getAfterPos(key, d, bd.arrowin.getb());
-			this.posinfo_out = this.getAfterPos(key, d, bd.arrowout.getb());
+			this.posinfo_in = bd.arrowin.getState();
+			this.posinfo_out = bd.arrowout.getState();
+			this.adjustEndpointState(key, d, this.posinfo_in);
+			this.adjustEndpointState(key, d, this.posinfo_out);
 		},
 		adjustBoardData2: function() {
 			var bd = this.board;
 			bd.disableInfo();
-			bd.arrowin.set(this.posinfo_in.pos);
-			bd.arrowout.set(this.posinfo_out.pos);
+			bd.arrowin.setState(this.posinfo_in);
+			bd.arrowout.setState(this.posinfo_out);
 			bd.enableInfo();
+		},
+		adjustEndpointState: function(key, d, info) {
+			if (info.mode === "cell") {
+				var posinfo = this.getAfterPos(key, d, this.board.getc(info.bx, info.by));
+				info.bx = posinfo.pos.bx;
+				info.by = posinfo.pos.by;
+				if (key & this.TURNFLIP) {
+					var trans = this.getTranslateDir(key);
+					info.dir = trans[info.dir] || info.dir;
+				}
+			} else {
+				var posinfo2 = this.getAfterPos(key, d, this.board.getb(info.bx, info.by));
+				info.bx = posinfo2.pos.bx;
+				info.by = posinfo2.pos.by;
+			}
 		}
 	},
 	OperationManager: {
@@ -709,51 +1048,127 @@ var TL_FLOOR_FLAGS = {
 	"InOutAddress:Address": {
 		type: "",
 		partner: null,
+		dir: 0,
 
 		init: function(bx, by) {
 			this.bx = bx;
 			this.by = by;
-			if (!!this.board) {
+			this.dir = 0;
+			if (!!this.board && this.onborder()) {
 				this.setarrow(this.getb());
 			}
 			return this;
 		},
+		oncell: function() {
+			return !!(this.bx & 1 && this.by & 1);
+		},
+		onborder: function() {
+			return !!((this.bx + this.by) & 1);
+		},
+		getc: function() {
+			return this.oncell() ? this.board.getc(this.bx, this.by) : this.board.emptycell;
+		},
+		getb: function() {
+			return this.onborder() ? this.board.getb(this.bx, this.by) : this.board.emptyborder;
+		},
+		getdir: function() {
+			return this.oncell() ? this.dir : this.board.getEndpointArrowDir(this.type, this.getb());
+		},
+		getState: function() {
+			return {
+				mode: this.oncell() ? "cell" : "border",
+				bx: this.bx,
+				by: this.by,
+				dir: this.dir
+			};
+		},
+		setState: function(state) {
+			if (!state) {
+				return;
+			}
+			if (state.mode === "cell") {
+				this.set(this.board.getc(state.bx, state.by), state.dir);
+			} else {
+				this.set(this.board.getb(state.bx, state.by));
+			}
+		},
 
 		getid: function() {
-			return this.getb().id;
+			return this.onborder() ? this.getb().id : -1;
 		},
 		setid: function(id) {
 			this.input(this.board.border[id]);
 		},
 
-		input: function(border) {
-			if (!this.partner.equals(border)) {
-				if (!this.equals(border)) {
-					this.getb().setArrow(0);
-					this.set(border);
+		input: function(pos, dir) {
+			if (pos.group === "cell") {
+				if (this.partner.oncell() && this.partner.equals(pos)) {
+					var oldstate = this.getState();
+					this.partner.setState(oldstate);
+					if (!this.oncell() || !this.equals(pos) || this.dir !== dir) {
+						if (this.onborder()) {
+							this.getb().setArrow(0);
+						}
+						this.set(pos, dir);
+					}
+					return;
+				}
+				if (!this.oncell() || !this.equals(pos) || this.dir !== dir) {
+					if (this.onborder()) {
+						this.getb().setArrow(0);
+					}
+					this.set(pos, dir);
 				}
 			} else {
-				this.board.exchangeinout();
+				if (!this.partner.equals(pos)) {
+					if (!this.equals(pos)) {
+						if (this.onborder()) {
+							this.getb().setArrow(0);
+						}
+						this.set(pos);
+					}
+				} else {
+					this.board.exchangeinout();
+				}
 			}
 		},
-		set: function(pos) {
+		set: function(pos, dir) {
 			var pos0 = this.getaddr();
-			this.addOpe(pos.bx, pos.by);
+			var oldstate = this.getState();
+			var newdir = pos.group === "cell" ? dir || this.NDIR : 0;
+			this.addOpe(oldstate, {
+				mode: pos.group === "cell" ? "cell" : "border",
+				bx: pos.bx,
+				by: pos.by,
+				dir: newdir
+			});
 
 			this.bx = pos.bx;
 			this.by = pos.by;
-			this.setarrow(this.getb());
+			this.dir = newdir;
+			if (pos.group === "border") {
+				this.setarrow(this.getb());
+			}
 
-			pos0.draw();
-			this.draw();
+			if (!!this.puzzle.painter && !this.puzzle.painter.suspended) {
+				this.puzzle.redraw();
+			} else {
+				pos0.drawaround();
+				this.drawaround();
+			}
 		},
 
-		addOpe: function(bx, by) {
-			if (this.bx === bx && this.by === by) {
+		addOpe: function(oldstate, newstate) {
+			if (
+				oldstate.mode === newstate.mode &&
+				oldstate.bx === newstate.bx &&
+				oldstate.by === newstate.by &&
+				oldstate.dir === newstate.dir
+			) {
 				return;
 			}
 			this.puzzle.opemgr.add(
-				new this.klass.InOutOperation(this.type, this.bx, this.by, bx, by)
+				new this.klass.InOutOperation(this.type, oldstate, newstate)
 			);
 		}
 	},
@@ -761,78 +1176,69 @@ var TL_FLOOR_FLAGS = {
 		type: "in",
 
 		setarrow: function(border) {
-			var bd = this.board;
-			if (border.by === bd.maxby - 2) {
-				border.setArrow(border.UP);
-			} else if (border.by === bd.minby + 2) {
-				border.setArrow(border.DN);
-			} else if (border.bx === bd.maxbx - 2) {
-				border.setArrow(border.LT);
-			} else if (border.bx === bd.minbx + 2) {
-				border.setArrow(border.RT);
-			}
+			border.setArrow(this.board.getEndpointArrowDir("in", border));
 		}
 	},
 	"OutAddress:InOutAddress": {
 		type: "out",
 
 		setarrow: function(border) {
-			var bd = this.board;
-			if (border.by === bd.minby + 2) {
-				border.setArrow(border.UP);
-			} else if (border.by === bd.maxby - 2) {
-				border.setArrow(border.DN);
-			} else if (border.bx === bd.minbx + 2) {
-				border.setArrow(border.LT);
-			} else if (border.bx === bd.maxbx - 2) {
-				border.setArrow(border.RT);
-			}
+			border.setArrow(this.board.getEndpointArrowDir("out", border));
 		}
 	},
 	"InOutOperation:Operation": {
 		property: "",
 
-		setData: function(property, x1, y1, x2, y2) {
+		setData: function(property, from, to) {
 			this.property = property;
-			this.bx1 = x1;
-			this.by1 = y1;
-			this.bx2 = x2;
-			this.by2 = y2;
+			this.from = from;
+			this.to = to;
 		},
 		decode: function(strs) {
 			if (strs[0] !== "PI" && strs[0] !== "PO") {
 				return false;
 			}
 			this.property = strs[0] === "PI" ? "in" : "out";
-			this.bx1 = +strs[1];
-			this.by1 = +strs[2];
-			this.bx2 = +strs[3];
-			this.by2 = +strs[4];
+			this.from = {
+				mode: strs[1],
+				bx: +strs[2],
+				by: +strs[3],
+				dir: +strs[4]
+			};
+			this.to = {
+				mode: strs[5],
+				bx: +strs[6],
+				by: +strs[7],
+				dir: +strs[8]
+			};
 			return true;
 		},
 		toString: function() {
 			return [
 				this.property === "in" ? "PI" : "PO",
-				this.bx1,
-				this.by1,
-				this.bx2,
-				this.by2
+				this.from.mode,
+				this.from.bx,
+				this.from.by,
+				this.from.dir,
+				this.to.mode,
+				this.to.bx,
+				this.to.by,
+				this.to.dir
 			].join(",");
 		},
 
 		undo: function() {
-			this.exec(this.bx1, this.by1);
+			this.exec(this.from);
 		},
 		redo: function() {
-			this.exec(this.bx2, this.by2);
+			this.exec(this.to);
 		},
-		exec: function(bx, by) {
+		exec: function(state) {
 			var bd = this.board;
-			var border = bd.getb(bx, by);
 			if (this.property === "in") {
-				bd.arrowin.set(border);
+				bd.arrowin.setState(state);
 			} else if (this.property === "out") {
-				bd.arrowout.set(border);
+				bd.arrowout.setState(state);
 			}
 		}
 	},
@@ -952,9 +1358,9 @@ var TL_FLOOR_FLAGS = {
 		getBGCellColor: function(cell) {
 			var info = cell.error || cell.qinfo;
 			if (cell.isBar()) {
-				return info === 1 ? this.errcolor1 : this.shadecolor;
+				return info === 1 ? this.errcolor1 : "rgb(160,160,160)";
 			}
-			if (cell.isYajilin() || cell.isCw()) {
+			if (cell.isCw()) {
 				return info === 1 ? this.errbcolor1 : "rgb(224,224,224)";
 			}
 			var floors = [];
@@ -965,7 +1371,7 @@ var TL_FLOOR_FLAGS = {
 				floors.push("rgb(246, 207, 207)");
 			}
 			if (cell.isNoAdj()) {
-				floors.push("rgb(219, 240, 205)");
+				floors.push("rgb(255, 235, 153)");
 			}
 			if (cell.isSloop()) {
 				floors.push("rgb(210,255,210)");
@@ -1263,17 +1669,37 @@ var TL_FLOOR_FLAGS = {
 		},
 
 		drawInOut: function() {
-			var g = this.context;
+			var g = this.vinc("inout", "auto");
 			var bd = this.board;
 			var border;
+			var dir;
+			var px;
+			var py;
+			var ll = this.cw * 0.26;
+			var lm = Math.max(this.cw / 40, 1);
 
 			g.vid = "string_in";
 			border = bd.arrowin.getb();
-			if (!border.inside && border.id < bd.border.length) {
+			if (bd.arrowin.oncell()) {
+				var inCell = bd.arrowin.getc();
+				px = bd.arrowin.bx * this.bw;
+				py = bd.arrowin.by * this.bh;
+				dir = bd.arrowin.getdir();
+				g.fillStyle =
+					(inCell.error || inCell.qinfo) === 1 ? this.errcolor1 : this.quescolor;
+				this.drawCellEndpointArrow(g, "in", px, py, dir, ll, lm);
+				var inLabel = this.getCellEndpointLabelPosition(px, py, dir);
+				g.vid = "string_in";
+				this.disptext("IN", inLabel.x, inLabel.y, { ratio: 0.42, width: [] });
+			} else if (!border.inside && border.id < bd.border.length) {
+				g.vid = "in_cell_arrow_shaft";
+				g.vhide();
+				g.vid = "in_cell_arrow_tip";
+				g.vhide();
 				var bx = border.bx;
 				var by = border.by;
-				var px = bx * this.bw;
-				var py = by * this.bh;
+				px = bx * this.bw;
+				py = by * this.bh;
 				if (by === bd.minby + 2) {
 					py -= 1.2 * this.bh;
 				} else if (by === bd.maxby - 2) {
@@ -1286,14 +1712,38 @@ var TL_FLOOR_FLAGS = {
 					py -= 0.6 * this.bh;
 				}
 				g.fillStyle = border.error === 4 ? this.errcolor1 : this.quescolor;
+				g.vid = "string_in";
 				this.disptext("IN", px, py, { ratio: 0.55, width: [] });
 			} else {
+				g.vid = "in_cell_arrow_shaft";
+				g.vhide();
+				g.vid = "in_cell_arrow_tip";
+				g.vhide();
+				g.vid = "string_in";
 				g.vhide();
 			}
 
 			g.vid = "string_out";
 			border = bd.arrowout.getb();
-			if (!border.inside && border.id < bd.border.length) {
+			if (bd.arrowout.oncell()) {
+				var outCell = bd.arrowout.getc();
+				px = bd.arrowout.bx * this.bw;
+				py = bd.arrowout.by * this.bh;
+				dir = bd.arrowout.getdir();
+				g.fillStyle =
+					(outCell.error || outCell.qinfo) === 1 ? this.errcolor1 : this.quescolor;
+				this.drawCellEndpointArrow(g, "out", px, py, dir, ll, lm);
+				var outLabel = this.getCellEndpointLabelPosition(px, py, dir);
+				g.vid = "string_out";
+				this.disptext("OUT", outLabel.x, outLabel.y, {
+					ratio: 0.42,
+					width: []
+				});
+			} else if (!border.inside && border.id < bd.border.length) {
+				g.vid = "out_cell_arrow_shaft";
+				g.vhide();
+				g.vid = "out_cell_arrow_tip";
+				g.vhide();
 				var bx2 = border.bx;
 				var by2 = border.by;
 				var px2 = bx2 * this.bw;
@@ -1310,7 +1760,195 @@ var TL_FLOOR_FLAGS = {
 					py2 -= 0.6 * this.bh;
 				}
 				g.fillStyle = border.error === 4 ? this.errcolor1 : this.quescolor;
+				g.vid = "string_out";
 				this.disptext("OUT", px2, py2, { ratio: 0.55, width: [] });
+			} else {
+				g.vid = "out_cell_arrow_shaft";
+				g.vhide();
+				g.vid = "out_cell_arrow_tip";
+				g.vhide();
+				g.vid = "string_out";
+				g.vhide();
+			}
+		},
+		getCellEndpointArrowLayout: function(px, py, dir, ll, key) {
+			var dirs = this.board.emptycell;
+			if (key === "out") {
+				var edge = this.cw * 0.5;
+				var outside = Math.min(
+					Math.max(ll * 1.6, this.cw * 0.46),
+					this.cw * 0.58
+				);
+				switch (dir) {
+					case dirs.UP:
+						return {
+							sx: px,
+							sy: py - outside,
+							ex: px,
+							ey: py - edge
+						};
+					case dirs.DN:
+						return {
+							sx: px,
+							sy: py + outside,
+							ex: px,
+							ey: py + edge
+						};
+					case dirs.LT:
+						return {
+							sx: px - outside,
+							sy: py,
+							ex: px - edge,
+							ey: py
+						};
+					case dirs.RT:
+						return {
+							sx: px + outside,
+							sy: py,
+							ex: px + edge,
+							ey: py
+						};
+				}
+			}
+			var reach = Math.min(Math.max(ll * 1.6, this.cw * 0.4), this.cw * 0.44);
+			var tail = ll * 0.25;
+			var sx = px;
+			var sy = py;
+			var ex = px;
+			var ey = py;
+			switch (dir) {
+				case dirs.UP:
+					sy += tail;
+					ey -= reach;
+					break;
+				case dirs.DN:
+					sy -= tail;
+					ey += reach;
+					break;
+				case dirs.LT:
+					sx += tail;
+					ex -= reach;
+					break;
+				case dirs.RT:
+					sx -= tail;
+					ex += reach;
+					break;
+			}
+			return {
+				sx: sx,
+				sy: sy,
+				ex: ex,
+				ey: ey
+			};
+		},
+		getCellEndpointLabelPosition: function(px, py, dir) {
+			var dirs = this.board.emptycell;
+			var offset = this.cw * 0.28;
+			switch (dir) {
+				case dirs.UP:
+					return { x: px, y: py + offset };
+				case dirs.DN:
+					return { x: px, y: py - offset };
+				case dirs.LT:
+					return { x: px + offset, y: py };
+				case dirs.RT:
+					return { x: px - offset, y: py };
+			}
+			return { x: px, y: py - offset };
+		},
+		getCellEndpointArrowDir: function(key, dir) {
+			if (key !== "out") {
+				return dir;
+			}
+			var dirs = this.board.emptycell;
+			switch (dir) {
+				case dirs.UP:
+					return dirs.DN;
+				case dirs.DN:
+					return dirs.UP;
+				case dirs.LT:
+					return dirs.RT;
+				case dirs.RT:
+					return dirs.LT;
+			}
+			return dir;
+		},
+		drawCellEndpointArrow: function(g, key, px, py, dir, ll, lm) {
+			var dirs = this.board.emptycell;
+			var arrowDir = this.getCellEndpointArrowDir(key, dir);
+			var layout = this.getCellEndpointArrowLayout(px, py, dir, ll, key);
+			var shaftPx = (layout.sx + layout.ex) / 2;
+			var shaftPy = (layout.sy + layout.ey) / 2;
+			var shaftLength = Math.max(
+				Math.abs(layout.ex - layout.sx),
+				Math.abs(layout.ey - layout.sy)
+			);
+
+			g.vid = key + "_cell_arrow_shaft";
+			if (arrowDir === dirs.UP || arrowDir === dirs.DN) {
+				g.fillRectCenter(shaftPx, shaftPy, lm, shaftLength);
+			} else if (arrowDir === dirs.LT || arrowDir === dirs.RT) {
+				g.fillRectCenter(shaftPx, shaftPy, shaftLength, lm);
+			} else {
+				g.vhide();
+			}
+			g.vid = key + "_cell_arrow_tip";
+			if (arrowDir === dirs.UP) {
+				g.beginPath();
+				g.setOffsetLinePath(
+					layout.ex,
+					layout.ey,
+					0,
+					-ll,
+					-ll / 2,
+					-ll * 0.4,
+					ll / 2,
+					-ll * 0.4,
+					true
+				);
+				g.fill();
+			} else if (arrowDir === dirs.DN) {
+				g.beginPath();
+				g.setOffsetLinePath(
+					layout.ex,
+					layout.ey,
+					0,
+					ll,
+					-ll / 2,
+					ll * 0.4,
+					ll / 2,
+					ll * 0.4,
+					true
+				);
+				g.fill();
+			} else if (arrowDir === dirs.LT) {
+				g.beginPath();
+				g.setOffsetLinePath(
+					layout.ex,
+					layout.ey,
+					-ll,
+					0,
+					-ll * 0.4,
+					-ll / 2,
+					-ll * 0.4,
+					ll / 2,
+					true
+				);
+				g.fill();
+			} else if (arrowDir === dirs.RT) {
+				g.beginPath();
+				g.setOffsetLinePath(
+					layout.ex,
+					layout.ey,
+					ll,
+					0,
+					ll * 0.4,
+					-ll / 2,
+					ll * 0.4,
+					ll / 2,
+					true
+				);
+				g.fill();
 			} else {
 				g.vhide();
 			}
@@ -1549,7 +2187,10 @@ var TL_FLOOR_FLAGS = {
 			normalizeLegacyFloorClues: function() {
 				for (var i = 0; i < this.board.cell.length; i++) {
 					var cell = this.board.cell[i];
-					if (cell.qnum === 2) {
+					if (cell.qnum === 1) {
+						cell.setFloorFlag(TL_FLOOR_FLAGS.BAR);
+						cell.qnum = -1;
+					} else if (cell.qnum === 2) {
 						cell.setFloorFlag(TL_FLOOR_FLAGS.ICE);
 						cell.qnum = -1;
 					} else if (cell.qnum === 5) {
@@ -1568,20 +2209,42 @@ var TL_FLOOR_FLAGS = {
 			var barray = this.outbstr.split("/");
 			var bd = this.board;
 			var idoffset = 2 * bd.cols * bd.rows - bd.cols - bd.rows;
-
-			bd.arrowin.setid((+barray[1] || 0) + idoffset);
-			bd.arrowout.setid((+barray[2] || 0) + idoffset);
+			this.decodeEndpointState(bd.arrowin, barray[1], idoffset);
+			this.decodeEndpointState(bd.arrowout, barray[2], idoffset);
 
 			this.outbstr = "";
+		},
+		decodeEndpointState: function(address, token, idoffset) {
+			token = token || "0";
+			if (token.charAt(0) === "c") {
+				var parts = token.substr(1).split(".");
+				var cell = this.board.cell[parseInt(parts[0], 36)];
+				if (cell) {
+					address.set(cell, parseInt(parts[1], 10) || cell.RT);
+				}
+				return;
+			}
+			address.setid((+token || 0) + idoffset);
 		},
 		encodeInOut: function() {
 			var bd = this.board;
 			var idoffset = 2 * bd.cols * bd.rows - bd.cols - bd.rows;
 			this.outbstr +=
 				"/" +
-				(bd.arrowin.getid() - idoffset) +
+				this.encodeEndpointState(bd.arrowin, idoffset) +
 				"/" +
-				(bd.arrowout.getid() - idoffset);
+				this.encodeEndpointState(bd.arrowout, idoffset);
+		},
+		encodeEndpointState: function(address, idoffset) {
+			if (address.oncell()) {
+				return (
+					"c" +
+					address.getc().id.toString(36) +
+					"." +
+					address.getdir()
+				);
+			}
+			return "" + (address.getid() - idoffset);
 		}
 	},
 		FileIO: {
@@ -1652,13 +2315,31 @@ var TL_FLOOR_FLAGS = {
 		},
 		decodeInOut: function() {
 			var bd = this.board;
-			bd.arrowin.setid(+this.readLine());
-			bd.arrowout.setid(+this.readLine());
+			this.decodeEndpointState(bd.arrowin, this.readLine());
+			this.decodeEndpointState(bd.arrowout, this.readLine());
 		},
 		encodeInOut: function() {
 			var bd = this.board;
-			this.writeLine(bd.arrowin.getid());
-			this.writeLine(bd.arrowout.getid());
+			this.writeLine(this.encodeEndpointState(bd.arrowin));
+			this.writeLine(this.encodeEndpointState(bd.arrowout));
+		},
+		decodeEndpointState: function(address, line) {
+			line = line || "0";
+			if (line.charAt(0) === "C") {
+				var parts = line.substr(2).split(",");
+				var cell = this.board.cell[+parts[0]];
+				if (cell) {
+					address.set(cell, +parts[1] || cell.RT);
+				}
+				return;
+			}
+			address.setid(+line);
+		},
+		encodeEndpointState: function(address) {
+			if (address.oncell()) {
+				return "C:" + address.getc().id + "," + address.getdir();
+			}
+			return "" + address.getid();
 		}
 	},
 
@@ -1691,26 +2372,45 @@ var TL_FLOOR_FLAGS = {
 		],
 
 		checkStartGoalDegree: function() {
-			var start = this.board.arrowin.getb();
-			var goal = this.board.arrowout.getb();
-			if (!start.isLine()) {
+			var board = this.board;
+			var start = board.arrowin.getb();
+			var goal = board.arrowout.getb();
+			var startCell = board.getStartCell();
+			var goalCell = board.getGoalCell();
+			if (
+				(board.arrowin.oncell() && startCell.lcnt !== 1) ||
+				(board.arrowin.onborder() && !start.isLine())
+			) {
 				this.failcode.add("tlNoStartLine");
 				if (!this.checkOnly) {
-					start.seterr(4);
+					if (board.arrowin.oncell()) {
+						startCell.seterr(1);
+					} else {
+						start.seterr(4);
+					}
 				}
 				return;
 			}
-			if (!goal.isLine()) {
+			if (
+				(board.arrowout.oncell() && goalCell.lcnt !== 1) ||
+				(board.arrowout.onborder() && !goal.isLine())
+			) {
 				this.failcode.add("tlNoGoalLine");
 				if (!this.checkOnly) {
-					goal.seterr(4);
+					if (board.arrowout.oncell()) {
+						goalCell.seterr(1);
+					} else {
+						goal.seterr(4);
+					}
 				}
 			}
 		},
 
 		checkNoDeadendExceptSG: function() {
+			var startCell = this.board.arrowin.oncell() ? this.board.getStartCell() : null;
+			var goalCell = this.board.arrowout.oncell() ? this.board.getGoalCell() : null;
 			this.checkAllCell(function(cell) {
-				return cell.lcnt === 1;
+				return cell.lcnt === 1 && cell !== startCell && cell !== goalCell;
 			}, "lnDeadEnd");
 		},
 		checkCrossLine: function() {
@@ -1721,8 +2421,12 @@ var TL_FLOOR_FLAGS = {
 
 		checkTravelPath: function() {
 			var info = this.getTraceInfo();
+			var goalCell = this.board.getGoalCell();
+			var reachedGoal = this.board.arrowout.oncell()
+				? info.lastcell === goalCell
+				: info.lastborder === this.board.arrowout.getb();
 			if (
-				info.lastborder !== this.board.arrowout.getb() ||
+				!reachedGoal ||
 				info.blist.length !== info.totalLineCount
 			) {
 				this.failcode.add("tlBadRoute");
@@ -1836,7 +2540,7 @@ var TL_FLOOR_FLAGS = {
 					if (next.isnull) {
 						break;
 					}
-					if (!next.isBar() && !next.isYajilin() && next.lcnt === 0) {
+					if (!next.isBar() && next.lcnt === 0) {
 						count++;
 					}
 				}
@@ -1896,7 +2600,7 @@ var TL_FLOOR_FLAGS = {
 			}
 
 			var startBorder = bd.arrowin.getb();
-			var prevBorder = startBorder;
+			var prevBorder = bd.arrowin.onborder() ? startBorder : null;
 			var cell = bd.getStartCell();
 			var seen = {};
 			var seenCount = 0;
@@ -1924,7 +2628,7 @@ var TL_FLOOR_FLAGS = {
 				}
 
 					var nextborder = this.getExitBorder(prevBorder, cell);
-					if (!nextborder || !nextborder.inside) {
+					if (!nextborder || (!bd.arrowout.oncell() && !nextborder.inside)) {
 						break;
 					}
 				cell =
@@ -1962,10 +2666,10 @@ var TL_FLOOR_FLAGS = {
 				var board = this.board;
 				var startBorder = board.arrowin.getb();
 				var goalBorder = board.arrowout.getb();
-				var prevBorder = startBorder;
+				var prevBorder = board.arrowin.onborder() ? startBorder : null;
 				var cell = board.getStartCell();
 				var blist = new this.klass.BorderList();
-				var lastborder = startBorder;
+				var lastborder = board.emptyborder;
 				var lastcell = board.emptycell;
 				var visitedBorders = {};
 				var totalLineCount = 0;
@@ -1974,8 +2678,11 @@ var TL_FLOOR_FLAGS = {
 						totalLineCount++;
 					}
 				}
-				blist.add(startBorder);
-				visitedBorders[startBorder.id] = true;
+				if (board.arrowin.onborder()) {
+					blist.add(startBorder);
+					visitedBorders[startBorder.id] = true;
+					lastborder = startBorder;
+				}
 
 				while (!cell.isnull && cell.lcnt > 0) {
 					lastcell = cell;
@@ -1989,7 +2696,10 @@ var TL_FLOOR_FLAGS = {
 					blist.add(nextborder);
 					visitedBorders[nextborder.id] = true;
 					lastborder = nextborder;
-					if (nextborder === goalBorder || !nextborder.inside) {
+					if (
+						(board.arrowout.onborder() && nextborder === goalBorder) ||
+						(!board.arrowout.oncell() && !nextborder.inside)
+					) {
 						break;
 					}
 					cell =
@@ -1997,7 +2707,11 @@ var TL_FLOOR_FLAGS = {
 							? nextborder.sidecell[1]
 							: nextborder.sidecell[0];
 					prevBorder = nextborder;
-					if (cell.isnull || (cell.lcnt !== 2 && cell.lcnt !== 4)) {
+					if (
+						cell.isnull ||
+						((cell.lcnt !== 2 && cell.lcnt !== 4) &&
+							!(board.arrowout.oncell() && cell === board.getGoalCell() && cell.lcnt === 1))
+					) {
 						break;
 					}
 				}
@@ -2012,6 +2726,15 @@ var TL_FLOOR_FLAGS = {
 
 			getExitBorder: function(prevBorder, cell) {
 				var adb = cell.adjborder;
+				if (prevBorder === null) {
+					var startBorders = [adb.top, adb.bottom, adb.left, adb.right];
+					for (var s = 0; s < startBorders.length; s++) {
+						if (startBorders[s].isLine()) {
+							return startBorders[s];
+						}
+					}
+					return null;
+				}
 				if (cell.lcnt === 4) {
 					if (prevBorder === adb.top) {
 						return adb.bottom.isLine() ? adb.bottom : null;
@@ -2038,7 +2761,7 @@ var TL_FLOOR_FLAGS = {
 
 		checkNoLineOnBar: function() {
 			this.checkAllCell(function(cell) {
-				return cell.isBar() && cell.lcnt > 0;
+				return cell.isBar() && !cell.board.isBarEndpointCell(cell) && cell.lcnt > 0;
 			}, "tlBarLine");
 		},
 		checkIceStraight: function() {
@@ -2054,6 +2777,9 @@ var TL_FLOOR_FLAGS = {
 		checkClockwiseFloors: function() {
 			var bd = this.board;
 			var prevBorder = bd.arrowin.getb();
+			if (bd.arrowin.oncell()) {
+				prevBorder = null;
+			}
 			var cell = bd.getStartCell();
 			var prevCell = null;
 

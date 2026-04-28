@@ -33,6 +33,7 @@ describe("Variety:travelline", function() {
 		board.cell[0].setQnum(14);
 		board.cell[0].setQdir(board.cell[0].RT);
 		board.cell[0].setQnum2(1);
+		board.cell[0].setFloorFlag(32);
 
 		board.cell[1].setQnum(15);
 		board.cell[1].setQdir(board.cell[1].DN);
@@ -61,6 +62,7 @@ describe("Variety:travelline", function() {
 		assert.equal(board2.cell[0].qnum, 14);
 		assert.equal(board2.cell[0].qdir, board2.cell[0].RT);
 		assert.equal(board2.cell[0].qnum2, 1);
+		assert.equal(board2.cell[0].isBar(), true);
 
 		assert.equal(board2.cell[1].qnum, 15);
 		assert.equal(board2.cell[1].qdir, board2.cell[1].DN);
@@ -82,7 +84,7 @@ describe("Variety:travelline", function() {
 		assert.equal(board2.arrowout.getid(), board.arrowout.getid());
 	});
 
-	it("does not count yajilin clue cells in another yajilin ray", function() {
+	it("counts other yajilin clue cells and skips bars in a yajilin ray", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		var board = puzzle.board;
 
@@ -98,14 +100,368 @@ describe("Variety:travelline", function() {
 		board.cell[0].setQdir(board.cell[0].RT);
 		board.cell[0].setQnum2(2);
 
+		board.cell[1].setFloorFlag(32);
+
 		board.cell[2].setQnum(14);
 		board.cell[2].setQdir(board.cell[2].RT);
 		board.cell[2].setQnum2(1);
 
 		var checker = puzzle.checker;
-		checker.failcode = new checker.klass.FailCode();
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
 		checker.checkOnly = true;
 		checker.checkYajilinClues();
 		assert.equal(checker.failcode[0], undefined);
+	});
+
+	it("allows a start or goal arrow to sit on a bar cell and relocates it when the bar is cleared", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var board = puzzle.board;
+		var startBorder = board.getb(3, 0);
+		var goalBorder = board.getb(5, 6);
+		var startCell = board.getc(3, 1);
+
+		board.arrowin.set(startBorder);
+		board.arrowout.set(goalBorder);
+		startCell.setFloorFlag(32);
+
+		assert.equal(board.isBarEndpointCell(startCell), true);
+
+		startBorder.setLine();
+		board.getb(2, 1).setLine();
+		var checker = puzzle.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkNoLineOnBar();
+		assert.equal(checker.failcode[0], undefined);
+
+		var oldStartId = board.arrowin.getid();
+		var oldGoalId = board.arrowout.getid();
+		startCell.setQnum(-1);
+		board.relocateEndpointsFromClearedBar(startCell);
+
+		assert.notEqual(board.arrowin.getid(), oldStartId);
+		assert.equal(board.arrowout.getid(), oldGoalId);
+		assert.equal(board.getEntryCell(board.arrowin).isBar(), false);
+	});
+
+	it("accepts short drag gestures when placing internal bar endpoints", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		puzzle.setMode("edit");
+		var board = puzzle.board;
+		var startBar = board.getc(3, 3);
+		var goalBar = board.getc(7, 3);
+
+		startBar.setFloorFlag(32);
+		goalBar.setFloorFlag(32);
+		puzzle.mouse.setInputMode("arrow");
+		puzzle.mouse.inputPath("left", 3, 3, 5, 3);
+		assert.equal(board.arrowin.getc(), startBar);
+
+		puzzle.mouse.inputPath("left", 5, 3, 7, 3);
+		assert.equal(board.arrowout.getc(), goalBar);
+	});
+
+	it("supports internal bar cells as true start and goal endpoints", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/1");
+		var board = puzzle.board;
+		var startCell = board.getc(3, 1);
+		var goalCell = board.getc(5, 1);
+
+		startCell.setFloorFlag(32);
+		goalCell.setFloorFlag(32);
+		board.arrowin.set(startCell, startCell.RT);
+		board.arrowout.set(goalCell, goalCell.RT);
+		board.getb(4, 1).setLine();
+
+		assert.equal(board.arrowin.oncell(), true);
+		assert.equal(board.arrowout.oncell(), true);
+		assert.equal(board.getStartCell(), startCell);
+		assert.equal(board.getGoalCell(), goalCell);
+		var checker = puzzle.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkStartGoalDegree();
+		checker.checkNoDeadendExceptSG();
+		checker.checkTravelPath();
+		assert.equal(checker.failcode[0], undefined);
+	});
+
+	it("exports and reloads bar endpoints in URLs with their directions", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var board = puzzle.board;
+		var startBar = board.getc(3, 3);
+		var goalBar = board.getc(7, 3);
+
+		startBar.setFloorFlag(32);
+		goalBar.setFloorFlag(32);
+		board.arrowin.set(startBar, startBar.RT);
+		board.arrowout.set(goalBar, goalBar.LT);
+
+		var url = puzzle.getURL();
+		var reloaded = new pzpr.Puzzle().open(url);
+		var board2 = reloaded.board;
+
+		assert.equal(board2.arrowin.oncell(), true);
+		assert.equal(board2.arrowin.getc().id, startBar.id);
+		assert.equal(board2.arrowin.getdir(), startBar.RT);
+		assert.equal(board2.arrowout.oncell(), true);
+		assert.equal(board2.arrowout.getc().id, goalBar.id);
+		assert.equal(board2.arrowout.getdir(), goalBar.LT);
+	});
+
+	it("places internal start and goal arrows by dragging across a bar cell", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("arrow");
+		var board = puzzle.board;
+		var startBar = board.getc(3, 3);
+		var goalBar = board.getc(7, 3);
+
+		startBar.setFloorFlag(32);
+		goalBar.setFloorFlag(32);
+
+		puzzle.mouse.inputPath("left", 3, 3, 5, 3);
+		assert.equal(board.arrowin.oncell(), true);
+		assert.equal(board.arrowin.getc(), startBar);
+		assert.equal(board.arrowin.getdir(), startBar.RT);
+
+		puzzle.mouse.inputPath("left", 5, 3, 7, 3);
+		assert.equal(board.arrowout.oncell(), true);
+		assert.equal(board.arrowout.getc(), goalBar);
+		assert.equal(board.arrowout.getdir(), goalBar.RT);
+	});
+
+	it("anchors bar endpoint arrows to the selected edge instead of the cell center", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var graphic = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		var px = 100;
+		var py = 80;
+		var ll = 12;
+		var layout = graphic.getCellEndpointArrowLayout(px, py, cell.RT, ll);
+
+		assert(layout.sx < px);
+		assert(layout.ex > px);
+		assert.equal(layout.sy, py);
+		assert.equal(layout.ey, py);
+		assert(layout.ex - px > px - layout.sx);
+	});
+
+	it("draws a visible shaft and tip for bar endpoint arrows", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var graphic = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		var calls = [];
+		var g = {
+			vid: "",
+			fillRectCenter: function() {
+				calls.push("shaft");
+			},
+			beginPath: function() {
+				calls.push("begin");
+			},
+			setOffsetLinePath: function() {
+				calls.push("tip-path");
+			},
+			fill: function() {
+				calls.push("fill");
+			},
+			vhide: function() {
+				calls.push("hide");
+			}
+		};
+
+		graphic.drawCellEndpointArrow(g, "in", 100, 80, cell.RT, 12, 1);
+
+		assert.deepEqual(calls, ["shaft", "begin", "tip-path", "fill"]);
+	});
+
+	it("places bar endpoint labels opposite the arrow direction so edge cells stay readable", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var graphic = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		var px = 100;
+		var py = 80;
+
+		var rightLabel = graphic.getCellEndpointLabelPosition(px, py, cell.RT);
+		assert(rightLabel.x < px);
+		assert.equal(rightLabel.y, py);
+
+		var upLabel = graphic.getCellEndpointLabelPosition(px, py, cell.UP);
+		assert.equal(upLabel.x, px);
+		assert(upLabel.y > py);
+	});
+
+	it("draws out arrows pointing inward from the chosen bar edge", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var graphic = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		var px = 100;
+		var py = 80;
+		var ll = 12;
+		var topEdge = py - graphic.cw * 0.5;
+
+		var inDir = graphic.getCellEndpointArrowDir("in", cell.UP);
+		var outDir = graphic.getCellEndpointArrowDir("out", cell.UP);
+		var inLayout = graphic.getCellEndpointArrowLayout(px, py, cell.UP, ll, "in");
+		var outLayout = graphic.getCellEndpointArrowLayout(px, py, cell.UP, ll, "out");
+
+		assert.equal(inDir, cell.UP);
+		assert.equal(outDir, cell.DN);
+		assert(inLayout.ey < py);
+		assert(outLayout.sy < topEdge);
+		assert.equal(outLayout.ey, topEdge);
+	});
+
+	it("maps edge border placement onto bar endpoints with the same drag direction", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var board = puzzle.board;
+		var topBar = board.getc(1, 1);
+		var topBorder = board.getb(1, 0);
+		var topBar2 = board.getc(3, 1);
+		var topBorder2 = board.getb(3, 0);
+
+		topBar.setFloorFlag(32);
+		topBar2.setFloorFlag(32);
+
+		puzzle.mouse.setEndpointByBorder(topBorder, 1, topBar.DN);
+		assert.equal(board.arrowin.oncell(), true);
+		assert.equal(board.arrowin.getc(), topBar);
+		assert.equal(board.arrowin.getdir(), topBar.DN);
+
+		puzzle.mouse.setEndpointByBorder(topBorder2, 2, topBar2.UP);
+		assert.equal(board.arrowout.oncell(), true);
+		assert.equal(board.arrowout.getc(), topBar2);
+		assert.equal(board.arrowout.getdir(), topBar2.UP);
+	});
+
+	it("treats visible outer cells as edge cells for bar endpoint dragging", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/3");
+		var board = puzzle.board;
+
+		assert.equal(board.getc(1, 1).isOnBoardEdge(), true);
+		assert.equal(board.getc(3, 3).isOnBoardEdge(), false);
+	});
+
+	it("places in and out on an edge bar according to drag direction", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("arrow");
+		var board = puzzle.board;
+		var topBar = board.getc(1, 1);
+		var topBar2 = board.getc(3, 1);
+
+		topBar.setFloorFlag(32);
+		topBar2.setFloorFlag(32);
+
+		puzzle.mouse.inputPath("left", 1, 0, 1, 1);
+		assert.equal(board.arrowin.oncell(), true);
+		assert.equal(board.arrowin.getc(), topBar);
+		assert.equal(board.arrowin.getdir(), topBar.DN);
+
+		puzzle.mouse.inputPath("left", 3, 1, 3, 0);
+		assert.equal(board.arrowout.oncell(), true);
+		assert.equal(board.arrowout.getc(), topBar2);
+		assert.equal(board.arrowout.getdir(), topBar2.UP);
+	});
+
+	it("keeps stable text ids for bar endpoint labels and hides stale bar arrows", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var board = puzzle.board;
+		var graphic = puzzle.painter;
+		var inBar = board.getc(3, 1);
+		var outBorder = board.getb(5, 0);
+		var calls = [];
+		var g = {
+			vid: "",
+			fillStyle: null,
+			fillRectCenter: function() {},
+			beginPath: function() {},
+			setOffsetLinePath: function() {},
+			fill: function() {},
+			vhide: function() {
+				calls.push(["hide", this.vid]);
+			}
+		};
+
+		inBar.setFloorFlag(32);
+		board.arrowin.set(inBar, inBar.DN);
+		board.arrowout.set(outBorder);
+
+		graphic.context = g;
+		graphic.vinc = function() {
+			return g;
+		};
+		graphic.disptext = function(text) {
+			calls.push([text, g.vid]);
+		};
+
+		graphic.drawInOut();
+
+		assert(calls.some(function(entry) {
+			return entry[0] === "IN" && entry[1] === "string_in";
+		}));
+		assert(calls.some(function(entry) {
+			return entry[0] === "OUT" && entry[1] === "string_out";
+		}));
+		assert(calls.some(function(entry) {
+			return entry[0] === "hide" && entry[1] === "out_cell_arrow_shaft";
+		}));
+		assert(calls.some(function(entry) {
+			return entry[0] === "hide" && entry[1] === "out_cell_arrow_tip";
+		}));
+	});
+
+	it("does not freeze the inout layer so bar arrow paths can rotate", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var graphic = puzzle.painter;
+		var options;
+
+		graphic.context = { vid: "", vhide: function() {} };
+		graphic.vinc = function(layerid, rendering, freeze) {
+			options = { layerid: layerid, rendering: rendering, freeze: freeze };
+			return this.context;
+		};
+		graphic.disptext = function() {};
+
+		graphic.drawInOut();
+
+		assert.deepEqual(options, {
+			layerid: "inout",
+			rendering: "auto",
+			freeze: undefined
+		});
+	});
+
+	it("swaps in and out when dragging the opposite direction on the same edge bar", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("arrow");
+		var board = puzzle.board;
+		var topBar = board.getc(3, 1);
+		var oldOut = board.arrowout.getb();
+
+		topBar.setFloorFlag(32);
+
+		puzzle.mouse.inputPath("left", 3, 0, 3, 1);
+		assert.equal(board.arrowin.oncell(), true);
+		assert.equal(board.arrowin.getc(), topBar);
+		assert.equal(board.arrowin.getdir(), topBar.DN);
+
+		puzzle.mouse.inputPath("left", 3, 1, 3, 0);
+		assert.equal(board.arrowout.oncell(), true);
+		assert.equal(board.arrowout.getc(), topBar);
+		assert.equal(board.arrowout.getdir(), topBar.UP);
+		assert.equal(board.arrowin.oncell(), false);
+		assert.equal(board.arrowin.getb(), oldOut);
 	});
 });
