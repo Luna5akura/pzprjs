@@ -152,6 +152,12 @@ function clearTravelLineSolverOverlay() {
 				changed++;
 			}
 		}
+		for (var j = 0; j < board.cell.length; j++) {
+			if (board.cell[j]._travellineSolverCellState) {
+				board.cell[j]._travellineSolverCellState = null;
+				changed++;
+			}
+		}
 		if (changed > 0) {
 			ui.puzzle.redraw();
 		}
@@ -449,13 +455,7 @@ function getTravelLineBackendPayload() {
 				var borderH = board.getb(cell.bx + 1, cell.by);
 				reqHRow.push(borderH.ques === 2);
 				countryHRow.push(borderH.ques === 1);
-				if (borderH.isLine()) {
-					forcedHRow.push(1);
-				} else if (borderH.qsub === 2) {
-					forcedHRow.push(0);
-				} else {
-					forcedHRow.push(-1);
-				}
+				forcedHRow.push(-1);
 			}
 		}
 		bars.push(barRow);
@@ -521,13 +521,7 @@ function getTravelLineBackendPayload() {
 			var borderV = board.getb(cell2.bx, cell2.by + 1);
 			reqVRow.push(borderV.ques === 2);
 			countryVRow.push(borderV.ques === 1);
-			if (borderV.isLine()) {
-				forcedVRow.push(1);
-			} else if (borderV.qsub === 2) {
-				forcedVRow.push(0);
-			} else {
-				forcedVRow.push(-1);
-			}
+			forcedVRow.push(-1);
 		}
 		requiredV.push(reqVRow);
 		countryV.push(countryVRow);
@@ -631,6 +625,8 @@ async function solveTravelLinePuzzle(requestId) {
 			goalBorder._travellineSolverState = "line";
 			endpointChanged++;
 		}
+		var cellOverlay = recomputeTravelLineCellOverlayStates(board);
+		endpointChanged += cellOverlay.changed;
 		if (endpointChanged > 0) {
 			ui.puzzle.redraw();
 		}
@@ -816,6 +812,51 @@ function getTravelLineOverlayKind(entry) {
 	return null;
 }
 
+function isTravelLineOverlayPossibleBorder(border) {
+	if (!border || border.isnull) {
+		return false;
+	}
+	if (border.inside) {
+		return border._travellineSolverState !== "cross";
+	}
+	return border._travellineSolverState === "line";
+}
+
+function deriveTravelLineCellOverlayState(cell) {
+	if (!cell || cell.isnull) {
+		return null;
+	}
+	if (cell.isBar && cell.isBar() && !cell.board.isBarEndpointCell(cell)) {
+		return "cross";
+	}
+	var adb = cell.adjborder;
+	var candidates = [adb.top, adb.bottom, adb.left, adb.right];
+	for (var i = 0; i < candidates.length; i++) {
+		if (isTravelLineOverlayPossibleBorder(candidates[i])) {
+			return null;
+		}
+	}
+	return "cross";
+}
+
+function recomputeTravelLineCellOverlayStates(board) {
+	var changed = 0;
+	var recognized = 0;
+	for (var c = 0; c < board.cell.length; c++) {
+		var boardCell = board.cell[c];
+		var explicitState = boardCell._travellineSolverCellState === "cross" ? "cross" : null;
+		var derivedState = explicitState || deriveTravelLineCellOverlayState(boardCell);
+		if (boardCell._travellineSolverCellState !== derivedState) {
+			boardCell._travellineSolverCellState = derivedState;
+			changed++;
+		}
+		if (derivedState) {
+			recognized++;
+		}
+	}
+	return { changed: changed, recognized: recognized };
+}
+
 function applyTravelLineDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
@@ -832,20 +873,38 @@ function applyTravelLineDescription(result) {
 	withSuppressedHistory(function() {
 		for (var i = 0; i < data.length; i++) {
 			var entry = data[i];
-			if (!isAnswerColor(entry) || !isBorderCoordinate(entry)) {
+			if (!isAnswerColor(entry)) {
 				continue;
 			}
-			var border = ui.puzzle.board.getb(entry.x, entry.y);
 			var state = getTravelLineOverlayKind(entry);
-			if (border.isnull || !state) {
+			if (!state) {
 				continue;
 			}
-			recognized++;
-			if (border._travellineSolverState !== state) {
-				border._travellineSolverState = state;
-				changed++;
+			if (isBorderCoordinate(entry)) {
+				var border = ui.puzzle.board.getb(entry.x, entry.y);
+				if (border.isnull) {
+					continue;
+				}
+				recognized++;
+				if (border._travellineSolverState !== state) {
+					border._travellineSolverState = state;
+					changed++;
+				}
+			} else if (isCellCoordinate(entry) && state === "cross") {
+				var cell = ui.puzzle.board.getc(entry.x, entry.y);
+				if (cell.isnull) {
+					continue;
+				}
+				recognized++;
+				if (cell._travellineSolverCellState !== "cross") {
+					cell._travellineSolverCellState = "cross";
+					changed++;
+				}
 			}
 		}
+		var cellOverlay = recomputeTravelLineCellOverlayStates(ui.puzzle.board);
+		changed += cellOverlay.changed;
+		recognized += cellOverlay.recognized;
 		if (changed > 0) {
 			ui.puzzle.redraw();
 		}

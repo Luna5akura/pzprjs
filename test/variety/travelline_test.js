@@ -84,6 +84,38 @@ describe("Variety:travelline", function() {
 		assert.equal(cross.qnum, -1);
 	});
 
+	it("creates slither, yajilin, castle wall, and order clues from keyboard based on the active input mode", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var board = puzzle.board;
+		var cross = board.getx(2, 2);
+		var cell = board.getc(1, 1);
+
+		puzzle.mouse.setInputMode("travel-slither");
+		puzzle.mouse.inputPath("left", 2, 2);
+		puzzle.key.inputKeys("3");
+		assert.equal(cross.qnum, 3);
+
+		puzzle.mouse.setInputMode("travel-yajilin");
+		puzzle.mouse.inputPath("left", 1, 1);
+		cell.setQnum(-1);
+		cell.setQnum2(-1);
+		cell.setQdir(0);
+		puzzle.key.inputKeys("4");
+		assert.equal(cell.qnum, 14);
+		assert.equal(cell.qnum2, 4);
+
+		puzzle.mouse.setInputMode("travel-cw");
+		puzzle.key.inputKeys("2");
+		assert.equal(cell.qnum, 15);
+		assert.equal(cell.qnum2, 2);
+
+		puzzle.mouse.setInputMode("travel-order");
+		puzzle.key.inputKeys("1");
+		assert.equal(cell.qnum, 16);
+		assert.equal(cell.qnum2, 1);
+	});
+
 	it("supports keyboard number entry on directed and order clues after selecting the cell", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		puzzle.setMode("edit");
@@ -107,6 +139,19 @@ describe("Variety:travelline", function() {
 		puzzle.key.inputKeys("2");
 		assert.equal(cell.qnum, 16);
 		assert.equal(cell.qnum2, 2);
+	});
+
+	it("toggles a not-passed auxiliary cell mark in play mode", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("subcross");
+		var cell = puzzle.board.getc(1, 1);
+
+		puzzle.mouse.inputPath("left", 1, 1);
+		assert.equal(cell.qsub, 2);
+
+		puzzle.mouse.inputPath("left", 1, 1);
+		assert.equal(cell.qsub, 0);
 	});
 
 	it("exports and reloads URL with custom clues", function() {
@@ -462,6 +507,37 @@ describe("Variety:travelline", function() {
 		assert.equal(border.isLine(), false);
 	});
 
+	it("draws solver not-passed cell crosses without mutating manual auxiliary marks", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var cell = puzzle.board.getc(1, 1);
+		var calls = [];
+		var graphic = puzzle.painter;
+		var g = {
+			vid: "",
+			strokeStyle: null,
+			lineWidth: 0,
+			strokeCross: function() {
+				calls.push("cross");
+			},
+			vhide: function() {
+				calls.push("hide:" + this.vid);
+			}
+		};
+
+		cell._travellineSolverCellState = "cross";
+		assert.equal(cell.qsub, 0);
+
+		graphic.range = { cells: [cell] };
+		graphic.context = g;
+		graphic.vinc = function() {
+			return g;
+		};
+		graphic.drawSolverOverlayCellCrosses();
+
+		assert.deepEqual(calls, ["cross"]);
+		assert.equal(cell.qsub, 0);
+	});
+
 	it("hides stale slither text when a cross clue changes to divide", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		var graphic = puzzle.painter;
@@ -499,6 +575,41 @@ describe("Variety:travelline", function() {
 		}));
 		assert(!calls.some(function(entry) {
 			return entry[0] === "0" || entry[0] === "1" || entry[0] === "2" || entry[0] === "3" || entry[0] === "4";
+		}));
+	});
+
+	it("hides stale point markers when a cell clue changes from dot to pearl", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var graphic = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		var calls = [];
+		var g = {
+			vid: "",
+			fillStyle: null,
+			strokeStyle: null,
+			shapeCircle: function() {
+				calls.push(["circle", this.vid]);
+			},
+			vhide: function() {
+				calls.push(["hide", this.vid]);
+			}
+		};
+
+		cell.setQnum(3);
+		graphic.range = { cells: [cell] };
+		graphic.context = g;
+		graphic.vinc = function() {
+			return g;
+		};
+		graphic.disptext = function() {};
+
+		graphic.drawCellClues();
+
+		assert(calls.some(function(entry) {
+			return entry[0] === "circle" && entry[1] === "c_pearl_" + cell.id;
+		}));
+		assert(calls.some(function(entry) {
+			return entry[0] === "hide" && entry[1] === "c_dot_" + cell.id;
 		}));
 	});
 

@@ -44,7 +44,7 @@ var TL_FLOOR_FLAGS = {
 				"clear",
 				"info-line"
 			],
-			play: ["line", "peke", "diraux", "info-line"]
+			play: ["line", "peke", "subcross", "diraux", "info-line"]
 		},
 
 		mouseinput: function() {
@@ -85,7 +85,9 @@ var TL_FLOOR_FLAGS = {
 		},
 
 		mouseinput_other: function() {
-			if (this.inputMode === "diraux") {
+			if (this.inputMode === "subcross") {
+				this.inputNoPassAux();
+			} else if (this.inputMode === "diraux") {
 				if (this.mousestart || this.mousemove) {
 					this.inputdiraux_mousemove();
 				} else if (this.mouseend && this.notInputted()) {
@@ -109,6 +111,8 @@ var TL_FLOOR_FLAGS = {
 						this.inputpeke();
 					} else if (this.mousemove) {
 						this.inputdiraux_mousemove();
+					} else if (this.mouseend && this.notInputted()) {
+						this.inputNoPassAux();
 					}
 				}
 				return;
@@ -452,6 +456,9 @@ var TL_FLOOR_FLAGS = {
 				!cell.isnull &&
 				cell.qnum !== type
 			) {
+				if (cell !== this.cursor.getc()) {
+					this.setcursor(cell);
+				}
 				cell.setQnum(type);
 				cell.setQnum2(0);
 				cell.setQdir(cell.qdir || cell.UP);
@@ -598,11 +605,54 @@ var TL_FLOOR_FLAGS = {
 				border.draw();
 				this.mousereset();
 			}
+		},
+
+		inputNoPassAux: function() {
+			if (!this.mousestart && !this.mouseend) {
+				return;
+			}
+			var cell = this.getcell();
+			if (cell.isnull) {
+				return;
+			}
+			if (this.inputData === null) {
+				this.inputData = cell.qsub === 2 ? 0 : 2;
+			}
+			cell.setQsub(this.inputData);
+			cell.draw();
+			this.mouseCell = cell;
+			this.mousereset();
 		}
 	},
 
 	KeyEvent: {
 		enablemake: true,
+		getTravelKeyboardCrossClueType: function(cross) {
+			if (cross.isSlither()) {
+				return "slither";
+			}
+			return this.puzzle.mouse.inputMode === "travel-slither" ? "slither" : null;
+		},
+		getTravelKeyboardCellClueType: function(cell) {
+			switch (this.puzzle.mouse.inputMode) {
+				case "travel-yajilin":
+					return 14;
+				case "travel-cw":
+					return 15;
+				case "travel-order":
+					return 16;
+			}
+			if (cell.isYajilin()) {
+				return 14;
+			}
+			if (cell.isCw()) {
+				return 15;
+			}
+			if (cell.isOrder()) {
+				return 16;
+			}
+			return null;
+		},
 		keyinputTravelCrossNumber: function(cross, ca) {
 			if (cross.isnull) {
 				return false;
@@ -654,6 +704,7 @@ var TL_FLOOR_FLAGS = {
 			var cross = this.cursor.getx();
 			if (
 				!cross.isnull &&
+				this.getTravelKeyboardCrossClueType(cross) === "slither" &&
 				this.keyinputTravelCrossNumber(cross, ca)
 			) {
 				return;
@@ -663,17 +714,19 @@ var TL_FLOOR_FLAGS = {
 			if (cell.isnull) {
 				return;
 			}
-			if ((cell.isYajilin() || cell.isCw()) && this.key_inputdirec(ca)) {
+			var clueType = this.getTravelKeyboardCellClueType(cell);
+			if ((clueType === 14 || clueType === 15) && this.key_inputdirec(ca)) {
 				return;
 			}
 			if (
-				(cell.isYajilin() && this.keyinputTravelNumber(cell, ca, 14, true)) ||
-				(cell.isCw() && this.keyinputTravelNumber(cell, ca, 15, true)) ||
-				(cell.isOrder() && this.keyinputTravelNumber(cell, ca, 16, false))
+				(clueType === 14 && this.keyinputTravelNumber(cell, ca, 14, true)) ||
+				(clueType === 15 && this.keyinputTravelNumber(cell, ca, 15, true)) ||
+				(clueType === 16 && this.keyinputTravelNumber(cell, ca, 16, false))
 			) {
 				return;
 			}
 			var qnum = null;
+			var nextInputMode = null;
 			switch (ca) {
 				case "x":
 					var wasBar = cell.isBar();
@@ -713,9 +766,11 @@ var TL_FLOOR_FLAGS = {
 						return;
 					case "y":
 						qnum = 14;
+						nextInputMode = "travel-yajilin";
 						break;
 				case "c":
 						qnum = 15;
+						nextInputMode = "travel-cw";
 						break;
 					case "g":
 						cell.toggleFloorFlag(TL_FLOOR_FLAGS.CWFLOOR);
@@ -723,6 +778,7 @@ var TL_FLOOR_FLAGS = {
 						return;
 					case "r":
 						qnum = 16;
+						nextInputMode = "travel-order";
 						break;
 					case " ":
 				case "BS":
@@ -745,6 +801,9 @@ var TL_FLOOR_FLAGS = {
 				}
 				if (wasBar && !cell.isBar()) {
 					cell.board.relocateEndpointsFromClearedBar(cell);
+				}
+				if (nextInputMode) {
+					this.puzzle.mouse.setInputMode(nextInputMode);
 				}
 				cell.draw();
 			}
@@ -1334,7 +1393,9 @@ var TL_FLOOR_FLAGS = {
 			this.drawPekes();
 			this.drawSolverOverlayLines();
 			this.drawSolverOverlayPekes();
+			this.drawSolverOverlayCellCrosses();
 			this.drawBorderAuxDir();
+			this.drawMBs();
 			this.drawCellClues();
 			this.drawCrossClues();
 			this.drawBorderArrows();
@@ -1606,37 +1667,51 @@ var TL_FLOOR_FLAGS = {
 				var py = cell.by * this.bh;
 				var qn = cell.qnum;
 
-				g.vid = "c_marker_" + cell.id;
+				g.vid = "c_pearl_" + cell.id;
 				if (qn === 3 || qn === 4) {
 					g.fillStyle = qn === 4 ? this.quescolor : "white";
 					g.strokeStyle = this.quescolor;
 					g.shapeCircle(px, py, rsize);
+					g.vid = "c_dot_" + cell.id;
+					g.vhide();
 				} else if (qn === 7 || qn === 8) {
+					g.vid = "c_pearl_" + cell.id;
+					g.vhide();
+					g.vid = "c_dot_" + cell.id;
 					g.fillStyle = qn === 8 ? this.quescolor : "white";
 					g.strokeStyle = this.quescolor;
 					g.shapeCircle(px, py, this.cw * 0.1);
 				} else if (qn === 16) {
+					g.vid = "c_pearl_" + cell.id;
+					g.vhide();
+					g.vid = "c_dot_" + cell.id;
+					g.vhide();
 					g.fillStyle = this.getQuesNumberColor(cell);
 					this.disptext(this.getNumberTextCore_letter(Math.max(cell.qnum2, 0) + 1), px, py, {
 						ratio: 0.52
 					});
-					} else {
-						g.vhide();
-					}
+				} else {
+					g.vhide();
+					g.vid = "c_dot_" + cell.id;
+					g.vhide();
+				}
 			}
 		},
 		drawCastleWallClueFrames: function() {
 			var g = this.vinc("castle_wall_clue", "auto", true);
 			var clist = this.range.cells;
-			var size = this.cw * 0.68;
+			var innerSize = this.cw * 0.56;
 			g.lineWidth = Math.max(this.cw / 28, 1.5);
 
 			for (var i = 0; i < clist.length; i++) {
 				var cell = clist[i];
-				g.vid = "cw_frame_" + cell.id;
+				var px = cell.bx * this.bw;
+				var py = cell.by * this.bh;
+
+				g.vid = "cw_frame_inner_" + cell.id;
 				if (cell.isCw()) {
 					g.strokeStyle = this.getQuesNumberColor(cell);
-					g.strokeRectCenter(cell.bx * this.bw, cell.by * this.bh, size, size);
+					g.strokeRectCenter(px, py, innerSize, innerSize);
 				} else {
 					g.vhide();
 				}
@@ -1680,6 +1755,23 @@ var TL_FLOOR_FLAGS = {
 				g.vid = "b_solver_peke_" + border.id;
 				if (border._travellineSolverState === "cross") {
 					g.strokeCross(border.bx * this.bw, border.by * this.bh, size - 1);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+		drawSolverOverlayCellCrosses: function() {
+			var g = this.vinc("travelline_solver_cell_cross", "auto", true);
+			var size = this.cw * 0.35;
+			g.lineWidth = Math.max((1 + this.cw / 45) | 0, 1);
+			g.strokeStyle = this.travellineSolverPekeColor;
+
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				g.vid = "c_solver_cross_" + cell.id;
+				if (cell._travellineSolverCellState === "cross") {
+					g.strokeCross(cell.bx * this.bw, cell.by * this.bh, size);
 				} else {
 					g.vhide();
 				}
@@ -2408,24 +2500,29 @@ var TL_FLOOR_FLAGS = {
 						cell.qdir = +parts[1];
 						cell.qnum2 = +parts[2];
 						cell.ques = parts[3] ? +parts[3] : 0;
+						cell.qsub = parts[4] ? +parts[4] : 0;
 					} else if (parts[0] === "C") {
 						cell.qnum = 15;
 						cell.qdir = +parts[1];
 						cell.qnum2 = +parts[2];
 						cell.ques = parts[3] ? +parts[3] : 0;
+						cell.qsub = parts[4] ? +parts[4] : 0;
 					} else if (parts[0] === "O") {
 						cell.qnum = 16;
 						cell.qdir = 0;
 						cell.qnum2 = +parts[1];
 						cell.ques = parts[2] ? +parts[2] : 0;
+						cell.qsub = parts[3] ? +parts[3] : 0;
 					} else if (parts[0] === "F") {
 						cell.qnum = -1;
 						cell.qdir = 0;
 						cell.qnum2 = -1;
 						cell.ques = +parts[1];
+						cell.qsub = parts[2] ? +parts[2] : 0;
 					} else {
 						cell.qnum = +parts[0];
 						cell.ques = parts[1] ? +parts[1] : 0;
+						cell.qsub = parts[2] ? +parts[2] : 0;
 					}
 				});
 				this.decodeCross(function(cross, ca) {
@@ -2442,18 +2539,46 @@ var TL_FLOOR_FLAGS = {
 				this.encodeBorderQues();
 				this.encodeCell(function(cell) {
 					if (cell.qnum === 14) {
-						return "Y," + cell.qdir + "," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
+						return (
+							"Y," +
+							cell.qdir +
+							"," +
+							Math.max(cell.qnum2, 0) +
+							"," +
+							(cell.ques || 0) +
+							"," +
+							(cell.qsub || 0) +
+							" "
+						);
 					}
 					if (cell.qnum === 15) {
-						return "C," + cell.qdir + "," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
+						return (
+							"C," +
+							cell.qdir +
+							"," +
+							Math.max(cell.qnum2, 0) +
+							"," +
+							(cell.ques || 0) +
+							"," +
+							(cell.qsub || 0) +
+							" "
+						);
 					}
 					if (cell.qnum === 16) {
-						return "O," + Math.max(cell.qnum2, 0) + "," + (cell.ques || 0) + " ";
+						return (
+							"O," +
+							Math.max(cell.qnum2, 0) +
+							"," +
+							(cell.ques || 0) +
+							"," +
+							(cell.qsub || 0) +
+							" "
+						);
 					}
 					if (cell.qnum >= 0) {
-						return cell.qnum + "," + (cell.ques || 0) + " ";
+						return cell.qnum + "," + (cell.ques || 0) + "," + (cell.qsub || 0) + " ";
 					}
-					return cell.ques ? "F," + cell.ques + " " : ". ";
+					return cell.ques || cell.qsub ? "F," + (cell.ques || 0) + "," + (cell.qsub || 0) + " " : ". ";
 				});
 				this.encodeCross(function(cross) {
 					return cross.qnum !== -1 ? cross.qnum + " " : ". ";
