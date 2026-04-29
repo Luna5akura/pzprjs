@@ -1047,6 +1047,9 @@ function onHistoryChange() {
 	if (suppressHistory) {
 		return;
 	}
+	if (isTravelLinePuzzle() && ui.puzzle && ui.puzzle.playmode) {
+		return;
+	}
 	if (isApplying) {
 		solveRequestId++;
 		restartSolveAfterCurrent = true;
@@ -1074,6 +1077,13 @@ function refreshVisibility() {
 	if (supported && !isApplying && !hasSolverState) {
 		setStatus(getMessages().idle);
 	}
+}
+
+function onModeChange() {
+	if (isTravelLinePuzzle() && hasSolverState) {
+		ui.puzzle.redraw();
+	}
+	refreshVisibility();
 }
 
 function initializeSolverUi() {
@@ -1104,6 +1114,7 @@ function initializeSolverUi() {
 		refreshVisibility();
 	});
 	ui.puzzle.on("history", onHistoryChange);
+	ui.puzzle.on("mode", onModeChange);
 
 	refreshVisibility();
 }

@@ -141,6 +141,21 @@ describe("Variety:travelline", function() {
 		assert.equal(cell.qnum2, 2);
 	});
 
+	it("accepts multi-digit clue input until it exceeds the board cell count", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/3");
+		puzzle.setMode("edit");
+		var cell = puzzle.board.getc(1, 1);
+
+		puzzle.mouse.setInputMode("travel-yajilin");
+		puzzle.mouse.inputPath("left", 1, 1);
+		puzzle.key.inputKeys("1", "2");
+		assert.equal(cell.qnum, 14);
+		assert.equal(cell.qnum2, 12);
+
+		puzzle.key.inputKeys("3");
+		assert.equal(cell.qnum2, 3);
+	});
+
 	it("toggles a not-passed auxiliary cell mark in play mode", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		puzzle.setMode("play");
@@ -611,6 +626,18 @@ describe("Variety:travelline", function() {
 		assert(calls.some(function(entry) {
 			return entry[0] === "hide" && entry[1] === "c_dot_" + cell.id;
 		}));
+	});
+
+	it("mixes bar transparency with other floor clue colors", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var cell = puzzle.board.getc(1, 1);
+		var graphic = puzzle.painter;
+
+		cell.setQues(32 | 8);
+		var color = graphic.getBGCellColor(cell);
+
+		assert.notEqual(color, "rgba(160,160,160,0.55)");
+		assert(/^rgba?\(/.test(color));
 	});
 
 	it("maps edge border placement onto bar endpoints with the same drag direction", function() {

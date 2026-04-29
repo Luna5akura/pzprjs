@@ -670,19 +670,20 @@ var TL_FLOOR_FLAGS = {
 		},
 		keyinputTravelNumber: function(cell, ca, clueType, withDirection) {
 			var current = cell.qnum === clueType ? cell.qnum2 : -1;
-			var next = this.getNewNumber(
-				{
-					getmaxnum: function() {
-						return 51;
-					},
-					getminnum: function() {
-						return 0;
-					},
-					disInputHatena: true
-				},
-				ca,
-				current
-			);
+			var next = null;
+			var max = cell.board.cell.length;
+			if ("0" <= ca && ca <= "9") {
+				var num = +ca;
+				if (current <= 0 || current * 10 + num > max || this.prev !== cell) {
+					current = 0;
+				}
+				next = current * 10 + num;
+				if (next > max) {
+					next = null;
+				}
+			} else if (ca === " " || ca === "BS" || ca === "-") {
+				next = -1;
+			}
 			if (next === null) {
 				return false;
 			}
@@ -1474,35 +1475,55 @@ var TL_FLOOR_FLAGS = {
 			var totalR = 0;
 			var totalG = 0;
 			var totalB = 0;
+			var totalA = 0;
+			var count = 0;
 			for (var i = 0; i < colors.length; i++) {
-				var match = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(colors[i]);
+				var match = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/.exec(
+					colors[i]
+				);
 				if (!match) {
 					continue;
 				}
 				totalR += +match[1];
 				totalG += +match[2];
 				totalB += +match[3];
+				totalA += match[4] !== void 0 ? +match[4] : 1;
+				count++;
 			}
-			var len = colors.length || 1;
+			var len = count || 1;
+			var avgA = totalA / len;
+			if (avgA >= 0.999) {
+				return (
+					"rgb(" +
+					Math.round(totalR / len) +
+					"," +
+					Math.round(totalG / len) +
+					"," +
+					Math.round(totalB / len) +
+					")"
+				);
+			}
 			return (
-				"rgb(" +
+				"rgba(" +
 				Math.round(totalR / len) +
 				"," +
 				Math.round(totalG / len) +
 				"," +
 				Math.round(totalB / len) +
+				"," +
+				avgA.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") +
 				")"
 			);
 		},
 		getBGCellColor: function(cell) {
 			var info = cell.error || cell.qinfo;
-			if (cell.isBar()) {
-				return info === 1 ? this.errcolor1 : "rgb(160,160,160)";
-			}
 			if (cell.isCw()) {
-				return info === 1 ? this.errbcolor1 : "rgb(224,224,224)";
+				return info === 1 ? this.errbcolor1 : null;
 			}
 			var floors = [];
+			if (cell.isBar()) {
+				floors.push("rgba(160,160,160,0.55)");
+			}
 			if (cell.isIce()) {
 				floors.push(this.icecolor);
 			}
