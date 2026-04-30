@@ -349,7 +349,7 @@ ui.toolarea = {
 			var child = children[i];
 			var value = ui.customAttr(child, "value");
 			var meta = layout.items[value];
-			if (!meta) {
+			if (!meta || !groups[meta.group]) {
 				container.appendChild(child);
 				continue;
 			}
