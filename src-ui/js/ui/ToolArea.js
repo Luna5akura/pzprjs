@@ -6,6 +6,49 @@
 ui.toolarea = {
 	items: null, // ツールパネルのエレメント等を保持する
 	captions: [], // 言語指定を切り替えた際のキャプションを保持する
+	inputModeGroupSelection: {},
+	inputModeLayouts: {
+		travelline: {
+			groupOrder: [
+				"path",
+				"borders",
+				"cells",
+				"crosses",
+				"directed",
+				"tools"
+			],
+			items: {
+				auto: { group: "path", preview: "auto" },
+				line: { group: "path", preview: "line" },
+				peke: { group: "path", preview: "cross" },
+				diraux: { group: "path", preview: "arrow-line" },
+				subcross: { group: "path", preview: "cell-cross" },
+				border: { group: "borders", preview: "border-block" },
+				country: { group: "borders", preview: "border-country" },
+				"travel-required": { group: "borders", preview: "border-required" },
+				arrow: { group: "cells", preview: "arrow" },
+				bar: { group: "cells", preview: "bar-cell" },
+				"travel-ice": { group: "cells", preview: "ice" },
+				"travel-cwfloor": { group: "cells", preview: "cwfloor" },
+				"travel-sloop": { group: "cells", preview: "sloop" },
+				"travel-notouch": { group: "cells", preview: "notouch" },
+				"travel-noadj": { group: "cells", preview: "noadj" },
+				"travel-white": { group: "cells", preview: "white-pearl" },
+				"travel-black": { group: "cells", preview: "black-pearl" },
+				"travel-dotw": { group: "cells", preview: "white-dot" },
+				"travel-dotb": { group: "cells", preview: "black-dot" },
+				"travel-slither": { group: "crosses", preview: "slither" },
+				"travel-div1": { group: "crosses", preview: "divide1" },
+				"travel-div2": { group: "crosses", preview: "divide2" },
+				"travel-div3": { group: "crosses", preview: "divide3" },
+				"travel-yajilin": { group: "directed", preview: "yajilin" },
+				"travel-cw": { group: "directed", preview: "cw" },
+				"travel-order": { group: "directed", preview: "order" },
+				clear: { group: "tools", preview: "erase" },
+				"info-line": { group: "tools", preview: "inspect" }
+			}
+		}
+	},
 
 	//---------------------------------------------------------------------------
 	// toolarea.reset()  ツールパネル・ボタン領域の初期設定を行う
@@ -177,6 +220,164 @@ ui.toolarea = {
 			}
 		}
 	},
+	getInputModeLayout: function(idname) {
+		if (idname !== "inputmode" || !ui.puzzle || ui.puzzle.pid !== "travelline") {
+			return null;
+		}
+		return this.inputModeLayouts.travelline || null;
+	},
+	getInputModeGroupForValue: function(layout, value) {
+		var meta = layout && layout.items ? layout.items[value] : null;
+		return meta ? meta.group : null;
+	},
+	getActiveInputModeGroup: function(layout, availableGroups, currentValue) {
+		var pid = ui.puzzle && ui.puzzle.pid ? ui.puzzle.pid : "";
+		var selectedGroup = this.getInputModeGroupForValue(layout, currentValue);
+		var activeGroup = this.inputModeGroupSelection[pid];
+		if (!activeGroup || availableGroups.indexOf(activeGroup) < 0) {
+			activeGroup = selectedGroup && availableGroups.indexOf(selectedGroup) >= 0
+				? selectedGroup
+				: availableGroups[0] || null;
+		}
+		if (activeGroup) {
+			this.inputModeGroupSelection[pid] = activeGroup;
+		}
+		return activeGroup;
+	},
+	rebuildInputModeLayout: function(idname, toolitem) {
+		if (!toolitem || !toolitem.el || !toolitem.children) {
+			return;
+		}
+		var container = toolitem.el.children[1];
+		if (!container) {
+			return;
+		}
+		var layout = this.getInputModeLayout(idname);
+		var children = toolitem.children;
+		var i;
+
+		container.classList.remove("inputmode-layout");
+		container.classList.remove("inputmode-layout-travelline");
+
+		for (i = 0; i < children.length; i++) {
+			children[i].classList.remove("inputmode-option");
+			children[i].removeAttribute("data-preview");
+			children[i].removeAttribute("data-group");
+		}
+
+		var existingTabs = container.querySelectorAll(".inputmode-categorybar");
+		for (i = 0; i < existingTabs.length; i++) {
+			existingTabs[i].remove();
+		}
+		var existingGroups = container.querySelectorAll(".inputmode-group");
+		for (i = 0; i < existingGroups.length; i++) {
+			existingGroups[i].remove();
+		}
+
+		if (!layout) {
+			for (i = 0; i < children.length; i++) {
+				container.appendChild(children[i]);
+			}
+			return;
+		}
+
+		container.classList.add("inputmode-layout");
+		container.classList.add("inputmode-layout-travelline");
+
+		var availableGroups = [];
+		for (i = 0; i < layout.groupOrder.length; i++) {
+			var orderedGroupKey = layout.groupOrder[i];
+			for (var j = 0; j < children.length; j++) {
+				var groupValue = ui.customAttr(children[j], "value");
+				var groupMeta = layout.items[groupValue];
+				if (
+					groupMeta &&
+					groupMeta.group === orderedGroupKey &&
+					children[j].style.display !== "none"
+				) {
+					availableGroups.push(orderedGroupKey);
+					break;
+				}
+			}
+		}
+		var activeGroup = this.getActiveInputModeGroup(
+			layout,
+			availableGroups,
+			"" + ui.menuconfig.get(idname)
+		);
+
+		var toolarea = this;
+		var categoryBar = document.createElement("div");
+		categoryBar.className = "inputmode-categorybar";
+		for (i = 0; i < availableGroups.length; i++) {
+			var categoryKey = availableGroups[i];
+			var category = document.createElement("div");
+			category.className =
+				categoryKey === activeGroup ? "child childsel inputmode-category" : "child inputmode-category";
+			category.setAttribute("data-inputmode-group", categoryKey);
+			category.textContent = ui.i18n("inputmode.group.travelline." + categoryKey);
+			pzpr.util.addEvent(category, "mousedown", this, function(e) {
+				toolarea.inputmodegroupclick(e);
+				if (e.type !== "click") {
+					e.stopPropagation();
+				}
+			});
+			categoryBar.appendChild(category);
+		}
+		container.appendChild(categoryBar);
+
+		var groups = {};
+		for (i = 0; i < layout.groupOrder.length; i++) {
+			var groupKey = layout.groupOrder[i];
+			if (availableGroups.indexOf(groupKey) < 0) {
+				continue;
+			}
+			var section = document.createElement("div");
+			section.className = "inputmode-group";
+			section.setAttribute("data-group", groupKey);
+			section.style.display = groupKey === activeGroup ? "" : "none";
+
+			var options = document.createElement("div");
+			options.className = "inputmode-group-options";
+			section.appendChild(options);
+
+			container.appendChild(section);
+			groups[groupKey] = options;
+		}
+
+		for (i = 0; i < children.length; i++) {
+			var child = children[i];
+			var value = ui.customAttr(child, "value");
+			var meta = layout.items[value];
+			if (!meta) {
+				container.appendChild(child);
+				continue;
+			}
+			child.classList.add("inputmode-option");
+			child.setAttribute("data-preview", meta.preview);
+			child.setAttribute("data-group", meta.group);
+			groups[meta.group].appendChild(child);
+		}
+	},
+	inputmodegroupclick: function(e) {
+		var el = e.target;
+		while (
+			el &&
+			!ui.customAttr(el, "inputmodeGroup") &&
+			el !== document.body
+		) {
+			el = el.parentNode;
+		}
+		if (!el) {
+			return;
+		}
+		var group = ui.customAttr(el, "inputmodeGroup");
+		if (!group || !ui.puzzle || !ui.puzzle.pid) {
+			return;
+		}
+		this.inputModeGroupSelection[ui.puzzle.pid] = group;
+		this.setdisplay("inputmode");
+	},
 	displayVariantPanel: function() {
 		// display if the type has variants, and we're in edit mode or some
 		// variants are enabled
@@ -261,6 +462,8 @@ ui.toolarea = {
 						validval === null || validval.indexOf(value) >= 0 ? "" : "none";
 				}
 
+				this.rebuildInputModeLayout(idname, toolitem);
+
 				if (idname === "inputmode") {
 					disabled = validval.length === 1;
 				}
@@ -299,16 +502,35 @@ ui.toolarea = {
 	// toolarea.toolclick()   ツールパネルの入力があった時、設定を変更する
 	//---------------------------------------------------------------------------
 	toolclick: function(e) {
-		var el = e.target,
-			parent = el.parentNode;
-		var idname =
-				ui.customAttr(parent, "config") ||
-				ui.customAttr(parent.parentNode, "config"),
+		var el = e.target;
+		while (el && !ui.customAttr(el, "value") && el !== document.body) {
+			el = el.parentNode;
+		}
+		if (!el || !ui.customAttr(el, "value")) {
+			return;
+		}
+
+		var parent = el.parentNode;
+		while (parent && !ui.customAttr(parent, "config") && parent !== document.body) {
+			parent = parent.parentNode;
+		}
+		if (!parent || !ui.customAttr(parent, "config")) {
+			return;
+		}
+
+		var idname = ui.customAttr(parent, "config"),
 			value;
 		if (!!this.items[idname].checkbox) {
 			value = !!el.checked;
 		} else {
 			value = ui.customAttr(el, "value");
+		}
+		if (idname === "inputmode") {
+			var layout = this.getInputModeLayout(idname);
+			var group = this.getInputModeGroupForValue(layout, value);
+			if (group && ui.puzzle && ui.puzzle.pid) {
+				this.inputModeGroupSelection[ui.puzzle.pid] = group;
+			}
 		}
 		ui.menuconfig.set(idname, value);
 	},

@@ -59,21 +59,25 @@ var TL_BORDER_CLUES = {
 					this.inputarrow_line();
 					return;
 				}
+				if (this.inputMode === "travel-required") {
+					this.inputRequiredLine();
+					return;
+				}
 				if (this.isBorderClueInputMode()) {
 					this.inputBorderClue();
-						return;
-					}
-					if (this.inputMode === "travel-order") {
-						this.inputOrderClue();
-						return;
-					}
-					if (this.isDirectedInputMode()) {
-						this.inputDirectedClue();
-						return;
-					}
-					if (this.isCrossInputMode()) {
-						this.inputCrossClue();
-						return;
+					return;
+				}
+				if (this.inputMode === "travel-order") {
+					this.inputOrderClue();
+					return;
+				}
+				if (this.isDirectedInputMode()) {
+					this.inputDirectedClue();
+					return;
+				}
+				if (this.isCrossInputMode()) {
+					this.inputCrossClue();
+					return;
 				}
 				if (this.inputMode === "clear") {
 					this.inputClearClue();
@@ -123,34 +127,32 @@ var TL_BORDER_CLUES = {
 
 			if (this.inputMode === "arrow") {
 				this.inputarrow_line();
+			} else if (this.inputMode === "travel-required") {
+				this.inputRequiredLine();
 			} else if (this.isBorderClueInputMode()) {
-					this.inputBorderClue();
-				} else if (this.inputMode === "travel-order") {
-					this.inputOrderClue();
-				} else if (this.isDirectedInputMode()) {
-					this.inputDirectedClue();
-				} else if (this.isCrossInputMode()) {
-					this.inputCrossClue();
-				} else if (this.inputMode === "clear") {
+				this.inputBorderClue();
+			} else if (this.inputMode === "travel-order") {
+				this.inputOrderClue();
+			} else if (this.isDirectedInputMode()) {
+				this.inputDirectedClue();
+			} else if (this.isCrossInputMode()) {
+				this.inputCrossClue();
+			} else if (this.inputMode === "clear") {
 				this.inputClearClue();
 			} else if (this.mousestart || this.mousemove) {
 				this.inputClue();
 			}
-			},
-			isDirectedInputMode: function() {
-				return (
-					this.inputMode === "travel-yajilin" ||
-					this.inputMode === "travel-cw"
-				);
-			},
-			isBorderClueInputMode: function() {
-				return (
-					this.inputMode === "border" ||
-					this.inputMode === "country" ||
-					this.inputMode === "travel-required"
-				);
-			},
-			isCrossInputMode: function() {
+		},
+		isDirectedInputMode: function() {
+			return (
+				this.inputMode === "travel-yajilin" ||
+				this.inputMode === "travel-cw"
+			);
+		},
+		isBorderClueInputMode: function() {
+			return this.inputMode === "border" || this.inputMode === "country";
+		},
+		isCrossInputMode: function() {
 			return (
 				this.inputMode === "travel-slither" ||
 				this.inputMode === "travel-div1" ||
@@ -177,6 +179,24 @@ var TL_BORDER_CLUES = {
 				} else if (this.inputData === 0) {
 					border.removeLine();
 				}
+				border.draw();
+			}
+			this.prevPos = pos;
+		},
+		inputRequiredLine: function() {
+			var cell = this.getcell();
+			this.initFirstCell(cell);
+
+			var pos = this.getpos(0);
+			if (this.prevPos.equals(pos)) {
+				return;
+			}
+			var border = this.prevPos.getnb(pos);
+			if (!border.isnull && border.inside) {
+				if (this.inputData === null) {
+					this.inputData = border.isRequiredLine() ? 0 : TL_BORDER_CLUES.REQUIRED;
+				}
+				border.setQues(this.inputData);
 				border.draw();
 			}
 			this.prevPos = pos;
@@ -1755,7 +1775,7 @@ var TL_BORDER_CLUES = {
 		},
 		getLineColor: function(border) {
 			if (border.isRequiredLine && border.isRequiredLine()) {
-				this.addlw = 0;
+				this.addlw = -this.lw / 3;
 				return (border.error || border.qinfo) === 1 ? this.errlinecolor : this.quescolor;
 			}
 			if (border.isLine() && this.puzzle.execConfig("irowake")) {

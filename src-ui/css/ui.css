@@ -129,7 +129,7 @@ div.child {
   padding: 0 3pt;
   cursor: pointer;
 }
-div.childsel:before {
+div.childsel:not(.inputmode-option):not(.inputmode-category):before {
   position: absolute;
   left: 50%;
   bottom: -1px;
@@ -159,6 +159,228 @@ div#usepanel > div > div:first-child {
 }
 div#usepanel > div > div > div {
   white-space: nowrap;
+}
+
+div#usepanel .inputmode-layout {
+  display: block;
+  white-space: normal;
+}
+
+div#usepanel .inputmode-categorybar {
+  display: block;
+  margin: 0 0 4px;
+  white-space: normal;
+}
+
+div#usepanel .inputmode-category {
+  display: inline-block;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+div#usepanel .inputmode-group {
+  display: block;
+  margin: 4px 0 8px;
+}
+
+div#usepanel .inputmode-group-title {
+  font-size: 0.9em;
+  font-weight: bold;
+  color: #666;
+  margin: 0 0 2px;
+  letter-spacing: 0;
+}
+
+div#usepanel .inputmode-group-options {
+  display: block;
+  white-space: normal;
+}
+
+div#usepanel .inputmode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  margin-bottom: 2px;
+  padding: 0 3pt;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+div#usepanel .inputmode-option::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  box-sizing: border-box;
+}
+
+div#usepanel .inputmode-option[data-preview="auto"]::before {
+  border-radius: 50%;
+  border: 1px dashed #999;
+}
+
+div#usepanel .inputmode-option[data-preview="line"]::before {
+  height: 2px;
+  width: 16px;
+  background: #0a0a0a;
+}
+
+div#usepanel .inputmode-option[data-preview="cross"]::before,
+div#usepanel .inputmode-option[data-preview="cell-cross"]::before,
+div#usepanel .inputmode-option[data-preview="erase"]::before,
+div#usepanel .inputmode-option[data-preview="inspect"]::before,
+div#usepanel .inputmode-option[data-preview="arrow"]::before,
+div#usepanel .inputmode-option[data-preview="arrow-line"]::before,
+div#usepanel .inputmode-option[data-preview="yajilin"]::before,
+div#usepanel .inputmode-option[data-preview="cw"]::before,
+div#usepanel .inputmode-option[data-preview="order"]::before,
+div#usepanel .inputmode-option[data-preview="slither"]::before,
+div#usepanel .inputmode-option[data-preview="divide1"]::before,
+div#usepanel .inputmode-option[data-preview="divide2"]::before,
+div#usepanel .inputmode-option[data-preview="divide3"]::before {
+  content: attr(data-preview);
+  font: 700 10px/16px sans-serif;
+  text-align: center;
+  color: #444;
+  background: #f0f0f0;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+div#usepanel .inputmode-option[data-preview="cross"]::before {
+  content: "X";
+}
+
+div#usepanel .inputmode-option[data-preview="cell-cross"]::before {
+  content: "CX";
+}
+
+div#usepanel .inputmode-option[data-preview="erase"]::before {
+  content: "ER";
+}
+
+div#usepanel .inputmode-option[data-preview="inspect"]::before {
+  content: "IN";
+}
+
+div#usepanel .inputmode-option[data-preview="arrow"]::before {
+  content: "->";
+}
+
+div#usepanel .inputmode-option[data-preview="arrow-line"]::before {
+  content: "=>";
+}
+
+div#usepanel .inputmode-option[data-preview="yajilin"]::before {
+  content: "Y";
+}
+
+div#usepanel .inputmode-option[data-preview="cw"]::before {
+  content: "CW";
+}
+
+div#usepanel .inputmode-option[data-preview="order"]::before {
+  content: "A";
+}
+
+div#usepanel .inputmode-option[data-preview="slither"]::before {
+  content: "3";
+}
+
+div#usepanel .inputmode-option[data-preview="divide1"]::before {
+  content: "1";
+  color: #d04a4a;
+}
+
+div#usepanel .inputmode-option[data-preview="divide2"]::before {
+  content: "2";
+  color: #3f8c4f;
+}
+
+div#usepanel .inputmode-option[data-preview="divide3"]::before {
+  content: "3";
+  color: #4d6fd0;
+}
+
+div#usepanel .inputmode-option[data-preview="border-block"]::before,
+div#usepanel .inputmode-option[data-preview="border-country"]::before,
+div#usepanel .inputmode-option[data-preview="border-required"]::before {
+  width: 16px;
+  height: 16px;
+  border-top: 3px solid #111;
+  border-bottom: 3px solid transparent;
+}
+
+div#usepanel .inputmode-option[data-preview="border-country"]::before {
+  border-top-color: #666;
+}
+
+div#usepanel .inputmode-option[data-preview="border-required"]::before {
+  border-top-color: #111;
+}
+
+div#usepanel .inputmode-option[data-preview="bar-cell"]::before,
+div#usepanel .inputmode-option[data-preview="ice"]::before,
+div#usepanel .inputmode-option[data-preview="cwfloor"]::before,
+div#usepanel .inputmode-option[data-preview="sloop"]::before,
+div#usepanel .inputmode-option[data-preview="notouch"]::before,
+div#usepanel .inputmode-option[data-preview="noadj"]::before {
+  border-radius: 3px;
+}
+
+div#usepanel .inputmode-option[data-preview="bar-cell"]::before {
+  background: rgba(120, 120, 120, 0.75);
+}
+
+div#usepanel .inputmode-option[data-preview="ice"]::before {
+  background: rgb(163, 216, 255);
+}
+
+div#usepanel .inputmode-option[data-preview="cwfloor"]::before {
+  background: rgb(214, 191, 255);
+}
+
+div#usepanel .inputmode-option[data-preview="sloop"]::before {
+  background: rgb(210, 255, 210);
+}
+
+div#usepanel .inputmode-option[data-preview="notouch"]::before {
+  background: rgb(246, 207, 207);
+}
+
+div#usepanel .inputmode-option[data-preview="noadj"]::before {
+  background: rgb(255, 235, 153);
+}
+
+div#usepanel .inputmode-option[data-preview="white-pearl"]::before,
+div#usepanel .inputmode-option[data-preview="black-pearl"]::before,
+div#usepanel .inputmode-option[data-preview="white-dot"]::before,
+div#usepanel .inputmode-option[data-preview="black-dot"]::before {
+  border-radius: 50%;
+  border: 1px solid #333;
+}
+
+div#usepanel .inputmode-option[data-preview="white-pearl"]::before {
+  background: #fff;
+}
+
+div#usepanel .inputmode-option[data-preview="black-pearl"]::before {
+  background: #111;
+}
+
+div#usepanel .inputmode-option[data-preview="white-dot"]::before {
+  background: radial-gradient(circle at center, #fff 0 35%, transparent 40% 100%);
+}
+
+div#usepanel .inputmode-option[data-preview="black-dot"]::before {
+  background: radial-gradient(circle at center, #111 0 35%, transparent 40% 100%);
+}
+
+div#usepanel .inputmode-option.childsel {
+  color: maroon;
+  background-color: #efefef;
 }
 
 div#checkpanel input[type="checkbox"]:disabled + span {

@@ -229,6 +229,20 @@ describe("Variety:travelline", function() {
 		assert.equal(board2.arrowout.getid(), board.arrowout.getid());
 	});
 
+	it("exports and reloads explicit border and required-line URL extras", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.board.getb(2, 1).setQues(3);
+		puzzle.board.getb(2, 3).setQues(2);
+
+		var url = puzzle.getURL();
+		assert(url.indexOf(".b") >= 0);
+		assert(url.indexOf(".r") >= 0);
+
+		var reloaded = new pzpr.Puzzle().open(url);
+		assert.equal(reloaded.board.getb(2, 1).ques, 3);
+		assert.equal(reloaded.board.getb(2, 3).ques, 2);
+	});
+
 	it("counts other yajilin clue cells and skips bars in a yajilin ray", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		var board = puzzle.board;
@@ -530,7 +544,7 @@ describe("Variety:travelline", function() {
 		var border = puzzle.board.getb(2, 1);
 
 		puzzle.mouse.setInputMode("travel-required");
-		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1);
 
 		assert.equal(border.ques, 2);
 		assert.equal(border.isLine(), true);
@@ -562,7 +576,7 @@ describe("Variety:travelline", function() {
 		assert.equal(border.line, 0);
 	});
 
-	it("places border clues by dragging from one vertex to the other like standard border input", function() {
+	it("uses line-style dragging for required lines but border-style dragging for border clues", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		puzzle.setMode("edit");
 		var border = puzzle.board.getb(2, 1);
@@ -577,6 +591,10 @@ describe("Variety:travelline", function() {
 
 		puzzle.mouse.setInputMode("travel-required");
 		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		assert.equal(border.ques, 1);
+
+		puzzle.mouse.setInputMode("travel-required");
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1);
 		assert.equal(border.ques, 2);
 	});
 
