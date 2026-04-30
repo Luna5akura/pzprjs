@@ -194,6 +194,7 @@ describe("Variety:travelline", function() {
 
 		board.getb(2, 1).setQues(1);
 		board.getb(3, 2).setQues(2);
+		board.getb(4, 1).setQues(3);
 
 		board.arrowin.set(board.getb(0, 3));
 		board.arrowout.set(board.getb(6, 5));
@@ -222,6 +223,7 @@ describe("Variety:travelline", function() {
 
 		assert.equal(board2.getb(2, 1).ques, 1);
 		assert.equal(board2.getb(3, 2).ques, 2);
+		assert.equal(board2.getb(4, 1).ques, 3);
 
 		assert.equal(board2.arrowin.getid(), board.arrowin.getid());
 		assert.equal(board2.arrowout.getid(), board.arrowout.getid());
@@ -520,6 +522,62 @@ describe("Variety:travelline", function() {
 
 		assert.deepEqual(calls, ["line"]);
 		assert.equal(border.isLine(), false);
+	});
+
+	it("treats required lines as immutable black path segments", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var border = puzzle.board.getb(2, 1);
+
+		puzzle.mouse.setInputMode("travel-required");
+		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+
+		assert.equal(border.ques, 2);
+		assert.equal(border.isLine(), true);
+		assert.equal(border.line, 0);
+		assert.equal(puzzle.painter.getLineColor(border), "black");
+
+		puzzle.setMode("play");
+		border.removeLine();
+		border.setPeke();
+
+		assert.equal(border.isLine(), true);
+		assert.equal(border.qsub, 0);
+	});
+
+	it("blocks player line input on border clues", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var border = puzzle.board.getb(2, 1);
+
+		puzzle.mouse.setInputMode("border");
+		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		assert.equal(border.ques, 3);
+
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("line");
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1);
+
+		assert.equal(border.isLine(), false);
+		assert.equal(border.line, 0);
+	});
+
+	it("places border clues by dragging from one vertex to the other like standard border input", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		var border = puzzle.board.getb(2, 1);
+
+		puzzle.mouse.setInputMode("border");
+		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		assert.equal(border.ques, 3);
+
+		puzzle.mouse.setInputMode("country");
+		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		assert.equal(border.ques, 1);
+
+		puzzle.mouse.setInputMode("travel-required");
+		puzzle.mouse.inputPath("left", 2, 0, 2, 2);
+		assert.equal(border.ques, 2);
 	});
 
 	it("draws solver not-passed cell crosses without mutating manual auxiliary marks", function() {

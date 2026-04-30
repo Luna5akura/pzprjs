@@ -9,6 +9,11 @@ var TL_FLOOR_FLAGS = {
 	CWFLOOR: 16,
 	BAR: 32
 };
+var TL_BORDER_CLUES = {
+	COUNTRY: 1,
+	REQUIRED: 2,
+	BLOCK: 3
+};
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
 		module.exports = [pidlist, classbase];
@@ -22,6 +27,7 @@ var TL_FLOOR_FLAGS = {
 		inputModes: {
 			edit: [
 				"arrow",
+				"border",
 				"bar",
 				"travel-sloop",
 				"travel-order",
@@ -53,11 +59,8 @@ var TL_FLOOR_FLAGS = {
 					this.inputarrow_line();
 					return;
 				}
-				if (
-					this.inputMode === "country" ||
-					this.inputMode === "travel-required"
-					) {
-						this.inputCountry();
+				if (this.isBorderClueInputMode()) {
+					this.inputBorderClue();
 						return;
 					}
 					if (this.inputMode === "travel-order") {
@@ -120,11 +123,8 @@ var TL_FLOOR_FLAGS = {
 
 			if (this.inputMode === "arrow") {
 				this.inputarrow_line();
-			} else if (
-				this.inputMode === "country" ||
-				this.inputMode === "travel-required"
-				) {
-					this.inputCountry();
+			} else if (this.isBorderClueInputMode()) {
+					this.inputBorderClue();
 				} else if (this.inputMode === "travel-order") {
 					this.inputOrderClue();
 				} else if (this.isDirectedInputMode()) {
@@ -143,6 +143,13 @@ var TL_FLOOR_FLAGS = {
 					this.inputMode === "travel-cw"
 				);
 			},
+			isBorderClueInputMode: function() {
+				return (
+					this.inputMode === "border" ||
+					this.inputMode === "country" ||
+					this.inputMode === "travel-required"
+				);
+			},
 			isCrossInputMode: function() {
 			return (
 				this.inputMode === "travel-slither" ||
@@ -150,6 +157,29 @@ var TL_FLOOR_FLAGS = {
 				this.inputMode === "travel-div2" ||
 				this.inputMode === "travel-div3"
 			);
+		},
+
+		inputLine: function() {
+			var cell = this.getcell();
+			this.initFirstCell(cell);
+
+			var pos = this.getpos(0);
+			if (this.prevPos.equals(pos)) {
+				return;
+			}
+			var border = this.prevPos.getnb(pos);
+			if (!border.isnull) {
+				if (this.inputData === null) {
+					this.inputData = border.line > 0 ? 0 : 1;
+				}
+				if (this.inputData === 1) {
+					border.setLine();
+				} else if (this.inputData === 0) {
+					border.removeLine();
+				}
+				border.draw();
+			}
+			this.prevPos = pos;
 		},
 
 		inputarrow_line: function() {
@@ -553,18 +583,34 @@ var TL_FLOOR_FLAGS = {
 			this.mousereset();
 		},
 
-		inputCountry: function() {
-			if (!this.mousestart) {
+		inputBorderClue: function() {
+			if (!this.mousestart && !this.mousemove) {
 				return;
 			}
-			var border = this.getpos(0).getb();
+			var pos = this.getpos(0.35);
+			if (this.prevPos.equals(pos)) {
+				return;
+			}
+			var border = this.prevPos.getborderobj(pos);
 			if (border.isnull || !border.inside) {
+				this.prevPos = pos;
 				return;
 			}
-			var ques = this.inputMode === "travel-required" ? 2 : 1;
-			border.setQues(border.ques !== ques ? ques : 0);
+			var ques =
+				this.inputMode === "travel-required"
+					? TL_BORDER_CLUES.REQUIRED
+					: this.inputMode === "country"
+						? TL_BORDER_CLUES.COUNTRY
+						: TL_BORDER_CLUES.BLOCK;
+			if (this.inputData === null) {
+				this.inputData = border.ques !== ques ? ques : 0;
+			}
+			border.setQues(this.inputData);
 			border.draw();
-			this.mousereset();
+			this.prevPos = pos;
+			if (this.mouseend) {
+				this.mousereset();
+			}
 		},
 
 		inputClearClue: function() {
@@ -823,6 +869,15 @@ var TL_FLOOR_FLAGS = {
 
 	Border: {
 		enableLineNG: true,
+		isCountryBorder: function() {
+			return this.ques === TL_BORDER_CLUES.COUNTRY;
+		},
+		isRequiredLine: function() {
+			return this.ques === TL_BORDER_CLUES.REQUIRED;
+		},
+		isBlockedBorder: function() {
+			return this.ques === TL_BORDER_CLUES.BLOCK;
+		},
 		getArrow: function() {
 			return this.qdir;
 		},
@@ -832,7 +887,49 @@ var TL_FLOOR_FLAGS = {
 		isArrow: function() {
 			return this.qdir > 0;
 		},
+		isLine: function() {
+			return this.line > 0 || this.isRequiredLine();
+		},
+		setLine: function() {
+			if (this.isBlockedBorder()) {
+				return;
+			}
+			this.setLineVal(1);
+			if (this.qsub === 2) {
+				this.setQsub(0);
+			}
+		},
+		setPeke: function() {
+			if (this.isRequiredLine()) {
+				return;
+			}
+			this.setLineVal(0);
+			this.setQsub(2);
+		},
+		removeLine: function() {
+			if (this.isRequiredLine()) {
+				if (this.qsub === 2) {
+					this.setQsub(0);
+				}
+				return;
+			}
+			this.setLineVal(0);
+			if (this.qsub === 2) {
+				this.setQsub(0);
+			}
+		},
+		removeLineAndQsub: function() {
+			if (this.isRequiredLine()) {
+				this.setQsub(0);
+				return;
+			}
+			this.setLineVal(0);
+			this.setQsub(0);
+		},
 		isLineNG: function() {
+			if (this.isBlockedBorder()) {
+				return true;
+			}
 			var obj1 = this.sidecell[0];
 			var obj2 = this.sidecell[1];
 			if (this.isVert()) {
@@ -1164,6 +1261,7 @@ var TL_FLOOR_FLAGS = {
 		enabled: true,
 		makeClist: true,
 		isLineCross: true,
+		relation: { "border.line": "link", "border.ques": "link" },
 		iscrossing: function(cell) {
 			return cell.isIce() || cell.isCwFloor();
 		},
@@ -1560,10 +1658,13 @@ var TL_FLOOR_FLAGS = {
 		},
 
 		getBorderColor: function(border) {
-			if (border.ques === 2) {
-				return "#2f8f2f";
+			if (border.isCountryBorder && border.isCountryBorder()) {
+				return this.quescolor;
 			}
-			return border.ques ? this.quescolor : null;
+			if (border.isBlockedBorder && border.isBlockedBorder()) {
+				return this.quescolor;
+			}
+			return null;
 		},
 		getTravelLineConnectedBorders: function(cell, border) {
 			var adb = cell.adjborder;
@@ -1653,6 +1754,10 @@ var TL_FLOOR_FLAGS = {
 			return map;
 		},
 		getLineColor: function(border) {
+			if (border.isRequiredLine && border.isRequiredLine()) {
+				this.addlw = 0;
+				return (border.error || border.qinfo) === 1 ? this.errlinecolor : this.quescolor;
+			}
 			if (border.isLine() && this.puzzle.execConfig("irowake")) {
 				var info = border.error || border.qinfo;
 				if (border.trial) {
@@ -2251,7 +2356,11 @@ var TL_FLOOR_FLAGS = {
 			var saved = [];
 			for (var i = 0; i < this.board.border.length; i++) {
 				var border = this.board.border[i];
-				if (border.inside && border.ques === 2) {
+				if (
+					border.inside &&
+					(border.ques === TL_BORDER_CLUES.REQUIRED ||
+						border.ques === TL_BORDER_CLUES.BLOCK)
+				) {
 					saved.push([border, border.ques]);
 					border.ques = 0;
 				}
@@ -2276,10 +2385,14 @@ var TL_FLOOR_FLAGS = {
 					}
 					var parts = items[i].split(".");
 					var id = parseInt(parts[0], 36);
-					if (!bd.border[id] || !bd.border[id].inside || parts[1] !== "r") {
+					if (!bd.border[id] || !bd.border[id].inside) {
 						continue;
 					}
-					bd.border[id].ques = 2;
+					if (parts[1] === "r") {
+						bd.border[id].ques = TL_BORDER_CLUES.REQUIRED;
+					} else if (parts[1] === "b") {
+						bd.border[id].ques = TL_BORDER_CLUES.BLOCK;
+					}
 				}
 			}
 			this.outbstr = "/" + barray.slice(2).join("/");
@@ -2288,10 +2401,14 @@ var TL_FLOOR_FLAGS = {
 			var list = [];
 			for (var i = 0; i < this.board.border.length; i++) {
 				var border = this.board.border[i];
-				if (!border.inside || border.ques !== 2) {
+				if (!border.inside) {
 					continue;
 				}
-				list.push(i.toString(36) + ".r");
+				if (border.ques === TL_BORDER_CLUES.REQUIRED) {
+					list.push(i.toString(36) + ".r");
+				} else if (border.ques === TL_BORDER_CLUES.BLOCK) {
+					list.push(i.toString(36) + ".b");
+				}
 			}
 			this.outbstr += "/" + (list.length ? list.join("+") : "-");
 		},
@@ -2510,7 +2627,15 @@ var TL_FLOOR_FLAGS = {
 		FileIO: {
 			decodeData: function() {
 				this.decodeInOut();
-				this.decodeBorderQues();
+				this.decodeBorder(function(border, ca) {
+					if (ca === "1") {
+						border.ques = TL_BORDER_CLUES.COUNTRY;
+					} else if (ca === "2") {
+						border.ques = TL_BORDER_CLUES.REQUIRED;
+					} else if (ca === "3") {
+						border.ques = TL_BORDER_CLUES.BLOCK;
+					}
+				});
 				this.decodeCell(function(cell, ca) {
 					if (ca === ".") {
 						return;
@@ -2557,7 +2682,18 @@ var TL_FLOOR_FLAGS = {
 			encodeData: function() {
 				this.filever = 1;
 				this.encodeInOut();
-				this.encodeBorderQues();
+				this.encodeBorder(function(border) {
+					if (border.ques === TL_BORDER_CLUES.COUNTRY) {
+						return "1 ";
+					}
+					if (border.ques === TL_BORDER_CLUES.REQUIRED) {
+						return "2 ";
+					}
+					if (border.ques === TL_BORDER_CLUES.BLOCK) {
+						return "3 ";
+					}
+					return "0 ";
+				});
 				this.encodeCell(function(cell) {
 					if (cell.qnum === 14) {
 						return (
@@ -3293,7 +3429,7 @@ var TL_FLOOR_FLAGS = {
 			var bd = this.board;
 			for (var i = 0; i < bd.border.length; i++) {
 				var border = bd.border[i];
-				if (border.inside && border.ques === 2 && !border.isLine()) {
+				if (border.inside && border.isRequiredLine() && !border.isLine()) {
 					this.failcode.add("tlReqLine");
 					if (!this.checkOnly) {
 						border.seterr(1);
@@ -3306,7 +3442,7 @@ var TL_FLOOR_FLAGS = {
 			var bd = this.board;
 			for (var i = 0; i < bd.border.length; i++) {
 				var border = bd.border[i];
-				if (!border.inside || border.ques !== 1) {
+				if (!border.inside || !border.isCountryBorder()) {
 					continue;
 				}
 				var c1 = border.sidecell[0];

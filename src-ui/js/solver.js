@@ -18,6 +18,11 @@ var TL_FLOOR_FLAGS = {
 	SLOOP: 8,
 	CWFLOOR: 16
 };
+var TL_BORDER_CLUES = {
+	COUNTRY: 1,
+	REQUIRED: 2,
+	BLOCK: 3
+};
 
 function isTravelLinePuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "travelline";
@@ -359,6 +364,8 @@ function getTravelLineBackendPayload() {
 	var slither = [];
 	var countryH = [];
 	var countryV = [];
+	var borderH = [];
+	var borderV = [];
 	var directed = [];
 	var requiredH = [];
 	var requiredV = [];
@@ -377,6 +384,7 @@ function getTravelLineBackendPayload() {
 		var directedRow = [];
 		var reqHRow = [];
 		var countryHRow = [];
+		var borderHRow = [];
 		var forcedHRow = [];
 		for (var x = 0; x < cols; x++) {
 			var cell = board.cell[y * cols + x];
@@ -452,9 +460,10 @@ function getTravelLineBackendPayload() {
 					);
 				}
 			if (x + 1 < cols) {
-				var borderH = board.getb(cell.bx + 1, cell.by);
-				reqHRow.push(borderH.ques === 2);
-				countryHRow.push(borderH.ques === 1);
+				var hBorder = board.getb(cell.bx + 1, cell.by);
+				reqHRow.push(hBorder.ques === TL_BORDER_CLUES.REQUIRED);
+				countryHRow.push(hBorder.ques === TL_BORDER_CLUES.COUNTRY);
+				borderHRow.push(hBorder.ques === TL_BORDER_CLUES.BLOCK);
 				forcedHRow.push(-1);
 			}
 		}
@@ -469,6 +478,7 @@ function getTravelLineBackendPayload() {
 		directed.push(directedRow);
 		requiredH.push(reqHRow);
 		countryH.push(countryHRow);
+		borderH.push(borderHRow);
 		forcedH.push(forcedHRow);
 	}
 	for (var dy = 0; dy <= rows; dy++) {
@@ -515,16 +525,19 @@ function getTravelLineBackendPayload() {
 	for (var y2 = 0; y2 + 1 < rows; y2++) {
 		var reqVRow = [];
 		var countryVRow = [];
+		var borderVRow = [];
 		var forcedVRow = [];
 		for (var x2 = 0; x2 < cols; x2++) {
 			var cell2 = board.cell[y2 * cols + x2];
-			var borderV = board.getb(cell2.bx, cell2.by + 1);
-			reqVRow.push(borderV.ques === 2);
-			countryVRow.push(borderV.ques === 1);
+			var vBorder = board.getb(cell2.bx, cell2.by + 1);
+			reqVRow.push(vBorder.ques === TL_BORDER_CLUES.REQUIRED);
+			countryVRow.push(vBorder.ques === TL_BORDER_CLUES.COUNTRY);
+			borderVRow.push(vBorder.ques === TL_BORDER_CLUES.BLOCK);
 			forcedVRow.push(-1);
 		}
 		requiredV.push(reqVRow);
 		countryV.push(countryVRow);
+		borderV.push(borderVRow);
 		forcedV.push(forcedVRow);
 	}
 
@@ -570,6 +583,8 @@ function getTravelLineBackendPayload() {
 		slither: slither,
 		countryH: countryH,
 		countryV: countryV,
+		borderH: borderH,
+		borderV: borderV,
 		directed: directed,
 		requiredH: requiredH,
 		requiredV: requiredV,
