@@ -850,6 +850,29 @@ describe("Variety:travelline", function() {
 		});
 	});
 
+	it("treats country and blocked borders as divide separators", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/2/2");
+		var board = puzzle.board;
+		var checker = puzzle.checker;
+		var center = board.getx(2, 2);
+
+		board.getx(0, 0).setQnum(12);
+		center.setQnum(11);
+		center.relbd(-1, 0).setLine();
+		center.relbd(0, -1).setQues(1);
+		center.relbd(0, 1).setQues(1);
+		center.relbd(1, 0).setQues(3);
+
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkDivideRegions();
+
+		assert.equal(checker.failcode.length, 0);
+	});
+
 	it("checks clockwise floors against the in and out arrow direction at endpoints", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		var board = puzzle.board;

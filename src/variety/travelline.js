@@ -898,6 +898,13 @@ var TL_BORDER_CLUES = {
 		isBlockedBorder: function() {
 			return this.ques === TL_BORDER_CLUES.BLOCK;
 		},
+		isDivideSeparator: function() {
+			return (
+				this.isLine() ||
+				this.isCountryBorder() ||
+				this.isBlockedBorder()
+			);
+		},
 		getArrow: function() {
 			return this.qdir;
 		},
@@ -2943,7 +2950,7 @@ var TL_BORDER_CLUES = {
 						if (
 							nexts[n].cross.isnull ||
 							nexts[n].border.isnull ||
-							nexts[n].border.isLine() ||
+							nexts[n].border.isDivideSeparator() ||
 							visited[nexts[n].cross.id]
 						) {
 							continue;

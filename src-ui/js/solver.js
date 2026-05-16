@@ -909,6 +909,37 @@ function recomputeTravelLineCellOverlayStates(board) {
 	return { changed: changed, recognized: recognized };
 }
 
+function applyTravelLineAdjacentDivideOverlay(board) {
+	var changed = 0;
+	var recognized = 0;
+	for (var i = 0; i < board.border.length; i++) {
+		var border = board.border[i];
+		if (
+			border.isnull ||
+			!border.inside ||
+			border.ques === TL_BORDER_CLUES.COUNTRY ||
+			border.ques === TL_BORDER_CLUES.BLOCK
+		) {
+			continue;
+		}
+		var sidecross = border.sidecross;
+		if (!sidecross || sidecross.length < 2) {
+			continue;
+		}
+		var type1 = sidecross[0] && sidecross[0].getDivideType ? sidecross[0].getDivideType() : 0;
+		var type2 = sidecross[1] && sidecross[1].getDivideType ? sidecross[1].getDivideType() : 0;
+		if (type1 <= 0 || type2 <= 0 || type1 === type2) {
+			continue;
+		}
+		recognized++;
+		if (border._travellineSolverState !== "line") {
+			border._travellineSolverState = "line";
+			changed++;
+		}
+	}
+	return { changed: changed, recognized: recognized };
+}
+
 function applyTravelLineDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
@@ -954,6 +985,9 @@ function applyTravelLineDescription(result) {
 				}
 			}
 		}
+		var divideOverlay = applyTravelLineAdjacentDivideOverlay(ui.puzzle.board);
+		changed += divideOverlay.changed;
+		recognized += divideOverlay.recognized;
 		var cellOverlay = recomputeTravelLineCellOverlayStates(ui.puzzle.board);
 		changed += cellOverlay.changed;
 		recognized += cellOverlay.recognized;
