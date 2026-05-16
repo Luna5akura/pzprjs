@@ -1776,7 +1776,7 @@ var TL_BORDER_CLUES = {
 		getLineColor: function(border) {
 			if (border.isRequiredLine && border.isRequiredLine()) {
 				this.addlw = -this.lw / 3;
-				return (border.error || border.qinfo) === 1 ? this.errlinecolor : this.quescolor;
+				return (border.error || border.qinfo) === 1 ? this.errlinecolor : "#7b3ff2";
 			}
 			if (border.isLine() && this.puzzle.execConfig("irowake")) {
 				var info = border.error || border.qinfo;
@@ -2816,8 +2816,7 @@ var TL_BORDER_CLUES = {
 			"checkNoAdjTiles",
 			"checkSloopCoverage",
 			"checkRequiredLine",
-			"checkCountryBorders",
-			"checkNoLine"
+			"checkCountryBorders"
 		],
 
 		checkStartGoalDegree: function() {

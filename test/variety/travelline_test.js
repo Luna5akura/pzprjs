@@ -302,6 +302,20 @@ describe("Variety:travelline", function() {
 		assert.equal(checker.failcode[0], undefined);
 	});
 
+	it("does not require the path to visit every ordinary cell", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/2");
+		var board = puzzle.board;
+
+		board.arrowin.set(board.getb(0, 1));
+		board.arrowout.set(board.getb(6, 1));
+		board.arrowin.getb().setLine();
+		board.arrowout.getb().setLine();
+		board.getb(2, 1).setLine();
+		board.getb(4, 1).setLine();
+
+		assert.equal(puzzle.check(false).complete, true);
+	});
+
 	it("allows a start or goal arrow to sit on a bar cell and relocates it when the bar is cleared", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
 		var board = puzzle.board;
@@ -549,7 +563,7 @@ describe("Variety:travelline", function() {
 		assert.equal(border.ques, 2);
 		assert.equal(border.isLine(), true);
 		assert.equal(border.line, 0);
-		assert.equal(puzzle.painter.getLineColor(border), "black");
+		assert.equal(puzzle.painter.getLineColor(border), "#7b3ff2");
 
 		puzzle.setMode("play");
 		border.removeLine();

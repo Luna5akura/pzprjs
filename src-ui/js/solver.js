@@ -136,10 +136,27 @@ function clearCurrentAnswer() {
 	withSuppressedHistory(function() {
 		ui.puzzle.board.ansclear();
 		ui.puzzle.board.subclear();
+		clearWalkWalkSolverOverlay();
 		ui.puzzle.board.errclear();
 		ui.puzzle.redraw();
 	});
 	hasSolverState = false;
+}
+
+function clearWalkWalkSolverOverlay() {
+	if (!isWalkWalkPuzzle() || !ui.puzzle || !ui.puzzle.board) {
+		return 0;
+	}
+
+	var board = ui.puzzle.board;
+	var changed = 0;
+	for (var i = 0; i < board.cell.length; i++) {
+		if (board.cell[i]._walkwalkSolverState) {
+			board.cell[i]._walkwalkSolverState = null;
+			changed++;
+		}
+	}
+	return changed;
 }
 
 function clearTravelLineSolverOverlay() {
@@ -666,13 +683,16 @@ function isBorderCoordinate(entry) {
 	return !!entry && (entry.x + entry.y) % 2 === 1;
 }
 
-function getPlayInputModes() {
-	var modes = ui.puzzle.mouse.getInputModeList();
+function getAnswerInputModes() {
+	if (!window.ui || !ui.puzzle || !ui.puzzle.mouse) {
+		return [];
+	}
+	var modes = ui.puzzle.mouse.getInputModeList("play");
 	return modes || [];
 }
 
 function isLinePuzzle() {
-	var modes = getPlayInputModes();
+	var modes = getAnswerInputModes();
 	return (
 		modes.indexOf("line") >= 0 ||
 		modes.indexOf("peke") >= 0 ||
@@ -681,18 +701,25 @@ function isLinePuzzle() {
 }
 
 function isBorderPuzzle() {
-	var modes = getPlayInputModes();
+	var modes = getAnswerInputModes();
 	return modes.indexOf("border") >= 0;
+}
+
+function isWalkWalkPuzzle() {
+	return window.ui && ui.puzzle && ui.puzzle.pid === "walkwalk";
 }
 
 function applyCellEntry(entry) {
 	var kind = getItemKind(entry.item);
 	var cell = ui.puzzle.board.getc(entry.x, entry.y);
-	if (cell.isnull || cell.qnum !== -1) {
+	if (cell.isnull) {
 		return 0;
 	}
 
 	if (kind === "block" || kind === "fill") {
+		if (cell.qnum !== -1) {
+			return 0;
+		}
 		if (!cell.isShade() || cell.qsub !== 0) {
 			cell.setQsub(0);
 			cell.setShade();
@@ -707,6 +734,16 @@ function applyCellEntry(entry) {
 		kind === "smallCircle" ||
 		kind === "square"
 	) {
+		if (isWalkWalkPuzzle()) {
+			if (cell._walkwalkSolverState !== "passed") {
+				cell._walkwalkSolverState = "passed";
+				return 1;
+			}
+			return 0;
+		}
+		if (cell.qnum !== -1) {
+			return 0;
+		}
 		if (cell.isShade() || cell.qsub !== 1) {
 			cell.clrShade();
 			cell.setQsub(1);
@@ -947,10 +984,14 @@ function applyDescription(result) {
 
 	var changed = 0;
 	var recognized = 0;
+	var answerEntries = 0;
 
 	withSuppressedHistory(function() {
 		ui.puzzle.opemgr.newOperation();
 		for (var i = 0; i < description.data.length; i++) {
+			if (isAnswerColor(description.data[i])) {
+				answerEntries++;
+			}
 			var applied = applyEntry(description.data[i]);
 			if (applied !== null) {
 				recognized++;
@@ -962,6 +1003,10 @@ function applyDescription(result) {
 	});
 
 	if (!recognized) {
+		if (!answerEntries) {
+			hasSolverState = false;
+			return 0;
+		}
 		throw new Error(getMessages().unsupported);
 	}
 

@@ -242,6 +242,7 @@
     "blLineDiff.onsen": "各部屋で線が通過するマスの数が違います。",
     "blLineLong.maxi": "枠内を連続して通るマス数が、数字よりも大きい線があります。",
     "blLineNe.onsen": "線が通過するマスの数が数字と違います。",
+    "blLineNe.walkwalk": "領域内で連続して通る線のマス数が数字と違います。",
     "blLineShort.maxi": "枠内のどの線も、連続して通るマス数が数字よりも小さいです。",
     "blNoHatena.ovotovata": "？の領域を出た線が異なる場所で曲がっています。",
     "blNoNumber.ovotovata": "線が領域から出てから、正しいマス数だけ直進していません。",

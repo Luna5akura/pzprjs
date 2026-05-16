@@ -472,6 +472,7 @@
 			voxas: [0, 0, "Voxas", "Voxas"],
 			vslither: [0, 0, "Vertex Slitherlink", "Vertex Slitherlink"],
 			wafusuma: [0, 0, "和フスマ", "Wafusuma", "fillomino"],
+			walkwalk: [0, 0, "ウォークウォーク", "Walk Walk"],
 			wagiri: [0, 0, "ごきげんななめ・輪切", "Wagiri", "gokigen"],
 			walllogic: [0, 0, "ウォールロジック", "Wall Logic"],
 			wataridori: [0, 0, "わたりどり", "Wataridori", "country"],

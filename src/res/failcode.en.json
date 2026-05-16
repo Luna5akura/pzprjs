@@ -332,6 +332,7 @@
     "blLineDiff.onsen": "The length of the path in a room is different in some rooms.",
     "blLineLong.maxi": "A line in a room is longer than the number.",
     "blLineNe.onsen": "The length of the path in a room is different from the number of the loop.",
+    "blLineNe.walkwalk": "The length of the continuous path segment in the region is different from the number.",
     "blLineNe.wataridori": "A number does not indicate the amount of rooms visited by the path.",
     "blLineShort.maxi": "All lines in a room are shorter than the number.",
     "blNoHatena.ovotovata": "Lines that exit a \"?\" region turn at different positions.",
