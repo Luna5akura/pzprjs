@@ -634,22 +634,55 @@ var TL_BORDER_CLUES = {
 		},
 
 		inputClearClue: function() {
-			if (!this.mousestart) {
+			if (!this.mousestart && !this.mousemove) {
 				return;
 			}
+			if (this.clearCrossClueAtPointer()) {
+				return;
+			}
+			this.clearDraggedBorderClue();
+			if (!this.clearCellClueAtPointer()) {
+				this.clearBorderClueAtPointer();
+			}
+		},
+		clearCrossClueAtPointer: function() {
 			var cross = this.getpos(0.25).getx();
 			if (!cross.isnull) {
+				if (cross === this.mouseCell) {
+					return true;
+				}
 				if (cross !== this.cursor.getx()) {
 					this.setcursor(cross);
 				}
 				cross.setQnum(-1);
 				cross.draw();
-				this.mousereset();
-				return;
+				this.mouseCell = cross;
+				return true;
 			}
-			var pos = this.getpos(0);
-			var cell = pos.getc();
+			return false;
+		},
+		clearDraggedBorderClue: function() {
+			var borderPos = this.getpos(0.35);
+			if (this.prevPos.equals(borderPos)) {
+				return false;
+			}
+			var border = this.prevPos.getborderobj(borderPos);
+			this.prevPos = borderPos;
+			if (border.isnull || !border.inside || border === this.mouseCell) {
+				return false;
+			}
+			border.setQues(0);
+			border.draw();
+			this.mouseCell = border;
+			return true;
+		},
+		clearCellClueAtPointer: function() {
+			var cellPos = this.getpos(0);
+			var cell = cellPos.getc();
 			if (!cell.isnull) {
+				if (cell === this.mouseCell) {
+					return true;
+				}
 				if (cell !== this.cursor.getc()) {
 					this.setcursor(cell);
 				}
@@ -662,15 +695,20 @@ var TL_BORDER_CLUES = {
 					this.board.relocateEndpointsFromClearedBar(cell);
 				}
 				cell.draw();
-				this.mousereset();
-				return;
+				this.mouseCell = cell;
+				return true;
 			}
-			var border = pos.getb();
-			if (!border.isnull && border.inside) {
-				border.setQues(0);
-				border.draw();
-				this.mousereset();
+			return false;
+		},
+		clearBorderClueAtPointer: function() {
+			var border = this.getborder(0.35);
+			if (border.isnull || !border.inside || border === this.mouseCell) {
+				return false;
 			}
+			border.setQues(0);
+			border.draw();
+			this.mouseCell = border;
+			return true;
 		},
 
 		inputNoPassAux: function() {
@@ -1172,55 +1210,56 @@ var TL_BORDER_CLUES = {
 			}
 			return border.NDIR;
 		},
-		getEndpointFallbackBorder: function(type, partnerBorder) {
-			var preferred =
+		isEndpointRelocationBorder: function(border, partnerBorder) {
+			if (border.isnull || (partnerBorder && border === partnerBorder)) {
+				return false;
+			}
+			return !this.getEntryCellByBorder(border).isBar();
+		},
+		getEndpointRelocationBorder: function(type, partnerBorder) {
+			var border =
 				type === "in"
-					? [1, 0]
+					? this.getb(1, 0)
 					: this.cols >= 3
-						? [5, 0]
-						: [1, 2 * this.rows];
-			var coords = [];
-			var seen = {};
-			function pushCoord(list, bx, by) {
-				var key = bx + "," + by;
-				if (!seen[key]) {
-					seen[key] = true;
-					list.push([bx, by]);
-				}
-			}
-			pushCoord(coords, preferred[0], preferred[1]);
-			for (var x = 1; x <= 2 * this.cols - 1; x += 2) {
-				pushCoord(coords, x, 0);
-			}
-			for (var x2 = 1; x2 <= 2 * this.cols - 1; x2 += 2) {
-				pushCoord(coords, x2, 2 * this.rows);
-			}
-			for (var y = 1; y <= 2 * this.rows - 1; y += 2) {
-				pushCoord(coords, 0, y);
-			}
-			for (var y2 = 1; y2 <= 2 * this.rows - 1; y2 += 2) {
-				pushCoord(coords, 2 * this.cols, y2);
+						? this.getb(5, 0)
+						: this.getb(1, 2 * this.rows);
+			if (this.isEndpointRelocationBorder(border, partnerBorder)) {
+				return border;
 			}
 
-			var passes = [true, false];
-			for (var p = 0; p < passes.length; p++) {
-				for (var i = 0; i < coords.length; i++) {
-					var border = this.getb(coords[i][0], coords[i][1]);
-					if (
-						border.isnull ||
-						(partnerBorder && border === partnerBorder) ||
-						(passes[p] && this.getEntryCellByBorder(border).isBar())
-					) {
-						continue;
-					}
+			for (var x = 1; x <= 2 * this.cols - 1; x += 2) {
+				border = this.getb(x, 0);
+				if (this.isEndpointRelocationBorder(border, partnerBorder)) {
 					return border;
 				}
 			}
-			return this.getb(preferred[0], preferred[1]);
+			for (var x2 = 1; x2 <= 2 * this.cols - 1; x2 += 2) {
+				border = this.getb(x2, 2 * this.rows);
+				if (this.isEndpointRelocationBorder(border, partnerBorder)) {
+					return border;
+				}
+			}
+			for (var y = 1; y <= 2 * this.rows - 1; y += 2) {
+				border = this.getb(0, y);
+				if (this.isEndpointRelocationBorder(border, partnerBorder)) {
+					return border;
+				}
+			}
+			for (var y2 = 1; y2 <= 2 * this.rows - 1; y2 += 2) {
+				border = this.getb(2 * this.cols, y2);
+				if (this.isEndpointRelocationBorder(border, partnerBorder)) {
+					return border;
+				}
+			}
+			return this.emptyborder;
 		},
 		relocateEndpointFromClearedBar: function(type, cell) {
 			var address = type === "in" ? this.arrowin : this.arrowout;
 			if (this.getEntryCell(address) !== cell) {
+				return;
+			}
+			var target = this.getEndpointRelocationBorder(type, address.partner.getb());
+			if (target.isnull) {
 				return;
 			}
 			var oldBorder = address.onborder() ? address.getb() : this.emptyborder;
@@ -1228,7 +1267,6 @@ var TL_BORDER_CLUES = {
 				oldBorder.setArrow(0);
 				oldBorder.removeLine();
 			}
-			var target = this.getEndpointFallbackBorder(type, address.partner.getb());
 			address.set(target);
 			if (!oldBorder.isnull) {
 				oldBorder.draw();
@@ -1742,8 +1780,9 @@ var TL_BORDER_CLUES = {
 				var queue = [start];
 				var component = [];
 				visited[start.id] = true;
-				while (queue.length) {
-					var border = queue.shift();
+				var head = 0;
+				while (head < queue.length) {
+					var border = queue[head++];
 					component.push(border);
 					for (var s = 0; s < 2; s++) {
 						var cell = border.sidecell[s];
@@ -2931,36 +2970,45 @@ var TL_BORDER_CLUES = {
 				var queue = [start];
 				var region = [];
 				var types = {};
+				var typeCount = 0;
 				visited[start.id] = true;
 
-				while (queue.length) {
-					var cross = queue.shift();
+				var head = 0;
+				while (head < queue.length) {
+					var cross = queue[head++];
 					region.push(cross);
 					var divideType = cross.getDivideType();
-					if (divideType > 0) {
+					if (divideType > 0 && !types[divideType]) {
 						types[divideType] = true;
+						typeCount++;
 					}
-					var nexts = [
-						{ cross: cross.relcross(-2, 0), border: cross.relbd(-1, 0) },
-						{ cross: cross.relcross(2, 0), border: cross.relbd(1, 0) },
-						{ cross: cross.relcross(0, -2), border: cross.relbd(0, -1) },
-						{ cross: cross.relcross(0, 2), border: cross.relbd(0, 1) }
-					];
-					for (var n = 0; n < nexts.length; n++) {
-						if (
-							nexts[n].cross.isnull ||
-							nexts[n].border.isnull ||
-							nexts[n].border.isDivideSeparator() ||
-							visited[nexts[n].cross.id]
-						) {
-							continue;
-						}
-						visited[nexts[n].cross.id] = true;
-						queue.push(nexts[n].cross);
-					}
+					this.addDivideRegionNeighbor(
+						queue,
+						visited,
+						cross.relcross(-2, 0),
+						cross.relbd(-1, 0)
+					);
+					this.addDivideRegionNeighbor(
+						queue,
+						visited,
+						cross.relcross(2, 0),
+						cross.relbd(1, 0)
+					);
+					this.addDivideRegionNeighbor(
+						queue,
+						visited,
+						cross.relcross(0, -2),
+						cross.relbd(0, -1)
+					);
+					this.addDivideRegionNeighbor(
+						queue,
+						visited,
+						cross.relcross(0, 2),
+						cross.relbd(0, 1)
+					);
 				}
 
-				if (Object.keys(types).length >= 2) {
+				if (typeCount >= 2) {
 					this.failcode.add("tlDivide");
 					if (!this.checkOnly) {
 						for (var r = 0; r < region.length; r++) {
@@ -2973,15 +3021,27 @@ var TL_BORDER_CLUES = {
 				}
 			}
 		},
-			checkYajilinClues: function() {
-				var bd = this.board;
-				for (var i = 0; i < bd.cell.length; i++) {
-					var cell = bd.cell[i];
-					if (!cell.isYajilin()) {
-						continue;
-					}
-					var count = 0;
-					var pos = cell.getaddr();
+		addDivideRegionNeighbor: function(queue, visited, cross, border) {
+			if (
+				cross.isnull ||
+				border.isnull ||
+				border.isDivideSeparator() ||
+				visited[cross.id]
+			) {
+				return;
+			}
+			visited[cross.id] = true;
+			queue.push(cross);
+		},
+		checkYajilinClues: function() {
+			var bd = this.board;
+			for (var i = 0; i < bd.cell.length; i++) {
+				var cell = bd.cell[i];
+				if (!cell.isYajilin()) {
+					continue;
+				}
+				var count = 0;
+				var pos = cell.getaddr();
 				while (true) {
 					pos = pos.movedir(cell.qdir, 2);
 					var next = pos.getc();
@@ -3050,6 +3110,7 @@ var TL_BORDER_CLUES = {
 			var startBorder = bd.arrowin.getb();
 			var prevBorder = bd.arrowin.onborder() ? startBorder : null;
 			var cell = bd.getStartCell();
+			var goalOnCell = bd.arrowout.oncell();
 			var seen = {};
 			var seenCount = 0;
 			var last = -1;
@@ -3075,10 +3136,10 @@ var TL_BORDER_CLUES = {
 					last = cell.qnum2;
 				}
 
-					var nextborder = this.getExitBorder(prevBorder, cell);
-					if (!nextborder || (!bd.arrowout.oncell() && !nextborder.inside)) {
-						break;
-					}
+				var nextborder = this.getExitBorder(prevBorder, cell);
+				if (!nextborder || (!goalOnCell && !nextborder.inside)) {
+					break;
+				}
 				cell =
 					nextborder.sidecell[0] === cell
 						? nextborder.sidecell[1]
@@ -3110,105 +3171,123 @@ var TL_BORDER_CLUES = {
 			}
 		},
 
-			getTraceInfo: function() {
-				var board = this.board;
-				var startBorder = board.arrowin.getb();
-				var goalBorder = board.arrowout.getb();
-				var prevBorder = board.arrowin.onborder() ? startBorder : null;
-				var cell = board.getStartCell();
-				var blist = new this.klass.BorderList();
-				var lastborder = board.emptyborder;
-				var lastcell = board.emptycell;
-				var visitedBorders = {};
-				var totalLineCount = 0;
-				for (var i = 0; i < board.border.length; i++) {
-					if (board.border[i].isLine()) {
-						totalLineCount++;
-					}
+		getTraceInfo: function() {
+			var board = this.board;
+			var startBorder = board.arrowin.getb();
+			var goalBorder = board.arrowout.getb();
+			var goalOnCell = board.arrowout.oncell();
+			var goalOnBorder = board.arrowout.onborder();
+			var goalCell = goalOnCell ? board.getGoalCell() : board.emptycell;
+			var prevBorder = board.arrowin.onborder() ? startBorder : null;
+			var cell = board.getStartCell();
+			var blist = new this.klass.BorderList();
+			var lastborder = board.emptyborder;
+			var lastcell = board.emptycell;
+			var visitedBorders = {};
+			var totalLineCount = 0;
+			for (var i = 0; i < board.border.length; i++) {
+				if (board.border[i].isLine()) {
+					totalLineCount++;
 				}
-				if (board.arrowin.onborder()) {
-					blist.add(startBorder);
-					visitedBorders[startBorder.id] = true;
-					lastborder = startBorder;
-				}
+			}
+			if (board.arrowin.onborder()) {
+				blist.add(startBorder);
+				visitedBorders[startBorder.id] = true;
+				lastborder = startBorder;
+			}
 
-				while (!cell.isnull && cell.lcnt > 0) {
-					lastcell = cell;
-					var nextborder = this.getExitBorder(prevBorder, cell);
-					if (!nextborder) {
-						break;
-					}
-					if (visitedBorders[nextborder.id]) {
-						break;
-					}
-					blist.add(nextborder);
-					visitedBorders[nextborder.id] = true;
-					lastborder = nextborder;
-					if (
-						(board.arrowout.onborder() && nextborder === goalBorder) ||
-						(!board.arrowout.oncell() && !nextborder.inside)
-					) {
-						break;
-					}
-					cell =
-						nextborder.sidecell[0] === cell
-							? nextborder.sidecell[1]
-							: nextborder.sidecell[0];
-					prevBorder = nextborder;
-					if (
-						cell.isnull ||
-						((cell.lcnt !== 2 && cell.lcnt !== 4) &&
-							!(board.arrowout.oncell() && cell === board.getGoalCell() && cell.lcnt === 1))
-					) {
-						break;
-					}
+			while (!cell.isnull && cell.lcnt > 0) {
+				lastcell = cell;
+				var nextborder = this.getExitBorder(prevBorder, cell);
+				if (!nextborder) {
+					break;
 				}
+				if (visitedBorders[nextborder.id]) {
+					break;
+				}
+				blist.add(nextborder);
+				visitedBorders[nextborder.id] = true;
+				lastborder = nextborder;
+				if (
+					(goalOnBorder && nextborder === goalBorder) ||
+					(!goalOnCell && !nextborder.inside)
+				) {
+					break;
+				}
+				cell =
+					nextborder.sidecell[0] === cell
+						? nextborder.sidecell[1]
+						: nextborder.sidecell[0];
+				prevBorder = nextborder;
+				if (
+					cell.isnull ||
+					((cell.lcnt !== 2 && cell.lcnt !== 4) &&
+						!(goalOnCell && cell === goalCell && cell.lcnt === 1))
+				) {
+					break;
+				}
+			}
 
-				return {
-					lastcell: lastcell,
-					lastborder: lastborder,
-					blist: blist,
-					totalLineCount: totalLineCount
-				};
-			},
+			return {
+				lastcell: lastcell,
+				lastborder: lastborder,
+				blist: blist,
+				totalLineCount: totalLineCount
+			};
+		},
 
-			getExitBorder: function(prevBorder, cell) {
-				var adb = cell.adjborder;
-				if (prevBorder === null) {
-					var startBorders = [adb.top, adb.bottom, adb.left, adb.right];
-					for (var s = 0; s < startBorders.length; s++) {
-						if (startBorders[s].isLine()) {
-							return startBorders[s];
-						}
-					}
-					return null;
+		getExitBorder: function(prevBorder, cell) {
+			var adb = cell.adjborder;
+			if (prevBorder === null) {
+				if (adb.top.isLine()) {
+					return adb.top;
 				}
-				if (cell.lcnt === 4) {
-					if (prevBorder === adb.top) {
-						return adb.bottom.isLine() ? adb.bottom : null;
-					}
-					if (prevBorder === adb.bottom) {
-						return adb.top.isLine() ? adb.top : null;
-					}
-					if (prevBorder === adb.left) {
-						return adb.right.isLine() ? adb.right : null;
-					}
-					if (prevBorder === adb.right) {
-						return adb.left.isLine() ? adb.left : null;
-					}
-					return null;
+				if (adb.bottom.isLine()) {
+					return adb.bottom;
 				}
-				var nexts = [adb.top, adb.bottom, adb.left, adb.right];
-				for (var i = 0; i < nexts.length; i++) {
-					if (nexts[i].isLine() && nexts[i] !== prevBorder) {
-						return nexts[i];
+				if (adb.left.isLine()) {
+					return adb.left;
 				}
+				if (adb.right.isLine()) {
+					return adb.right;
+				}
+				return null;
+			}
+			if (cell.lcnt === 4) {
+				if (prevBorder === adb.top) {
+					return adb.bottom.isLine() ? adb.bottom : null;
+				}
+				if (prevBorder === adb.bottom) {
+					return adb.top.isLine() ? adb.top : null;
+				}
+				if (prevBorder === adb.left) {
+					return adb.right.isLine() ? adb.right : null;
+				}
+				if (prevBorder === adb.right) {
+					return adb.left.isLine() ? adb.left : null;
+				}
+				return null;
+			}
+			if (adb.top !== prevBorder && adb.top.isLine()) {
+				return adb.top;
+			}
+			if (adb.bottom !== prevBorder && adb.bottom.isLine()) {
+				return adb.bottom;
+			}
+			if (adb.left !== prevBorder && adb.left.isLine()) {
+				return adb.left;
+			}
+			if (adb.right !== prevBorder && adb.right.isLine()) {
+				return adb.right;
 			}
 			return null;
 		},
 		getTravelNeighborByBorder: function(border, cell) {
 			if (!border || border.isnull || !cell || cell.isnull) {
 				return null;
+			}
+			if (!border.inside) {
+				return this.getOutsideNeighborAcrossBorder(border, cell);
 			}
 			if (border.sidecell[0] === cell) {
 				return border.sidecell[1];
@@ -3218,34 +3297,88 @@ var TL_BORDER_CLUES = {
 			}
 			return null;
 		},
-		isTravelStraightBetween: function(cell, prevObj, nextObj) {
-			if (
-				!cell ||
-				cell.isnull ||
-				!prevObj ||
-				prevObj.isnull ||
-				!nextObj ||
-				nextObj.isnull
-			) {
-				return true;
+		getOutsideNeighborAcrossBorder: function(border, cell) {
+			if (!border || border.isnull || border.inside || !cell || cell.isnull) {
+				return null;
 			}
+			if (border.bx === cell.bx && Math.abs(border.by - cell.by) === 1) {
+				return this.getVirtualNeighbor(cell, border.by < cell.by ? cell.UP : cell.DN);
+			}
+			if (border.by === cell.by && Math.abs(border.bx - cell.bx) === 1) {
+				return this.getVirtualNeighbor(cell, border.bx < cell.bx ? cell.LT : cell.RT);
+			}
+			return null;
+		},
+		getVirtualNeighbor: function(cell, dir) {
+			if (!cell || cell.isnull) {
+				return null;
+			}
+			switch (dir) {
+				case cell.UP:
+					return { bx: cell.bx, by: cell.by - 2, isnull: false };
+				case cell.DN:
+					return { bx: cell.bx, by: cell.by + 2, isnull: false };
+				case cell.LT:
+					return { bx: cell.bx - 2, by: cell.by, isnull: false };
+				case cell.RT:
+					return { bx: cell.bx + 2, by: cell.by, isnull: false };
+			}
+			return null;
+		},
+		getOppositeTravelDir: function(dir) {
+			var pos = this.board.emptycell;
+			switch (dir) {
+				case pos.UP:
+					return pos.DN;
+				case pos.DN:
+					return pos.UP;
+				case pos.LT:
+					return pos.RT;
+				case pos.RT:
+					return pos.LT;
+			}
+			return pos.NDIR;
+		},
+		getEndpointOutsideNeighbor: function(address, type) {
+			if (!address || !address.oncell || !address.oncell()) {
+				return null;
+			}
+			var cell = address.getc();
+			var dir = address.getdir();
+			if (type === "in") {
+				dir = this.getOppositeTravelDir(dir);
+			}
+			return this.getVirtualNeighbor(cell, dir);
+		},
+		getTravelPreviousNeighbor: function(prevBorder, cell, startCell, arrowin) {
+			if (prevBorder !== null) {
+				return this.getTravelNeighborByBorder(prevBorder, cell);
+			}
+			if (cell === startCell) {
+				return this.getEndpointOutsideNeighbor(arrowin, "in");
+			}
+			return null;
+		},
+		getTravelNextNeighbor: function(nextBorder, cell, goalCell, arrowout) {
+			if (nextBorder) {
+				return this.getTravelNeighborByBorder(nextBorder, cell);
+			}
+			if (cell === goalCell) {
+				return this.getEndpointOutsideNeighbor(arrowout, "out");
+			}
+			return null;
+		},
+		hasTravelNeighbors: function(prevObj, nextObj) {
+			return !!(prevObj && !prevObj.isnull && nextObj && !nextObj.isnull);
+		},
+		isTravelStraightBetween: function(cell, prevObj, nextObj) {
 			var dx1 = cell.bx - prevObj.bx;
 			var dy1 = cell.by - prevObj.by;
 			var dx2 = nextObj.bx - cell.bx;
 			var dy2 = nextObj.by - cell.by;
-			return dx1 === -dx2 && dy1 === -dy2;
+			return dx1 === dx2 && dy1 === dy2;
 		},
 		isTravelClockwiseBetween: function(cell, prevObj, nextObj) {
-			if (
-				!cell ||
-				cell.isnull ||
-				!prevObj ||
-				prevObj.isnull ||
-				!nextObj ||
-				nextObj.isnull
-			) {
-				return true;
-			}
 			var dx1 = cell.bx - prevObj.bx;
 			var dy1 = cell.by - prevObj.by;
 			var dx2 = nextObj.bx - cell.bx;
@@ -3254,16 +3387,27 @@ var TL_BORDER_CLUES = {
 		},
 		forEachTravelPass: function(callback) {
 			var bd = this.board;
-			var prevBorder = bd.arrowin.getb();
-			if (bd.arrowin.oncell()) {
-				prevBorder = null;
-			}
-			var cell = bd.getStartCell();
+			var startOnCell = bd.arrowin.oncell();
+			var goalOnCell = bd.arrowout.oncell();
+			var prevBorder = startOnCell ? null : bd.arrowin.getb();
+			var startCell = bd.getStartCell();
+			var goalCell = goalOnCell ? bd.getGoalCell() : bd.emptycell;
+			var cell = startCell;
 
 			while (!cell.isnull && cell.lcnt > 0) {
 				var nextborder = this.getExitBorder(prevBorder, cell);
-				var prevObj = this.getTravelNeighborByBorder(prevBorder, cell);
-				var nextObj = this.getTravelNeighborByBorder(nextborder, cell);
+				var prevObj = this.getTravelPreviousNeighbor(
+					prevBorder,
+					cell,
+					startCell,
+					bd.arrowin
+				);
+				var nextObj = this.getTravelNextNeighbor(
+					nextborder,
+					cell,
+					goalCell,
+					bd.arrowout
+				);
 				if (callback.call(this, cell, prevObj, nextObj)) {
 					return true;
 				}
@@ -3287,6 +3431,7 @@ var TL_BORDER_CLUES = {
 					cell.isIce() &&
 					cell.lcnt > 0 &&
 					cell.lcnt !== 4 &&
+					this.hasTravelNeighbors(prevObj, nextObj) &&
 					!this.isTravelStraightBetween(cell, prevObj, nextObj)
 				) {
 					this.failcode.add("tlIceTurn");
@@ -3303,6 +3448,7 @@ var TL_BORDER_CLUES = {
 				if (
 					cell.isCwFloor() &&
 					cell.lcnt !== 4 &&
+					this.hasTravelNeighbors(prevObj, nextObj) &&
 					!this.isTravelStraightBetween(cell, prevObj, nextObj) &&
 					!this.isTravelClockwiseBetween(cell, prevObj, nextObj)
 				) {

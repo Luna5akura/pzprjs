@@ -928,4 +928,56 @@ describe("Variety:travelline", function() {
 		assert.equal(board.arrowin.oncell(), false);
 		assert.equal(board.arrowin.getb(), oldOut);
 	});
+
+	it("clears floor clues while dragging clear input", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/1");
+		puzzle.setMode("edit");
+
+		puzzle.mouse.setInputMode("travel-ice");
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1, 5, 1);
+		assert.deepEqual(
+			Array.prototype.map.call(puzzle.board.cell, function(cell) {
+				return cell.ques;
+			}),
+			[1, 1, 1]
+		);
+
+		puzzle.mouse.setInputMode("clear");
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1, 5, 1);
+		assert.deepEqual(
+			Array.prototype.map.call(puzzle.board.cell, function(cell) {
+				return cell.ques;
+			}),
+			[0, 0, 0]
+		);
+	});
+
+	it("checks ice at an entrance against the outside direction", function() {
+		var straight = new pzpr.Puzzle().open("travelline/2/1");
+		var board = straight.board;
+		board.arrowin.input(board.getb(0, 1));
+		board.arrowout.input(board.getb(4, 1));
+		board.getc(1, 1).setFloorFlag(1);
+		[board.getb(0, 1), board.getb(2, 1), board.getb(4, 1)].forEach(function(
+			border
+		) {
+			border.setLine();
+		});
+		assert.equal(straight.check(true).complete, true);
+
+		var turn = new pzpr.Puzzle().open("travelline/2/2");
+		board = turn.board;
+		board.arrowin.input(board.getb(1, 0));
+		board.arrowout.input(board.getb(4, 3));
+		board.getc(1, 1).setFloorFlag(1);
+		[
+			board.getb(1, 0),
+			board.getb(2, 1),
+			board.getb(3, 2),
+			board.getb(4, 3)
+		].forEach(function(border) {
+			border.setLine();
+		});
+		assert.equal(turn.check(true)[0], "tlIceTurn");
+	});
 });
