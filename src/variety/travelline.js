@@ -1543,6 +1543,7 @@ var TL_BORDER_CLUES = {
 		irowake: true,
 		gridcolor_type: "LIGHT",
 		icecolor: "rgb(163, 216, 255)",
+		castleWallClueColor: "rgb(0, 96, 192)",
 		travellineSolverLineColor: "rgba(64, 128, 255, 0.55)",
 		travellineSolverPekeColor: "rgba(64, 128, 255, 0.8)",
 
@@ -1552,7 +1553,6 @@ var TL_BORDER_CLUES = {
 			this.drawGrid();
 			this.drawBorders();
 			this.drawArrowNumbers();
-			this.drawCastleWallClueFrames();
 			this.drawLines();
 			this.drawPekes();
 			this.drawSolverOverlayLines();
@@ -1719,6 +1719,11 @@ var TL_BORDER_CLUES = {
 		},
 
 		getQuesNumberColor: function(cell) {
+			if (cell.isCw()) {
+				return (cell.error || cell.qinfo) === 1
+					? this.errcolor1
+					: this.castleWallClueColor;
+			}
 			return (cell.error || cell.qinfo) === 1 ? this.errcolor1 : this.quescolor;
 		},
 
@@ -1885,26 +1890,6 @@ var TL_BORDER_CLUES = {
 				} else {
 					g.vhide();
 					g.vid = "c_dot_" + cell.id;
-					g.vhide();
-				}
-			}
-		},
-		drawCastleWallClueFrames: function() {
-			var g = this.vinc("castle_wall_clue", "auto", true);
-			var clist = this.range.cells;
-			var innerSize = this.cw * 0.56;
-			g.lineWidth = Math.max(this.cw / 28, 1.5);
-
-			for (var i = 0; i < clist.length; i++) {
-				var cell = clist[i];
-				var px = cell.bx * this.bw;
-				var py = cell.by * this.bh;
-
-				g.vid = "cw_frame_inner_" + cell.id;
-				if (cell.isCw()) {
-					g.strokeStyle = this.getQuesNumberColor(cell);
-					g.strokeRectCenter(px, py, innerSize, innerSize);
-				} else {
 					g.vhide();
 				}
 			}
