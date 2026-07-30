@@ -152,6 +152,10 @@ div#usepanel > div {
 div#usepanel > div > div {
   display: inline-block;
 }
+div#usepanel > div > div:last-child {
+  min-width: 0;
+  white-space: normal;
+}
 div#usepanel > div > div:first-child {
   white-space: nowrap;
   margin-right: 6px;
@@ -159,6 +163,14 @@ div#usepanel > div > div:first-child {
 }
 div#usepanel > div > div > div {
   white-space: nowrap;
+}
+div#usepanel > div#panel_inputmode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+div#usepanel > div#panel_inputmode > div:last-child {
+  display: contents;
 }
 
 div#usepanel .inputmode-layout {

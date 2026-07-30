@@ -85,6 +85,26 @@ function solveProblem(url) {
 	});
 }
 
+function solveProblemWithForcedLines(payload) {
+	return getSolverModule().then(function(module) {
+		if (typeof module._solve_problem_with_forced_lines !== "function") {
+			return null;
+		}
+
+		var encoded = new TextEncoder().encode(JSON.stringify(payload));
+		var input = allocateSolverInput(module, encoded);
+		module.HEAPU8.set(encoded, input.ptr);
+		try {
+			return readSolverResult(
+				module,
+				module._solve_problem_with_forced_lines(input.ptr, encoded.length)
+			);
+		} finally {
+			input.release();
+		}
+	});
+}
+
 function solveCustomTravelLine(payload) {
 	return getSolverModule().then(function(module) {
 		if (typeof module._solve_custom_travelline !== "function") {
@@ -111,6 +131,8 @@ self.onmessage = function(event) {
 
 	if (data.action === "solve_problem") {
 		runner = solveProblem(data.payload);
+	} else if (data.action === "solve_problem_with_forced_lines") {
+		runner = solveProblemWithForcedLines(data.payload);
 	} else if (data.action === "solve_custom_travelline") {
 		runner = solveCustomTravelLine(data.payload);
 	} else {

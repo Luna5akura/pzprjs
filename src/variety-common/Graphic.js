@@ -3,8 +3,425 @@
 pzpr.classmgr.makeCommon({
 	//---------------------------------------------------------
 	Graphic: {
+		solverLineColor: "rgba(64, 128, 255, 0.55)",
+		solverPekeColor: "rgba(64, 128, 255, 0.8)",
+		solverCellFillColor: "rgba(64, 128, 255, 0.28)",
+		solverCellMarkColor: "rgba(64, 128, 255, 0.85)",
+		solverTextColor: "rgb(32, 96, 224)",
+		solverCellOverlaySlots: 8,
+
 		paintPost: function() {
 			this.drawTrialStarts();
+			if (this.pid !== "travelline") {
+				this.drawSolverOverlayCells();
+				this.drawSolverOverlayLines();
+				this.drawSolverOverlayPekes();
+			}
+		},
+
+		hasAnswerLineState: function(border) {
+			return (
+				!!border &&
+				!border.isnull &&
+				((border.isLine && border.isLine()) ||
+					border.qans !== 0 ||
+					border.qsub === 2)
+			);
+		},
+		hasAnswerCellState: function(cell) {
+			return (
+				!!cell &&
+				!cell.isnull &&
+				(cell.qans !== 0 || cell.qsub !== 0 || cell.anum !== -1)
+			);
+		},
+		getSolverOverlayEntries: function(piece) {
+			var state = piece && piece._solverState;
+			if (!state) {
+				return [];
+			}
+			return state instanceof Array ? state : [state];
+		},
+		getSolverOverlayEntryKind: function(entry) {
+			if (typeof entry === "string") {
+				return entry;
+			}
+			var item = entry && entry.item;
+			return typeof item === "string" ? item : item && item.kind;
+		},
+		getSolverOverlayEntryColor: function(entry, fallback) {
+			if (
+				entry &&
+				typeof entry !== "string" &&
+				entry.color &&
+				entry.color !== "green"
+			) {
+				return entry.color;
+			}
+			return fallback;
+		},
+		getSolverOverlayTextPosition: function(item) {
+			if (!item || !item.pos) {
+				return this.CENTER;
+			}
+			if (item.pos === "upperLeft") {
+				return this.TOPLEFT;
+			}
+			if (item.pos === "upperRight") {
+				return this.TOPRIGHT;
+			}
+			if (item.pos === "lowerLeft") {
+				return this.BOTTOMLEFT;
+			}
+			if (item.pos === "lowerRight") {
+				return this.BOTTOMRIGHT;
+			}
+			return this.CENTER;
+		},
+		getSolverOverlayBorderKind: function(entry) {
+			var kind = this.getSolverOverlayEntryKind(entry);
+			if (kind === "doubleLine") {
+				return "doubleLine";
+			}
+			if (
+				kind === "line" ||
+				kind === "wall" ||
+				kind === "boldWall" ||
+				kind === "dottedLine" ||
+				kind === "dottedWall" ||
+				kind === "dottedHorizontalWall" ||
+				kind === "dottedVerticalWall"
+			) {
+				return "line";
+			}
+			if (kind === "cross") {
+				return "cross";
+			}
+			return null;
+		},
+		getSolverOverlayBorderEntry: function(border, kinds) {
+			var entries = this.getSolverOverlayEntries(border);
+			for (var i = 0; i < entries.length; i++) {
+				var kind = this.getSolverOverlayBorderKind(entries[i]);
+				if (kinds.indexOf(kind) >= 0) {
+					return entries[i];
+				}
+			}
+			return null;
+		},
+		drawSolverOverlayCells: function() {
+			var g = this.vinc("solver_cell", "auto", true);
+			var clist = this.range.cells;
+
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var entries = this.getSolverOverlayEntries(cell);
+				var visible =
+					entries.length > 0 && !this.hasAnswerCellState(cell)
+						? Math.min(entries.length, this.solverCellOverlaySlots)
+						: 0;
+				var j = 0;
+
+				for (; j < visible; j++) {
+					g.vid = "c_solver_" + cell.id + "_" + j;
+					if (!this.drawSolverOverlayCellEntry(g, cell, entries[j])) {
+						g.vhide();
+					}
+				}
+
+				for (; j < this.solverCellOverlaySlots; j++) {
+					g.vid = "c_solver_" + cell.id + "_" + j;
+					g.vhide();
+				}
+
+				g.vid = "c_solver_" + cell.id;
+				g.vhide();
+			}
+		},
+		drawSolverOverlayCellEntry: function(g, cell, entry) {
+			var kind = this.getSolverOverlayEntryKind(entry);
+			var item = typeof entry === "string" ? null : entry && entry.item;
+			var px = cell.bx * this.bw;
+			var py = cell.by * this.bh;
+			var color = this.getSolverOverlayEntryColor(
+				entry,
+				this.solverCellMarkColor
+			);
+			var linewidth = Math.max((1 + this.cw / 40) | 0, 1);
+			var radius = this.cw * 0.3;
+
+			if (kind === "block" || kind === "fill") {
+				g.fillStyle = this.getSolverOverlayEntryColor(
+					entry,
+					this.solverCellFillColor
+				);
+				g.fillRectCenter(px, py, this.bw + 0.5, this.bh + 0.5);
+				return true;
+			}
+			if (kind === "dot") {
+				g.fillStyle = color;
+				g.fillCircle(px, py, Math.max(this.cw * 0.06, 2));
+				return true;
+			}
+			if (kind === "circle" || kind === "smallCircle") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeCircle(px, py, kind === "smallCircle" ? radius * 0.45 : radius);
+				return true;
+			}
+			if (kind === "filledCircle" || kind === "smallFilledCircle") {
+				g.fillStyle = color;
+				g.fillCircle(px, py, kind === "smallFilledCircle" ? radius * 0.45 : radius);
+				return true;
+			}
+			if (kind === "square") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeRectCenter(px, py, this.cw * 0.55, this.ch * 0.55);
+				return true;
+			}
+			if (kind === "triangle") {
+				g.fillStyle = color;
+				g.beginPath();
+				g.setOffsetLinePath(
+					px,
+					py,
+					0,
+					-this.ch * 0.32,
+					-this.cw * 0.32,
+					this.ch * 0.25,
+					this.cw * 0.32,
+					this.ch * 0.25,
+					true
+				);
+				g.fill();
+				return true;
+			}
+			if (kind === "cross") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeCross(px, py, this.cw * 0.35);
+				return true;
+			}
+			if (kind === "text" && item && typeof item.data !== "undefined") {
+				var position = this.getSolverOverlayTextPosition(item);
+				g.fillStyle = this.getSolverOverlayEntryColor(entry, this.solverTextColor);
+				this.disptext(String(item.data), px, py, {
+					ratio: position === this.CENTER ? 0.6 : 0.34,
+					position: position
+				});
+				return true;
+			}
+			if (kind === "lineTo" && item) {
+				g.lineWidth = Math.max(this.lm * 0.72, 1);
+				g.strokeStyle = color;
+				g.strokeLine(px, py, item.destX * this.bw, item.destY * this.bh);
+				return true;
+			}
+			if (
+				kind === "slash" ||
+				kind === "backslash" ||
+				kind === "dottedSlash" ||
+				kind === "dottedBackslash"
+			) {
+				return this.drawSolverOverlaySlash(g, px, py, kind, color);
+			}
+			if (kind === "plus") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.beginPath();
+				g.moveTo(px - this.cw * 0.3, py);
+				g.lineTo(px + this.cw * 0.3, py);
+				g.moveTo(px, py - this.ch * 0.3);
+				g.lineTo(px, py + this.ch * 0.3);
+				g.stroke();
+				return true;
+			}
+			if (
+				kind === "arrowUp" ||
+				kind === "arrowDown" ||
+				kind === "arrowLeft" ||
+				kind === "arrowRight" ||
+				kind === "sideArrowUp" ||
+				kind === "sideArrowDown" ||
+				kind === "sideArrowLeft" ||
+				kind === "sideArrowRight" ||
+				kind === "pencilUp" ||
+				kind === "pencilDown" ||
+				kind === "pencilLeft" ||
+				kind === "pencilRight"
+			) {
+				return this.drawSolverOverlayArrow(g, px, py, kind, color);
+			}
+			if (kind && kind.indexOf("firewalkCell") === 0) {
+				return this.drawSolverOverlayFirewalkCell(g, px, py, kind, color);
+			}
+			return false;
+		},
+		drawSolverOverlaySlash: function(g, px, py, kind, color) {
+			var dashed = kind === "dottedSlash" || kind === "dottedBackslash";
+			var x1 = px - this.bw * 0.38;
+			var x2 = px + this.bw * 0.38;
+			var y1 = py - this.bh * 0.38;
+			var y2 = py + this.bh * 0.38;
+			g.lineWidth = Math.max((1 + this.cw / 40) | 0, 1);
+			g.strokeStyle = color;
+			if (kind === "slash" || kind === "dottedSlash") {
+				if (dashed) {
+					g.strokeDashedLine(x1, y2, x2, y1, this.getDashArray());
+				} else {
+					g.strokeLine(x1, y2, x2, y1);
+				}
+			} else if (dashed) {
+				g.strokeDashedLine(x1, y1, x2, y2, this.getDashArray());
+			} else {
+				g.strokeLine(x1, y1, x2, y2);
+			}
+			return true;
+		},
+		drawSolverOverlayArrow: function(g, px, py, kind, color) {
+			var dir = kind.replace(/^sideArrow/, "").replace(/^pencil/, "").replace(/^arrow/, "");
+			var dx = 0;
+			var dy = 0;
+			if (dir === "Up") {
+				dy = -1;
+			} else if (dir === "Down") {
+				dy = 1;
+			} else if (dir === "Left") {
+				dx = -1;
+			} else if (dir === "Right") {
+				dx = 1;
+			} else {
+				return false;
+			}
+
+			var len = this.cw * 0.36;
+			var head = this.cw * 0.12;
+			var x1 = px - dx * len * 0.45;
+			var y1 = py - dy * len * 0.45;
+			var x2 = px + dx * len * 0.55;
+			var y2 = py + dy * len * 0.55;
+			g.lineWidth = Math.max((1 + this.cw / 40) | 0, 1);
+			g.strokeStyle = color;
+			g.beginPath();
+			g.moveTo(x1, y1);
+			g.lineTo(x2, y2);
+			if (dx !== 0) {
+				g.moveTo(x2, y2);
+				g.lineTo(x2 - dx * head, y2 - head);
+				g.moveTo(x2, y2);
+				g.lineTo(x2 - dx * head, y2 + head);
+			} else {
+				g.moveTo(x2, y2);
+				g.lineTo(x2 - head, y2 - dy * head);
+				g.moveTo(x2, y2);
+				g.lineTo(x2 + head, y2 - dy * head);
+			}
+			g.stroke();
+			return true;
+		},
+		drawSolverOverlayFirewalkCell: function(g, px, py, kind, color) {
+			if (kind === "firewalkCellUnknown") {
+				g.fillStyle = this.solverTextColor;
+				this.disptext("?", px, py, { ratio: 0.6 });
+				return true;
+			}
+
+			var offsets = {
+				firewalkCellUl: [[-1, -1]],
+				firewalkCellUr: [[1, -1]],
+				firewalkCellDl: [[-1, 1]],
+				firewalkCellDr: [[1, 1]],
+				firewalkCellUlDr: [[-1, -1], [1, 1]],
+				firewalkCellUrDl: [[1, -1], [-1, 1]]
+			}[kind];
+			if (!offsets) {
+				return false;
+			}
+			g.lineWidth = Math.max((1 + this.cw / 40) | 0, 1);
+			g.strokeStyle = color;
+			g.beginPath();
+			for (var i = 0; i < offsets.length; i++) {
+				g.moveTo(px, py);
+				g.lineTo(
+					px + offsets[i][0] * this.bw * 0.38,
+					py + offsets[i][1] * this.bh * 0.38
+				);
+			}
+			g.stroke();
+			return true;
+		},
+		drawSolverOverlayLines: function() {
+			var g = this.vinc("solver_line", "crispEdges");
+			var blist = this.range.borders;
+			var lm = Math.max(this.lm * 0.72, 1);
+
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var entry = this.getSolverOverlayBorderEntry(border, [
+					"line",
+					"doubleLine"
+				]);
+				g.vid = "b_solver_line_" + border.id;
+				if (entry && !this.hasAnswerLineState(border)) {
+					var px = border.bx * this.bw;
+					var py = border.by * this.bh;
+					var isvert = this.board.borderAsLine === border.isVert();
+					var kind = this.getSolverOverlayBorderKind(entry);
+					g.fillStyle = this.getSolverOverlayEntryColor(
+						entry,
+						this.solverLineColor
+					);
+					if (kind === "doubleLine" && isvert) {
+						var offset = Math.max(lm * 0.8, 2);
+						g.fillRectCenter(px - offset, py, lm * 0.7, this.bh + lm);
+						g.vid = "b_solver_line2_" + border.id;
+						g.fillRectCenter(px + offset, py, lm * 0.7, this.bh + lm);
+					} else if (kind === "doubleLine") {
+						var offset2 = Math.max(lm * 0.8, 2);
+						g.fillRectCenter(px, py - offset2, this.bw + lm, lm * 0.7);
+						g.vid = "b_solver_line2_" + border.id;
+						g.fillRectCenter(px, py + offset2, this.bw + lm, lm * 0.7);
+					} else if (isvert) {
+						g.fillRectCenter(px, py, lm, this.bh + lm);
+						g.vid = "b_solver_line2_" + border.id;
+						g.vhide();
+					} else {
+						g.fillRectCenter(px, py, this.bw + lm, lm);
+						g.vid = "b_solver_line2_" + border.id;
+						g.vhide();
+					}
+				} else {
+					g.vhide();
+					g.vid = "b_solver_line2_" + border.id;
+					g.vhide();
+				}
+			}
+		},
+		drawSolverOverlayPekes: function() {
+			var g = this.vinc("solver_peke", "auto", true);
+			var size = this.cw * 0.13 + 1;
+			if (size < 4) {
+				size = 4;
+			}
+			g.lineWidth = Math.max((1 + this.cw / 45) | 0, 1);
+			g.strokeStyle = this.solverPekeColor;
+
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var entry = this.getSolverOverlayBorderEntry(border, ["cross"]);
+				g.vid = "b_solver_peke_" + border.id;
+				if (entry && !this.hasAnswerLineState(border)) {
+					g.strokeStyle = this.getSolverOverlayEntryColor(
+						entry,
+						this.solverPekeColor
+					);
+					g.strokeCross(border.bx * this.bw, border.by * this.bh, size - 1);
+				} else {
+					g.vhide();
+				}
+			}
 		},
 
 		//---------------------------------------------------------------------------

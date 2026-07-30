@@ -30,6 +30,41 @@
 			play: ["shade", "unshade", "info-blk"]
 		}
 	},
+	"MouseEvent@lits": {
+		inputModes: {
+			edit: ["border", "empty", "clear", "info-blk"],
+			play: ["shade", "unshade", "info-blk"]
+		},
+		mouseinput_auto: function() {
+			if (this.puzzle.playmode) {
+				if (this.mousestart || this.mousemove) {
+					this.inputcell();
+				}
+			} else if (this.puzzle.editmode) {
+				if (this.btn === "right") {
+					if (this.mousestart || this.mousemove) {
+						this.inputempty();
+					}
+				} else if (this.mousestart || this.mousemove) {
+					this.inputborder();
+				}
+			}
+		},
+		mouseinput_clear: function() {
+			if (!this.puzzle.editmode) {
+				this.inputclean_cell();
+				return;
+			}
+
+			var cell = this.getcell();
+			if (cell.isnull || cell === this.mouseCell) {
+				return;
+			}
+
+			cell.setValid(0);
+			this.mouseCell = cell;
+		}
+	},
 	"MouseEvent@norinori": {
 		inputModes: { edit: ["border"], play: ["shade", "unshade"] },
 		shadeCount: 0,
@@ -59,12 +94,28 @@
 	Cell: {
 		posthook: {
 			qans: function(num) {
-				this.room.checkAutoCmp();
+				if (this.room) {
+					this.room.checkAutoCmp();
+				}
 			}
 		}
 	},
 	"Cell@lits,invlitso": {
 		shape: null // AreaTetrominoGraph用
+	},
+	"Cell@lits": {
+		isShade: function() {
+			return this.isValid() && this.qans === 1;
+		},
+		isUnshade: function() {
+			return this.isValid() && this.qans !== 1;
+		},
+		allowShade: function() {
+			return this.isValid();
+		},
+		allowUnshade: function() {
+			return this.isValid();
+		}
 	},
 	Board: {
 		hasborder: 1
@@ -158,6 +209,9 @@
 		errbcolor2: "rgb(192, 192, 255)",
 
 		getBGCellColor: function(cell) {
+			if (cell.ques === 7) {
+				return "black";
+			}
 			if (cell.error === 2 || cell.qinfo === 2) {
 				return this.errbcolor2;
 			}
@@ -186,6 +240,10 @@
 				(type === parser.URL_PZPRAPP && !this.checkpflag("c"));
 			if (!oldflag || this.pid === "norinori") {
 				this.decodeBorder();
+				if (this.pid === "lits") {
+					this.decodeEmpty();
+					this.board.rebuildInfo();
+				}
 			} else {
 				this.decodeLITS_old();
 			}
@@ -195,6 +253,9 @@
 				this.outpflag = "c";
 			}
 			this.encodeBorder();
+			if (this.pid === "lits") {
+				this.encodeEmpty();
+			}
 		},
 
 		decodeKanpen: function() {
@@ -225,7 +286,7 @@
 	//---------------------------------------------------------
 	FileIO: {
 		decodeData: function() {
-			this.decodeAreaRoom();
+			this.decodeAreaRoom_lits();
 			this.decodeCellAns();
 		},
 		encodeData: function() {
@@ -234,7 +295,7 @@
 		},
 
 		kanpenOpen: function() {
-			this.decodeAreaRoom();
+			this.decodeAreaRoom_lits();
 			this.decodeCellAns();
 		},
 		kanpenSave: function() {
@@ -249,6 +310,21 @@
 		kanpenSaveXML: function() {
 			this.encodeAreaRoom_XMLBoard();
 			this.encodeCellAns_XMLAnswer();
+		},
+
+		decodeAreaRoom_lits: function() {
+			if (this.pid !== "lits") {
+				this.decodeAreaRoom();
+				return;
+			}
+
+			this.readLine();
+			var rdata = this.getItemList(this.board.rows);
+			for (var c = 0; c < this.board.cell.length; c++) {
+				this.board.cell[c].ques = rdata[c] === "." ? 7 : 0;
+			}
+			this.rdata2Border(true, rdata);
+			this.board.rebuildInfo();
 		}
 	},
 

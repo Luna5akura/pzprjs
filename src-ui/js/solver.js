@@ -35,41 +35,45 @@ function getMessages() {
 				loading: "solver を読み込み中...",
 				solving: "空盤面から solver 実行中...",
 				applied: function(count) {
-					return count + " 個の結果を反映しました";
+					return count + " 個の solver 結果を表示しました";
 				},
 				partial: function(count) {
-					return count + " 個の確定結果を反映しました";
+					return count + " 個の確定 solver 結果を表示しました";
 				},
-					noChange: "反映できる新規結果はありません",
-					cleared: "手入力を検出したため回答を消去しました",
-					clearedOverlay: "手入力を検出したため solver 表示を消去しました",
-					unsupported: "この盤面はまだ自動適用に対応していません",
-					error: function(message) {
-						return "solver error: " + message;
-					}
+				noChange: "表示できる新規 solver 結果はありません",
+				cleared: "手入力を検出したため solver 表示を消去しました",
+				clearedOverlay: "手入力を検出したため solver 表示を消去しました",
+				unsupported: "この盤面はまだ solver 表示に対応していません",
+				unsupportedForcedLines:
+					"このパズルは回答線を条件にした solver 実行にまだ対応していません",
+				error: function(message) {
+					return "solver error: " + message;
+				}
 		  }
 		: {
 				idle: "solver idle",
 				loading: "loading solver...",
 				solving: "running solver from a blank answer...",
 				applied: function(count) {
-					return "applied " + count + " solver result" + (count === 1 ? "" : "s");
+					return "displayed " + count + " solver result" + (count === 1 ? "" : "s");
 				},
 				partial: function(count) {
 					return (
-						"applied " +
+						"displayed " +
 						count +
 						" irrefutable solver result" +
 						(count === 1 ? "" : "s")
 					);
 				},
-					noChange: "no solver result could be applied",
-					cleared: "manual edit detected, cleared current answer",
-					clearedOverlay: "manual edit detected, cleared the solver overlay",
-					unsupported: "this puzzle is not supported for auto-apply yet",
-					error: function(message) {
-						return "solver error: " + message;
-					}
+				noChange: "no solver result could be displayed",
+				cleared: "manual edit detected, cleared the solver overlay",
+				clearedOverlay: "manual edit detected, cleared the solver overlay",
+				unsupported: "this puzzle is not supported for solver overlay yet",
+				unsupportedForcedLines:
+					"this puzzle does not support solving with answer-mode line constraints yet",
+				error: function(message) {
+					return "solver error: " + message;
+				}
 		  };
 }
 
@@ -124,38 +128,45 @@ async function getSolverModule() {
 }
 
 function withSuppressedHistory(callback) {
+	var previous = suppressHistory;
 	suppressHistory = true;
 	try {
 		return callback();
 	} finally {
-		suppressHistory = false;
+		suppressHistory = previous;
 	}
 }
 
-function clearCurrentAnswer() {
-	withSuppressedHistory(function() {
-		ui.puzzle.board.ansclear();
-		ui.puzzle.board.subclear();
-		clearWalkWalkSolverOverlay();
-		ui.puzzle.board.errclear();
-		ui.puzzle.redraw();
-	});
-	hasSolverState = false;
-}
-
-function clearWalkWalkSolverOverlay() {
-	if (!isWalkWalkPuzzle() || !ui.puzzle || !ui.puzzle.board) {
+function clearGenericSolverOverlay() {
+	if (!ui.puzzle || !ui.puzzle.board) {
+		hasSolverState = false;
 		return 0;
 	}
 
 	var board = ui.puzzle.board;
 	var changed = 0;
-	for (var i = 0; i < board.cell.length; i++) {
-		if (board.cell[i]._walkwalkSolverState) {
-			board.cell[i]._walkwalkSolverState = null;
-			changed++;
+	withSuppressedHistory(function() {
+		for (var i = 0; i < board.border.length; i++) {
+			if (board.border[i]._solverState) {
+				board.border[i]._solverState = null;
+				changed++;
+			}
 		}
-	}
+		for (var j = 0; j < board.cell.length; j++) {
+			if (board.cell[j]._solverState) {
+				board.cell[j]._solverState = null;
+				changed++;
+			}
+			if (board.cell[j]._walkwalkSolverState) {
+				board.cell[j]._walkwalkSolverState = null;
+				changed++;
+			}
+		}
+		if (changed > 0) {
+			ui.puzzle.redraw();
+		}
+	});
+	hasSolverState = false;
 	return changed;
 }
 
@@ -190,6 +201,10 @@ function clearTravelLineSolverOverlay() {
 
 async function solveCurrentPuzzle() {
 	return runBackendWorker("solve_problem", getSolverUrl());
+}
+
+async function solveCurrentPuzzleWithForcedLines(payload) {
+	return runBackendWorker("solve_problem_with_forced_lines", payload);
 }
 
 function readSolverResult(module, resultPtr) {
@@ -363,6 +378,61 @@ function getTravelLineEndpointPayload(board, address, type) {
 	};
 }
 
+function getForcedLineStateForBorder(border) {
+	if (!border || border.isnull) {
+		return -1;
+	}
+	if (border.isLine && border.isLine()) {
+		return 1;
+	}
+	if (border.qsub === 2) {
+		return 0;
+	}
+	return -1;
+}
+
+function getForcedLinePayload() {
+	var board = ui.puzzle.board;
+	var rows = board.rows;
+	var cols = board.cols;
+	var forcedH = [];
+	var forcedV = [];
+	var hasForced = false;
+
+	for (var y = 0; y < rows; y++) {
+		var hRow = [];
+		for (var x = 0; x + 1 < cols; x++) {
+			var cell = board.cell[y * cols + x];
+			var hState = getForcedLineStateForBorder(board.getb(cell.bx + 1, cell.by));
+			if (hState !== -1) {
+				hasForced = true;
+			}
+			hRow.push(hState);
+		}
+		forcedH.push(hRow);
+	}
+
+	for (var y2 = 0; y2 + 1 < rows; y2++) {
+		var vRow = [];
+		for (var x2 = 0; x2 < cols; x2++) {
+			var cell2 = board.cell[y2 * cols + x2];
+			var vState = getForcedLineStateForBorder(board.getb(cell2.bx, cell2.by + 1));
+			if (vState !== -1) {
+				hasForced = true;
+			}
+			vRow.push(vState);
+		}
+		forcedV.push(vRow);
+	}
+
+	return {
+		url: getSolverUrl(),
+		forcedH: forcedH,
+		forcedV: forcedV,
+		hasForced: hasForced
+	};
+}
+
 function getTravelLineBackendPayload() {
 	var board = ui.puzzle.board;
 	var rows = board.rows;
@@ -481,7 +551,7 @@ function getTravelLineBackendPayload() {
 				reqHRow.push(hBorder.ques === TL_BORDER_CLUES.REQUIRED);
 				countryHRow.push(hBorder.ques === TL_BORDER_CLUES.COUNTRY);
 				borderHRow.push(hBorder.ques === TL_BORDER_CLUES.BLOCK);
-				forcedHRow.push(-1);
+				forcedHRow.push(getForcedLineStateForBorder(hBorder));
 			}
 		}
 		bars.push(barRow);
@@ -550,7 +620,7 @@ function getTravelLineBackendPayload() {
 			reqVRow.push(vBorder.ques === TL_BORDER_CLUES.REQUIRED);
 			countryVRow.push(vBorder.ques === TL_BORDER_CLUES.COUNTRY);
 			borderVRow.push(vBorder.ques === TL_BORDER_CLUES.BLOCK);
-			forcedVRow.push(-1);
+			forcedVRow.push(getForcedLineStateForBorder(vBorder));
 		}
 		requiredV.push(reqVRow);
 		countryV.push(countryVRow);
@@ -645,6 +715,7 @@ async function solveTravelLinePuzzle(requestId) {
 	withSuppressedHistory(function() {
 		if (
 			startBorder &&
+			!hasAnswerLineState(startBorder) &&
 			startBorder._travellineSolverState !== "line"
 		) {
 			startBorder._travellineSolverState = "line";
@@ -652,6 +723,7 @@ async function solveTravelLinePuzzle(requestId) {
 		}
 		if (
 			goalBorder &&
+			!hasAnswerLineState(goalBorder) &&
 			goalBorder._travellineSolverState !== "line"
 		) {
 			goalBorder._travellineSolverState = "line";
@@ -700,141 +772,149 @@ function isLinePuzzle() {
 	);
 }
 
-function isBorderPuzzle() {
-	var modes = getAnswerInputModes();
-	return modes.indexOf("border") >= 0;
-}
-
 function isWalkWalkPuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "walkwalk";
 }
 
+function isSolverOverlayCircleKind(kind) {
+	return (
+		kind === "dot" ||
+		kind === "circle" ||
+		kind === "filledCircle" ||
+		kind === "smallCircle" ||
+		kind === "smallFilledCircle"
+	);
+}
+
+function isSolverOverlayCellKind(kind) {
+	return (
+		kind === "text" ||
+		kind === "block" ||
+		kind === "fill" ||
+		kind === "square" ||
+		kind === "triangle" ||
+		kind === "cross" ||
+		kind === "slash" ||
+		kind === "backslash" ||
+		kind === "dottedSlash" ||
+		kind === "dottedBackslash" ||
+		kind === "plus" ||
+		kind === "lineTo" ||
+		kind === "arrowUp" ||
+		kind === "arrowDown" ||
+		kind === "arrowLeft" ||
+		kind === "arrowRight" ||
+		kind === "sideArrowUp" ||
+		kind === "sideArrowDown" ||
+		kind === "sideArrowLeft" ||
+		kind === "sideArrowRight" ||
+		kind === "pencilUp" ||
+		kind === "pencilDown" ||
+		kind === "pencilLeft" ||
+		kind === "pencilRight" ||
+		kind === "firewalkCellUnknown" ||
+		kind === "firewalkCellUl" ||
+		kind === "firewalkCellUr" ||
+		kind === "firewalkCellDl" ||
+		kind === "firewalkCellDr" ||
+		kind === "firewalkCellUlDr" ||
+		kind === "firewalkCellUrDl" ||
+		isSolverOverlayCircleKind(kind)
+	);
+}
+
+function hasAnswerCellState(cell) {
+	return (
+		!!cell &&
+		!cell.isnull &&
+		(cell.qans !== 0 || cell.qsub !== 0 || cell.anum !== -1)
+	);
+}
+
+function appendSolverOverlayState(piece, entry) {
+	var state = piece._solverState;
+	if (!state) {
+		state = piece._solverState = [];
+	} else if (!Array.isArray(state)) {
+		state = piece._solverState = [{ color: "green", item: state }];
+	}
+	state.push({ color: entry.color, item: entry.item });
+	return 1;
+}
+
 function applyCellEntry(entry) {
 	var kind = getItemKind(entry.item);
+	if (!isSolverOverlayCellKind(kind)) {
+		return null;
+	}
+
 	var cell = ui.puzzle.board.getc(entry.x, entry.y);
 	if (cell.isnull) {
 		return 0;
 	}
+	if (hasAnswerCellState(cell)) {
+		return 0;
+	}
 
-	if (kind === "block" || kind === "fill") {
-		if (cell.qnum !== -1) {
-			return 0;
-		}
-		if (!cell.isShade() || cell.qsub !== 0) {
-			cell.setQsub(0);
-			cell.setShade();
+	if (isWalkWalkPuzzle() && isSolverOverlayCircleKind(kind)) {
+		if (cell._walkwalkSolverState !== "passed") {
+			cell._walkwalkSolverState = "passed";
 			return 1;
 		}
 		return 0;
 	}
 
-	if (
-		kind === "dot" ||
-		kind === "circle" ||
-		kind === "smallCircle" ||
-		kind === "square"
-	) {
-		if (isWalkWalkPuzzle()) {
-			if (cell._walkwalkSolverState !== "passed") {
-				cell._walkwalkSolverState = "passed";
-				return 1;
-			}
-			return 0;
-		}
-		if (cell.qnum !== -1) {
-			return 0;
-		}
-		if (cell.isShade() || cell.qsub !== 1) {
-			cell.clrShade();
-			cell.setQsub(1);
-			return 1;
-		}
-		return 0;
-	}
-
-	return null;
-}
-
-function applyBorderAsLine(border, kind) {
-	if (kind === "line" || kind === "wall") {
-		if (!border.isLine() || border.qsub === 2) {
-			border.setLine();
-			return 1;
-		}
-		return 0;
-	}
-
-	if (kind === "doubleLine") {
-		if (border.line !== 2 || border.qsub === 2) {
-			border.setLineVal(2);
-			if (border.qsub === 2) {
-				border.setQsub(0);
-			}
-			return 1;
-		}
-		return 0;
-	}
-
-	if (kind === "cross") {
-		if (border.line !== 0 || border.qsub !== 2) {
-			border.setPeke();
-			return 1;
-		}
-		return 0;
-	}
-
-	return null;
-}
-
-function applyBorderAsBorder(border, kind) {
-	if (
-		kind === "wall" ||
-		kind === "boldWall" ||
-		kind === "dottedWall" ||
-		kind === "dottedHorizontalWall" ||
-		kind === "dottedVerticalWall"
-	) {
-		if (!border.isBorder()) {
-			border.setBorder();
-			return 1;
-		}
-		return 0;
-	}
-
-	if (kind === "cross") {
-		if (border.isBorder()) {
-			border.removeBorder();
-			return 1;
-		}
-		return 0;
-	}
-
-	return null;
+	return appendSolverOverlayState(cell, entry);
 }
 
 function applyBorderEntry(entry) {
-	var kind = getItemKind(entry.item);
+	if (!getGenericSolverOverlayKind(entry)) {
+		return null;
+	}
+
 	var border = ui.puzzle.board.getb(entry.x, entry.y);
 	if (border.isnull) {
 		return 0;
 	}
-
-	var result = null;
-	if (isLinePuzzle()) {
-		result = applyBorderAsLine(border, kind);
-		if (result !== null) {
-			return result;
-		}
+	if (hasAnswerLineState(border)) {
+		return 0;
 	}
 
-	if (isBorderPuzzle()) {
-		result = applyBorderAsBorder(border, kind);
-		if (result !== null) {
-			return result;
-		}
-	}
+	return appendSolverOverlayState(border, entry);
+}
 
+function getGenericSolverOverlayKind(entry) {
+	var kind = getItemKind(entry.item);
+	if (kind === "doubleLine") {
+		return "doubleLine";
+	}
+	if (
+		kind === "line" ||
+		kind === "wall" ||
+		kind === "boldWall" ||
+		kind === "dottedLine" ||
+		kind === "dottedWall" ||
+		kind === "dottedHorizontalWall" ||
+		kind === "dottedVerticalWall"
+	) {
+		return "line";
+	}
+	if (kind === "cross") {
+		return "cross";
+	}
 	return null;
+}
+
+function hasAnswerLineState(border) {
+	return (
+		!!border &&
+		!border.isnull &&
+		((border.isLine && border.isLine()) || border.qans !== 0 || border.qsub === 2)
+	);
+}
+
+function applyGenericSolverOverlayEntry(entry) {
+	return applyEntry(entry);
 }
 
 function applyEntry(entry) {
@@ -866,6 +946,12 @@ function getTravelLineOverlayKind(entry) {
 
 function isTravelLineOverlayPossibleBorder(border) {
 	if (!border || border.isnull) {
+		return false;
+	}
+	if (border.isLine && border.isLine()) {
+		return true;
+	}
+	if (border.qsub === 2) {
 		return false;
 	}
 	if (border.inside) {
@@ -938,6 +1024,9 @@ function applyTravelLineDescription(result) {
 					continue;
 				}
 				recognized++;
+				if (hasAnswerLineState(border)) {
+					continue;
+				}
 				if (border._travellineSolverState !== state) {
 					border._travellineSolverState = state;
 					changed++;
@@ -970,7 +1059,7 @@ function applyTravelLineDescription(result) {
 	return changed;
 }
 
-function applyDescription(result) {
+function applyGenericSolverOverlayDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
 			(result && result.description) || "solver did not return a board description"
@@ -985,21 +1074,24 @@ function applyDescription(result) {
 	var changed = 0;
 	var recognized = 0;
 	var answerEntries = 0;
+	clearGenericSolverOverlay();
 
 	withSuppressedHistory(function() {
-		ui.puzzle.opemgr.newOperation();
 		for (var i = 0; i < description.data.length; i++) {
-			if (isAnswerColor(description.data[i])) {
-				answerEntries++;
+			var entry = description.data[i];
+			if (!isAnswerColor(entry)) {
+				continue;
 			}
-			var applied = applyEntry(description.data[i]);
+			answerEntries++;
+			var applied = applyGenericSolverOverlayEntry(entry);
 			if (applied !== null) {
 				recognized++;
 				changed += applied;
 			}
 		}
-		ui.puzzle.board.rebuildInfo();
-		ui.puzzle.redraw();
+		if (changed > 0) {
+			ui.puzzle.redraw();
+		}
 	});
 
 	if (!recognized) {
@@ -1014,6 +1106,10 @@ function applyDescription(result) {
 	return changed;
 }
 
+function applyDescription(result) {
+	return applyGenericSolverOverlayDescription(result);
+}
+
 async function runSolver() {
 	var requestId = ++solveRequestId;
 	var messages = getMessages();
@@ -1026,20 +1122,20 @@ async function runSolver() {
 	setBusy(true);
 	setStatus(messages.loading);
 
-		try {
-			if (isTravelLinePuzzle()) {
-				clearTravelLineSolverOverlay();
-				setStatus(messages.solving);
-				var backendResult = await solveTravelLinePuzzle(requestId);
-				if (backendResult.changed > 0) {
-					setStatus(
-						backendResult.partial
-							? messages.partial(backendResult.changed)
-							: messages.applied(backendResult.changed)
-					);
-				} else {
-					setStatus(messages.noChange);
-				}
+	try {
+		if (isTravelLinePuzzle()) {
+			clearTravelLineSolverOverlay();
+			setStatus(messages.solving);
+			var backendResult = await solveTravelLinePuzzle(requestId);
+			if (backendResult.changed > 0) {
+				setStatus(
+					backendResult.partial
+						? messages.partial(backendResult.changed)
+						: messages.applied(backendResult.changed)
+				);
+			} else {
+				setStatus(messages.noChange);
+			}
 			return;
 		}
 
@@ -1048,26 +1144,43 @@ async function runSolver() {
 			return;
 		}
 
-		clearCurrentAnswer();
 		setStatus(messages.solving);
 
-		var result = await solveCurrentPuzzle();
+		var result;
+		var linePuzzle = isLinePuzzle();
+		if (linePuzzle) {
+			clearGenericSolverOverlay();
+			var forcedPayload = getForcedLinePayload();
+			if (forcedPayload.hasForced) {
+				result = await solveCurrentPuzzleWithForcedLines(forcedPayload);
+				if (!result) {
+					throw new Error(messages.unsupportedForcedLines);
+				}
+			} else {
+				result = await solveCurrentPuzzle();
+			}
+		} else {
+			clearGenericSolverOverlay();
+			result = await solveCurrentPuzzle();
+		}
 		if (requestId !== solveRequestId) {
 			return;
 		}
 
-		var appliedCount = applyDescription(result);
+		var appliedCount = linePuzzle
+			? applyGenericSolverOverlayDescription(result)
+			: applyDescription(result);
 		setStatus(
 			appliedCount > 0 ? messages.applied(appliedCount) : messages.noChange
 		);
-		} catch (error) {
-			if (error && error.code === "TL_ABORTED") {
-				return;
-			}
-			setStatus(
-				messages.error(error && error.message ? error.message : String(error))
-			);
-		} finally {
+	} catch (error) {
+		if (error && error.code === "TL_ABORTED") {
+			return;
+		}
+		setStatus(
+			messages.error(error && error.message ? error.message : String(error))
+		);
+	} finally {
 		cancelBackendWorker("solver request finished");
 		isApplying = false;
 		setBusy(false);
@@ -1120,11 +1233,10 @@ function onHistoryChange() {
 	if (hasSolverState) {
 		if (isTravelLinePuzzle()) {
 			clearTravelLineSolverOverlay();
-			setStatus(getMessages().clearedOverlay);
 		} else {
-			clearCurrentAnswer();
-			setStatus(getMessages().cleared);
+			clearGenericSolverOverlay();
 		}
+		setStatus(getMessages().clearedOverlay);
 	}
 
 	scheduleAutoSolve();
@@ -1140,7 +1252,7 @@ function refreshVisibility() {
 }
 
 function onModeChange() {
-	if (isTravelLinePuzzle() && hasSolverState) {
+	if (hasSolverState) {
 		ui.puzzle.redraw();
 	}
 	refreshVisibility();
@@ -1154,6 +1266,9 @@ function initializeSolverUi() {
 
 	uiControls.erase.checked = true;
 	uiControls.erase.disabled = true;
+	if (uiControls.erase.parentNode) {
+		uiControls.erase.parentNode.style.display = "none";
+	}
 
 	uiControls.run.addEventListener("click", function() {
 		runSolver();

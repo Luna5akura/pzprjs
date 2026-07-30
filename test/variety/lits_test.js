@@ -14,6 +14,34 @@ describe("Variety:lits", function() {
 		var url = puzzle.getURL().split("?")[1];
 		assert.equal("lits/4/4/9q02jg", url);
 	});
+	it("supports cells outside regions", function() {
+		puzzle.open("lits/3/3");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("empty");
+		puzzle.mouse.inputPath(3, 3);
+
+		var cell = puzzle.board.getc(3, 3);
+		assert.equal(cell.ques, 7);
+		assert.equal(cell.room, null);
+		assert.equal(puzzle.board.roommgr.components.length, 1);
+		assert.equal(puzzle.board.roommgr.components[0].clist.length, 8);
+
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("shade");
+		puzzle.mouse.inputPath(3, 3);
+		assert.equal(cell.qans, 0);
+		assert.equal(cell.isShade(), false);
+
+		var puzzle2 = new pzpr.Puzzle();
+		puzzle2.open(puzzle.getURL());
+		assert.equal(puzzle2.board.getc(3, 3).ques, 7);
+		assert.equal(puzzle2.board.getc(3, 3).room, null);
+
+		var puzzle3 = new pzpr.Puzzle();
+		puzzle3.open(puzzle.getFileData());
+		assert.equal(puzzle3.board.getc(3, 3).ques, 7);
+		assert.equal(puzzle3.board.getc(3, 3).room, null);
+	});
 	it("Check shape of L tetrominos", function() {
 		var L = "2:010111";
 

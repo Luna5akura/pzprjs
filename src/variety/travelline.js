@@ -1902,7 +1902,11 @@ var TL_BORDER_CLUES = {
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];
 				g.vid = "b_solver_line_" + border.id;
-				if (border._travellineSolverState === "line") {
+				if (
+					border._travellineSolverState === "line" &&
+					!border.isLine() &&
+					border.qsub !== 2
+				) {
 					var px = border.bx * this.bw;
 					var py = border.by * this.bh;
 					var isvert = this.board.borderAsLine === border.isVert();
@@ -1930,7 +1934,11 @@ var TL_BORDER_CLUES = {
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];
 				g.vid = "b_solver_peke_" + border.id;
-				if (border._travellineSolverState === "cross") {
+				if (
+					border._travellineSolverState === "cross" &&
+					!border.isLine() &&
+					border.qsub !== 2
+				) {
 					g.strokeCross(border.bx * this.bw, border.by * this.bh, size - 1);
 				} else {
 					g.vhide();

@@ -306,7 +306,10 @@ pzpr.classmgr.makeCommon({
 				flag = true,
 				dir = cursor.NDIR;
 
-			var hasIndicator = this.pid === "easyasabc" || this.pid === "isowatari";
+			var hasIndicator =
+				this.pid === "easyasabc" ||
+				this.pid === "isowatari" ||
+				this.pid === "magic-snail";
 
 			switch (ca) {
 				case "up":
@@ -598,7 +601,10 @@ pzpr.classmgr.makeCommon({
 		// tc.setaddr() ターゲットの位置をAddressクラス等のオブジェクトで設定する
 		//---------------------------------------------------------------------------
 		setaddr: function(pos) {
-			var hasIndicator = this.pid === "easyasabc" || this.pid === "isowatari";
+			var hasIndicator =
+				this.pid === "easyasabc" ||
+				this.pid === "isowatari" ||
+				this.pid === "magic-snail";
 			/* Address, Cellなどのオブジェクトいずれを入力しても良い */
 			if (
 				pos.bx < this.minx ||
