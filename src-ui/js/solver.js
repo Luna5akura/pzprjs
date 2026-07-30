@@ -80,6 +80,10 @@ function getMessages() {
 function setStatus(message) {
 	if (controls && controls.status) {
 		controls.status.textContent = message;
+		controls.status.title = message;
+	}
+	if (window.ui && typeof ui.scheduleControlPanelHeightStabilize === "function") {
+		ui.scheduleControlPanelHeightStabilize();
 	}
 }
 
@@ -1248,6 +1252,9 @@ function refreshVisibility() {
 	uiControls.panel.style.display = supported ? "flex" : "none";
 	if (supported && !isApplying && !hasSolverState) {
 		setStatus(getMessages().idle);
+	}
+	if (window.ui && typeof ui.scheduleControlPanelHeightStabilize === "function") {
+		ui.scheduleControlPanelHeightStabilize();
 	}
 }
 

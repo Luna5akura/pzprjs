@@ -100,8 +100,13 @@ h2#title {
 
 /* 管理領域 */
 div#menuboard {
+  box-sizing: border-box;
   width: 90%;
   max-width: 560px;
+  min-height: 12em;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   margin: auto;
   margin-bottom: 8pt;
   border: 2px #404040 solid;
@@ -404,6 +409,7 @@ div#checkpanel input[type="checkbox"]:disabled + span {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  row-gap: 2px;
   padding: 4px 0;
 }
 
@@ -411,11 +417,25 @@ div#checkpanel input[type="checkbox"]:disabled + span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+#solverpanel .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 #solver-status {
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: 1.2em;
   color: #555;
   font-size: 0.95em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 div#usepanel div.disabled {

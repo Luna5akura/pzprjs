@@ -42,4 +42,38 @@ describe("Variety:gravel", function() {
 			puzzle.painter.getCellVerticalOffset(clue)
 		);
 	});
+
+	it("insets solver block fills and keeps marker colors consistent", function() {
+		var puzzle = new pzpr.Puzzle({ type: "player" });
+		puzzle.open("gravel/6/6/200000000000h3zs");
+
+		var painter = puzzle.painter;
+		painter.bw = 20;
+		painter.bh = 20;
+		painter.cw = 40;
+		painter.lm = 2;
+
+		assert.equal(painter.solverLineColor, painter.solverPekeColor);
+		assert.equal(painter.solverLineColor, painter.solverCellMarkColor);
+
+		var drawn = null;
+		var original = painter.drawDiamondCell;
+		painter.drawDiamondCell = function(g, px, py, rw, rh, close) {
+			drawn = { rw: rw, rh: rh, close: close };
+		};
+
+		try {
+			assert.equal(
+				painter.drawGravelSolverCellEntry({}, puzzle.board.cell[0], "block"),
+				true
+			);
+		} finally {
+			painter.drawDiamondCell = original;
+		}
+
+		assert.ok(drawn);
+		assert.ok(drawn.rw < painter.bw);
+		assert.ok(drawn.rh < painter.bh);
+		assert.equal(drawn.close, true);
+	});
 });

@@ -13,11 +13,15 @@
 	MouseEvent: {
 		inputModes: {
 			edit: ["number"],
-			play: ["number", "numexist", "numblank", "subcross", "clear"]
+			play: ["number", "numexist", "mark-cross", "clear"]
 		},
 		mouseinput: function() {
-			if (this.inputMode === "subcross") {
-				this.inputFixedNumber(-3);
+			if (
+				this.inputMode === "mark-cross" ||
+				this.inputMode === "subcross" ||
+				this.inputMode === "numblank"
+			) {
+				this.inputCrossCell();
 			} else {
 				this.common.mouseinput.call(this);
 			}
@@ -31,7 +35,11 @@
 		},
 		mouseinput_auto: function() {
 			if (this.puzzle.playmode) {
-				if (this.mousestart) {
+				if (this.btn === "right") {
+					if (this.mousestart || this.mousemove) {
+						this.inputCrossCell();
+					}
+				} else if (this.mousestart) {
 					var piece = this.getcell_excell();
 					if (!piece.isnull && piece.group === "cell") {
 						this.inputqnum();
@@ -40,6 +48,25 @@
 			} else if (this.puzzle.editmode) {
 				this.mouseinput_number();
 			}
+		},
+		inputCrossCell: function() {
+			var cell = this.getcell();
+			if (cell.isnull || cell === this.mouseCell || cell.qnum !== -1) {
+				return;
+			}
+
+			if (this.inputData === null) {
+				this.inputData = cell.qsub === 2 ? 0 : 2;
+			}
+			if (this.inputData === 2) {
+				cell.setAnum(-1);
+				cell.setQsub(2);
+				cell.clrSnum();
+			} else {
+				cell.setQsub(0);
+			}
+			cell.draw();
+			this.mouseCell = cell;
 		},
 
 		inputqnum_excell: function() {
@@ -226,25 +253,66 @@
 				right = this.cols - 1;
 
 			while (top <= bottom && left <= right) {
-				for (var x = left; x <= right; x++) {
-					ret.push(this.getc(x * 2 + 1, top * 2 + 1));
-				}
-				top++;
 				for (var y = top; y <= bottom; y++) {
+					ret.push(this.getc(left * 2 + 1, y * 2 + 1));
+				}
+				left++;
+				if (left > right) {
+					break;
+				}
+
+				for (var x = left; x <= right; x++) {
+					ret.push(this.getc(x * 2 + 1, bottom * 2 + 1));
+				}
+				bottom--;
+				if (top > bottom) {
+					break;
+				}
+
+				for (var y = bottom; y >= top; y--) {
 					ret.push(this.getc(right * 2 + 1, y * 2 + 1));
 				}
 				right--;
-				if (top <= bottom) {
-					for (var x = right; x >= left; x--) {
-						ret.push(this.getc(x * 2 + 1, bottom * 2 + 1));
-					}
-					bottom--;
+				if (left > right) {
+					break;
 				}
-				if (left <= right) {
-					for (var y = bottom; y >= top; y--) {
-						ret.push(this.getc(left * 2 + 1, y * 2 + 1));
+
+				for (var x = right; x >= left; x--) {
+					ret.push(this.getc(x * 2 + 1, top * 2 + 1));
+				}
+				top++;
+			}
+
+			return ret;
+		},
+
+		getMagicSnailWalls: function() {
+			var cells = this.getMagicSnailCells(),
+				order = [],
+				ret = [];
+
+			for (var y = 0; y < this.rows; y++) {
+				order[y] = [];
+			}
+			for (var i = 0; i < cells.length; i++) {
+				var cell = cells[i],
+					x = (cell.bx - 1) >> 1,
+					y = (cell.by - 1) >> 1;
+				order[y][x] = i;
+			}
+
+			for (var y = 0; y < this.rows; y++) {
+				for (var x = 0; x < this.cols - 1; x++) {
+					if (Math.abs(order[y][x] - order[y][x + 1]) !== 1) {
+						ret.push({ isVert: true, bx: (x + 1) * 2, by: y * 2 + 1 });
 					}
-					left++;
+				}
+			}
+			for (var y = 0; y < this.rows - 1; y++) {
+				for (var x = 0; x < this.cols; x++) {
+					if (Math.abs(order[y][x] - order[y + 1][x]) !== 1) {
+						ret.push({ isVert: false, bx: x * 2 + 1, by: (y + 1) * 2 });
+					}
 				}
 			}
 
@@ -409,96 +477,30 @@
 
 		drawMagicSnailGuide: function() {
 			var g = this.vinc("magic_snail_guide", "auto", true),
-				cells = this.board.getMagicSnailCells(),
-				bw = this.bw,
-				bh = this.bh,
+				walls = this.board.getMagicSnailWalls(),
+				lm = this.lm,
 				oldCount = this._magicSnailGuideCount || 0;
 
-			g.strokeStyle = "rgba(96, 96, 96, 0.26)";
-			g.lineWidth = Math.max((this.cw * 0.06) | 0, 2);
+			g.fillStyle = this.quescolor;
 
-			for (var i = 1; i < cells.length; i++) {
-				var cell1 = cells[i - 1],
-					cell2 = cells[i];
+			for (var i = 0; i < walls.length; i++) {
+				var wall = walls[i],
+					px = wall.bx * this.bw,
+					py = wall.by * this.bh;
 
-				g.vid = "ms_path_" + i;
-				if (!cell1.isnull && !cell2.isnull) {
-					g.strokeLine(
-						cell1.bx * bw,
-						cell1.by * bh,
-						cell2.bx * bw,
-						cell2.by * bh
-					);
+				g.vid = "ms_wall_" + i;
+				if (wall.isVert) {
+					g.fillRectCenter(px, py, lm, this.bh + lm);
 				} else {
-					g.vhide();
+					g.fillRectCenter(px, py, this.bw + lm, lm);
 				}
 			}
 
-			g.strokeStyle = "rgba(96, 96, 96, 0.42)";
-			g.lineWidth = Math.max((this.cw * 0.035) | 0, 1);
-			for (var j = 1; j < cells.length; j++) {
-				if (j + 1 < cells.length) {
-					var dx1 = cells[j].bx - cells[j - 1].bx,
-						dy1 = cells[j].by - cells[j - 1].by,
-						dx2 = cells[j + 1].bx - cells[j].bx,
-						dy2 = cells[j + 1].by - cells[j].by;
-					if (dx1 === dx2 && dy1 === dy2) {
-						g.vid = "ms_arrow_a_" + j;
-						g.vhide();
-						g.vid = "ms_arrow_b_" + j;
-						g.vhide();
-						continue;
-					}
-				}
-				this.drawMagicSnailArrow(g, cells[j - 1], cells[j], j);
-			}
-
-			for (var k = cells.length; k < oldCount; k++) {
-				g.vid = "ms_path_" + k;
-				g.vhide();
-				g.vid = "ms_arrow_a_" + k;
-				g.vhide();
-				g.vid = "ms_arrow_b_" + k;
+			for (var j = walls.length; j < oldCount; j++) {
+				g.vid = "ms_wall_" + j;
 				g.vhide();
 			}
-			this._magicSnailGuideCount = cells.length;
-		},
-		drawMagicSnailArrow: function(g, cell1, cell2, id) {
-			var x1 = cell1.bx * this.bw,
-				y1 = cell1.by * this.bh,
-				x2 = cell2.bx * this.bw,
-				y2 = cell2.by * this.bh,
-				dx = x2 - x1,
-				dy = y2 - y1,
-				len = Math.sqrt(dx * dx + dy * dy);
-			if (len <= 0) {
-				return;
-			}
-
-			var ux = dx / len,
-				uy = dy / len,
-				size = this.cw * 0.12,
-				tipx = x2 - ux * this.cw * 0.18,
-				tipy = y2 - uy * this.ch * 0.18,
-				baseX = tipx - ux * size,
-				baseY = tipy - uy * size,
-				nx = -uy,
-				ny = ux;
-
-			g.vid = "ms_arrow_a_" + id;
-			g.strokeLine(
-				tipx,
-				tipy,
-				baseX + nx * size * 0.55,
-				baseY + ny * size * 0.55
-			);
-			g.vid = "ms_arrow_b_" + id;
-			g.strokeLine(
-				tipx,
-				tipy,
-				baseX - nx * size * 0.55,
-				baseY - ny * size * 0.55
-			);
+			this._magicSnailGuideCount = walls.length;
 		},
 		drawIndicator: function() {
 			var g = this.vinc("indicator", "auto", true),

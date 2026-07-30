@@ -320,6 +320,9 @@
 		shadecolor: "rgb(80, 80, 80)",
 		ghostcolor: "rgb(40, 40, 40)",
 		linetrialcolor: "rgb(80, 0, 80)",
+		solverLineColor: "rgba(64, 128, 255, 0.78)",
+		solverPekeColor: "rgba(64, 128, 255, 0.78)",
+		solverCellMarkColor: "rgba(64, 128, 255, 0.78)",
 		gridcolor_type: "DLIGHT",
 		bordercolor_func: "qans",
 
@@ -529,7 +532,15 @@
 					entry,
 					this.solverCellFillColor
 				);
-				this.drawDiamondCell(g, px, py, this.bw + 0.5, this.bh + 0.5, true);
+				var inset = Math.max(this.lm * 0.25, 0.5);
+				this.drawDiamondCell(
+					g,
+					px,
+					py,
+					Math.max(this.bw - inset, 1),
+					Math.max(this.bh - inset, 1),
+					true
+				);
 				return true;
 			}
 			if (kind === "dot") {

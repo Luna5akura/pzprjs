@@ -46,6 +46,9 @@ window.ui = {
 
 	callbackComplete: null,
 
+	_controlPanelHeight: 0,
+	_controlPanelHeightFrame: null,
+
 	//---------------------------------------------------------------------------
 	// ui.displayAll()     全てのメニュー、ボタン、ラベルに対して文字列を設定する
 	// ui.setdisplay()     個別のメニュー、ボタン、ラベルに対して文字列を設定する
@@ -55,10 +58,61 @@ window.ui = {
 		ui.toolarea.display();
 		ui.popupmgr.translate();
 		ui.misc.displayDesign();
+		ui.scheduleControlPanelHeightStabilize();
 	},
 	setdisplay: function(idname) {
 		ui.menuarea.setdisplay(idname);
 		ui.toolarea.setdisplay(idname);
+		ui.scheduleControlPanelHeightStabilize();
+	},
+	resetControlPanelHeight: function() {
+		var panel = getEL("menuboard");
+		if (!panel) {
+			return;
+		}
+		this._controlPanelHeight = 0;
+		panel.style.height = "";
+		this.scheduleControlPanelHeightStabilize();
+	},
+	scheduleControlPanelHeightStabilize: function() {
+		if (this._controlPanelHeightFrame) {
+			return;
+		}
+
+		var self = this;
+		var callback = function() {
+			self._controlPanelHeightFrame = null;
+			self.stabilizeControlPanelHeight();
+		};
+		if (typeof requestAnimationFrame === "function") {
+			this._controlPanelHeightFrame = requestAnimationFrame(callback);
+		} else {
+			this._controlPanelHeightFrame = setTimeout(callback, 0);
+		}
+	},
+	stabilizeControlPanelHeight: function() {
+		var panel = getEL("menuboard");
+		if (!panel || panel.style.display === "none") {
+			return;
+		}
+
+		var style = window.getComputedStyle ? window.getComputedStyle(panel) : null;
+		var borderHeight = 0;
+		if (style) {
+			borderHeight =
+				parseFloat(style.borderTopWidth || 0) +
+				parseFloat(style.borderBottomWidth || 0);
+		}
+		var measured = Math.ceil(
+			Math.max(panel.offsetHeight, panel.scrollHeight + borderHeight)
+		);
+		if (measured <= 0) {
+			return;
+		}
+		if (measured > this._controlPanelHeight) {
+			this._controlPanelHeight = measured;
+		}
+		panel.style.height = this._controlPanelHeight + "px";
 	},
 
 	//---------------------------------------------------------------------------
@@ -145,6 +199,7 @@ window.ui = {
 		}
 
 		puzzle.setCanvasSizeByCellSize(cellsize, true);
+		this.resetControlPanelHeight();
 	},
 	getBoardPadding: function() {
 		var puzzle = ui.puzzle,

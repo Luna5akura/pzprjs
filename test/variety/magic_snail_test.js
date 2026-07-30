@@ -78,7 +78,7 @@ describe("Variety:magic-snail", function() {
 		assert.equal(puzzle.check(true)[0], "nmMissRow");
 	});
 
-	it("uses a clockwise spiral path from the upper-left corner", function() {
+	it("uses a counterclockwise spiral path from the upper-left corner", function() {
 		puzzle.open("magic-snail/4/3");
 		var path = puzzle.board.getMagicSnailCells().map(function(cell) {
 			return [(cell.bx - 1) / 2, (cell.by - 1) / 2];
@@ -86,17 +86,31 @@ describe("Variety:magic-snail", function() {
 
 		assert.deepEqual(path, [
 			[0, 0],
-			[1, 0],
-			[2, 0],
-			[3, 0],
-			[3, 1],
-			[3, 2],
-			[2, 2],
-			[1, 2],
-			[0, 2],
 			[0, 1],
+			[0, 2],
+			[1, 2],
+			[2, 2],
+			[3, 2],
+			[3, 1],
+			[3, 0],
+			[2, 0],
+			[1, 0],
 			[1, 1],
 			[2, 1]
+		]);
+	});
+
+	it("draws the spiral guide as cell-boundary walls", function() {
+		puzzle.open("magic-snail/4/3");
+		var walls = puzzle.board.getMagicSnailWalls();
+
+		assert.deepEqual(walls, [
+			{ isVert: true, bx: 2, by: 1 },
+			{ isVert: true, bx: 2, by: 3 },
+			{ isVert: true, bx: 6, by: 3 },
+			{ isVert: false, bx: 5, by: 2 },
+			{ isVert: false, bx: 3, by: 4 },
+			{ isVert: false, bx: 5, by: 4 }
 		]);
 	});
 
@@ -105,6 +119,31 @@ describe("Variety:magic-snail", function() {
 		assert.equal(puzzle.board.indicator.count, 2);
 		puzzle.board.indicator.set(3);
 		assert.equal(puzzle.board.indicator.count, 2);
-		assert.ok(puzzle.mouse.inputModes.play.indexOf("subcross") >= 0);
+		assert.ok(puzzle.mouse.inputModes.play.indexOf("mark-cross") >= 0);
+	});
+
+	it("can draw crossed blank cells in play mode", function() {
+		puzzle.open("magic-snail/3/3");
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("mark-cross");
+		var cell = puzzle.board.getc(1, 1);
+
+		puzzle.mouse.inputPath("left", 1, 1);
+		assert.equal(cell.qsub, 2);
+		assert.equal(cell.anum, -1);
+
+		puzzle.mouse.inputPath("left", 1, 1);
+		assert.equal(cell.qsub, 0);
+	});
+
+	it("can draw crossed blank cells with right-click auto input", function() {
+		puzzle.open("magic-snail/3/3");
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+		var cell = puzzle.board.getc(1, 1);
+
+		puzzle.mouse.inputPath("right", 1, 1);
+		assert.equal(cell.qsub, 2);
+		assert.equal(cell.anum, -1);
 	});
 });
