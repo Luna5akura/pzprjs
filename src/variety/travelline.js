@@ -1546,6 +1546,7 @@ var TL_BORDER_CLUES = {
 		castleWallClueColor: "rgb(0, 96, 192)",
 		travellineSolverLineColor: "rgba(64, 128, 255, 0.55)",
 		travellineSolverPekeColor: "rgba(64, 128, 255, 0.8)",
+		drawSolverOverlayInPaintPost: false,
 
 		paint: function() {
 			this._travelLineColorMap = null;

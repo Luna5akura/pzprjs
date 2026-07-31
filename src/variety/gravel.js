@@ -323,6 +323,7 @@
 		solverLineColor: "rgba(64, 128, 255, 0.78)",
 		solverPekeColor: "rgba(64, 128, 255, 0.78)",
 		solverCellMarkColor: "rgba(64, 128, 255, 0.78)",
+		drawSolverOverlayInPaintPost: false,
 		gridcolor_type: "DLIGHT",
 		bordercolor_func: "qans",
 
@@ -358,7 +359,7 @@
 			this.drawBGCells();
 			this.drawShadedCells();
 			this.drawValidDashedGrid();
-			this.drawSolverOverlayCells();
+			this.drawSolverOverlays();
 
 			this.drawCircles();
 			this.drawQuesNumbers();
@@ -370,11 +371,6 @@
 			this.drawInvalidIndicators(this.puzzle.editmode);
 
 			this.drawTarget();
-		},
-		paintPost: function() {
-			this.drawTrialStarts();
-			this.drawSolverOverlayLines();
-			this.drawSolverOverlayPekes();
 		},
 
 		drawInvalidIndicators: function(isDraw) {
@@ -495,36 +491,7 @@
 			g.fill();
 		},
 
-		drawSolverOverlayCells: function() {
-			var g = this.vinc("solver_cell", "auto", true);
-			var clist = this.range.cells;
-
-			for (var i = 0; i < clist.length; i++) {
-				var cell = clist[i];
-				var entries = this.getSolverOverlayEntries(cell);
-				var visible =
-					entries.length > 0 && !this.hasAnswerCellState(cell)
-						? Math.min(entries.length, this.solverCellOverlaySlots)
-						: 0;
-				var j = 0;
-
-				for (; j < visible; j++) {
-					g.vid = "c_solver_" + cell.id + "_" + j;
-					if (!this.drawGravelSolverCellEntry(g, cell, entries[j])) {
-						g.vhide();
-					}
-				}
-
-				for (; j < this.solverCellOverlaySlots; j++) {
-					g.vid = "c_solver_" + cell.id + "_" + j;
-					g.vhide();
-				}
-
-				g.vid = "c_solver_" + cell.id;
-				g.vhide();
-			}
-		},
-		drawGravelSolverCellEntry: function(g, cell, entry) {
+		drawSolverOverlayCellEntry: function(g, cell, entry) {
 			var kind = this.getSolverOverlayEntryKind(entry);
 			var px = cell.bx * this.bw + this.getCellHorizontalOffset(cell);
 			var py = cell.by * this.bh + this.getCellVerticalOffset(cell);
@@ -550,16 +517,13 @@
 				return true;
 			}
 			if (kind === "dot") {
-				if (cell.isValidNum()) {
-					py += Math.max(this.cw * 0.18, 3);
-				}
 				g.fillStyle = color;
 				g.fillCircle(px, py, Math.max(this.cw * 0.06, 2));
 				return true;
 			}
 			return false;
 		},
-		hasGravelAnswerBorderState: function(border) {
+		hasAnswerLineState: function(border) {
 			return (
 				!!border &&
 				!border.isnull &&
@@ -576,7 +540,7 @@
 				var border = blist[i];
 				var entry = this.getSolverOverlayBorderEntry(border, ["line", "wall"]);
 				g.vid = "b_solver_line_" + border.id;
-				if (entry && !this.hasGravelAnswerBorderState(border)) {
+				if (entry && !this.hasAnswerLineState(border)) {
 					g.strokeStyle = this.getSolverOverlayEntryColor(
 						entry,
 						this.solverLineColor
@@ -623,7 +587,7 @@
 				var border = blist[i];
 				var entry = this.getSolverOverlayBorderEntry(border, ["cross"]);
 				g.vid = "b_solver_peke_" + border.id;
-				if (entry && !this.hasGravelAnswerBorderState(border)) {
+				if (entry && !this.hasAnswerLineState(border)) {
 					g.strokeStyle = this.getSolverOverlayEntryColor(
 						entry,
 						this.solverPekeColor

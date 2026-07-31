@@ -9,14 +9,18 @@ pzpr.classmgr.makeCommon({
 		solverCellMarkColor: "rgba(64, 128, 255, 0.85)",
 		solverTextColor: "rgb(32, 96, 224)",
 		solverCellOverlaySlots: 8,
+		drawSolverOverlayInPaintPost: true,
 
 		paintPost: function() {
 			this.drawTrialStarts();
-			if (this.pid !== "travelline") {
-				this.drawSolverOverlayCells();
-				this.drawSolverOverlayLines();
-				this.drawSolverOverlayPekes();
+			if (this.drawSolverOverlayInPaintPost) {
+				this.drawSolverOverlays();
 			}
+		},
+		drawSolverOverlays: function() {
+			this.drawSolverOverlayCells();
+			this.drawSolverOverlayLines();
+			this.drawSolverOverlayPekes();
 		},
 
 		hasAnswerLineState: function(border) {

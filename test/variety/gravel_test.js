@@ -64,7 +64,7 @@ describe("Variety:gravel", function() {
 
 		try {
 			assert.equal(
-				painter.drawGravelSolverCellEntry({}, puzzle.board.cell[0], "block"),
+				painter.drawSolverOverlayCellEntry({}, puzzle.board.cell[0], "block"),
 				true
 			);
 		} finally {
@@ -153,42 +153,30 @@ describe("Variety:gravel", function() {
 			);
 			assert.ok(
 				calls.indexOf("drawSolverOverlayCells") <
+					calls.indexOf("drawSolverOverlayLines")
+			);
+			assert.ok(
+				calls.indexOf("drawSolverOverlayLines") <
+					calls.indexOf("drawCircles")
+			);
+			assert.ok(
+				calls.indexOf("drawSolverOverlayPekes") <
+					calls.indexOf("drawCircles")
+			);
+			assert.ok(
+				calls.indexOf("drawSolverOverlayCells") <
 					calls.indexOf("drawQuesNumbers")
 			);
 
 			calls = [];
 			painter.paintPost();
 			assert.equal(calls.indexOf("drawSolverOverlayCells"), -1);
-			assert.ok(calls.indexOf("drawSolverOverlayLines") >= 0);
-			assert.ok(calls.indexOf("drawSolverOverlayPekes") >= 0);
+			assert.equal(calls.indexOf("drawSolverOverlayLines"), -1);
+			assert.equal(calls.indexOf("drawSolverOverlayPekes"), -1);
 		} finally {
 			names.forEach(function(name) {
 				painter[name] = originals[name];
 			});
 		}
-	});
-
-	it("offsets solver dots on numbered gravel clues", function() {
-		var puzzle = new pzpr.Puzzle({ type: "player" });
-		puzzle.open("gravel/7/7/00000000000000000i2q4s4y");
-
-		var painter = puzzle.painter;
-		var clue = puzzle.board.cell[3];
-		painter.bw = 20;
-		painter.bh = 20;
-		painter.cw = 40;
-
-		var drawn = null;
-		var g = {
-			fillCircle: function(px, py, r) {
-				drawn = { px: px, py: py, r: r };
-			}
-		};
-		var centerY =
-			clue.by * painter.bh + painter.getCellVerticalOffset(clue);
-
-		assert.equal(painter.drawGravelSolverCellEntry(g, clue, "dot"), true);
-		assert.ok(drawn);
-		assert.notEqual(drawn.py, centerY);
 	});
 });

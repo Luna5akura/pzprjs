@@ -12,8 +12,8 @@
 	// Mouse input
 	MouseEvent: {
 		inputModes: {
-			edit: ["number"],
-			play: ["number", "numexist", "mark-cross", "clear"]
+			edit: ["number", "mark-cross", "clear"],
+			play: ["number", "numexist", "numblank", "clear"]
 		},
 		mouseinput: function() {
 			if (
@@ -51,10 +51,26 @@
 		},
 		inputCrossCell: function() {
 			var cell = this.getcell();
-			if (cell.isnull || cell === this.mouseCell || cell.qnum !== -1) {
+			if (cell.isnull || cell === this.mouseCell) {
 				return;
 			}
 
+			if (this.puzzle.editmode) {
+				if (this.inputData === null) {
+					this.inputData = cell.qnum === -2 ? -1 : -2;
+				}
+				cell.setQnum(this.inputData);
+				cell.setAnum(-1);
+				cell.setQsub(0);
+				cell.clrSnum();
+				cell.draw();
+				this.mouseCell = cell;
+				return;
+			}
+
+			if (cell.qnum !== -1) {
+				return;
+			}
 			if (this.inputData === null) {
 				this.inputData = cell.qsub === 2 ? 0 : 2;
 			}
@@ -253,23 +269,15 @@
 				right = this.cols - 1;
 
 			while (top <= bottom && left <= right) {
-				for (var y = top; y <= bottom; y++) {
-					ret.push(this.getc(left * 2 + 1, y * 2 + 1));
-				}
-				left++;
-				if (left > right) {
-					break;
-				}
-
 				for (var x = left; x <= right; x++) {
-					ret.push(this.getc(x * 2 + 1, bottom * 2 + 1));
+					ret.push(this.getc(x * 2 + 1, top * 2 + 1));
 				}
-				bottom--;
+				top++;
 				if (top > bottom) {
 					break;
 				}
 
-				for (var y = bottom; y >= top; y--) {
+				for (var y = top; y <= bottom; y++) {
 					ret.push(this.getc(right * 2 + 1, y * 2 + 1));
 				}
 				right--;
@@ -278,9 +286,17 @@
 				}
 
 				for (var x = right; x >= left; x--) {
-					ret.push(this.getc(x * 2 + 1, top * 2 + 1));
+					ret.push(this.getc(x * 2 + 1, bottom * 2 + 1));
 				}
-				top++;
+				bottom--;
+				if (top > bottom) {
+					break;
+				}
+
+				for (var y = bottom; y >= top; y--) {
+					ret.push(this.getc(left * 2 + 1, y * 2 + 1));
+				}
+				left++;
 			}
 
 			return ret;
@@ -431,6 +447,7 @@
 			this.drawBorders();
 
 			this.drawMBs();
+			this.drawMagicSnailQuesCrosses();
 			this.drawSubNumbers();
 			this.drawAnsNumbers();
 			this.drawQuesNumbers();
@@ -562,6 +579,26 @@
 			} else {
 				g.vhide();
 			}
+		},
+		drawMagicSnailQuesCrosses: function() {
+			var g = this.vinc("magic_snail_qcross", "auto", true),
+				clist = this.range.cells,
+				rsize = this.cw * 0.35;
+
+			g.lineWidth = 1;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				g.vid = "c_qcross_" + cell.id;
+				if (cell.qnum === -2) {
+					g.strokeStyle = cell.error === 1 ? this.errcolor1 : this.quescolor;
+					g.strokeCross(cell.bx * this.bw, cell.by * this.bh, rsize);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+		getQuesNumberText: function(cell) {
+			return cell.qnum === -2 ? "" : this.common.getQuesNumberText.call(this, cell);
 		}
 	},
 
