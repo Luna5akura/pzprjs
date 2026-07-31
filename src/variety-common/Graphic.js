@@ -85,14 +85,18 @@ pzpr.classmgr.makeCommon({
 			}
 			if (
 				kind === "line" ||
+				kind === "dottedLine"
+			) {
+				return "line";
+			}
+			if (
 				kind === "wall" ||
 				kind === "boldWall" ||
-				kind === "dottedLine" ||
 				kind === "dottedWall" ||
 				kind === "dottedHorizontalWall" ||
 				kind === "dottedVerticalWall"
 			) {
-				return "line";
+				return "wall";
 			}
 			if (kind === "cross") {
 				return "cross";
@@ -360,14 +364,18 @@ pzpr.classmgr.makeCommon({
 				var border = blist[i];
 				var entry = this.getSolverOverlayBorderEntry(border, [
 					"line",
+					"wall",
 					"doubleLine"
 				]);
 				g.vid = "b_solver_line_" + border.id;
 				if (entry && !this.hasAnswerLineState(border)) {
 					var px = border.bx * this.bw;
 					var py = border.by * this.bh;
-					var isvert = this.board.borderAsLine === border.isVert();
 					var kind = this.getSolverOverlayBorderKind(entry);
+					var isvert =
+						kind === "wall"
+							? border.isVert()
+							: this.board.borderAsLine === border.isVert();
 					g.fillStyle = this.getSolverOverlayEntryColor(
 						entry,
 						this.solverLineColor

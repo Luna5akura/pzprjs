@@ -76,4 +76,119 @@ describe("Variety:gravel", function() {
 		assert.ok(drawn.rh < painter.bh);
 		assert.equal(drawn.close, true);
 	});
+
+	it("draws solver bold walls as rotated gravel borders", function() {
+		var puzzle = new pzpr.Puzzle({ type: "player" });
+		puzzle.open("gravel/7/7/06000000000000000j2zzj");
+
+		var painter = puzzle.painter;
+		var border = puzzle.board.border[0];
+		border._solverState = { color: "green", item: "boldWall" };
+		painter.range = { borders: [border] };
+		painter.bw = 20;
+		painter.bh = 20;
+		painter.lm = 2;
+
+		var called = false;
+		var originalVinc = painter.vinc;
+		var originalDraw = painter.drawGravelSolverBorderLine;
+		painter.vinc = function() {
+			return {
+				vhide: function() {},
+				strokeLine: function() {}
+			};
+		};
+		painter.drawGravelSolverBorderLine = function() {
+			called = true;
+		};
+
+		try {
+			painter.drawSolverOverlayLines();
+		} finally {
+			painter.vinc = originalVinc;
+			painter.drawGravelSolverBorderLine = originalDraw;
+			border._solverState = null;
+		}
+
+		assert.equal(called, true);
+	});
+
+	it("keeps solver cell overlays below clues", function() {
+		var puzzle = new pzpr.Puzzle({ type: "player" });
+		puzzle.open("gravel/7/7/00000000000000000i2q4s4y");
+
+		var painter = puzzle.painter;
+		var calls = [];
+		var names = [
+			"drawBGCells",
+			"drawShadedCells",
+			"drawSolverOverlayCells",
+			"drawValidDashedGrid",
+			"drawCircles",
+			"drawQuesNumbers",
+			"drawQansBorders",
+			"drawShadeBorders",
+			"drawQuesBorders",
+			"drawBorderQsubs",
+			"drawInvalidIndicators",
+			"drawTarget",
+			"drawTrialStarts",
+			"drawSolverOverlayLines",
+			"drawSolverOverlayPekes"
+		];
+		var originals = {};
+
+		names.forEach(function(name) {
+			originals[name] = painter[name];
+			painter[name] = function() {
+				calls.push(name);
+			};
+		});
+
+		try {
+			painter.paint();
+			assert.ok(
+				calls.indexOf("drawValidDashedGrid") <
+					calls.indexOf("drawSolverOverlayCells")
+			);
+			assert.ok(
+				calls.indexOf("drawSolverOverlayCells") <
+					calls.indexOf("drawQuesNumbers")
+			);
+
+			calls = [];
+			painter.paintPost();
+			assert.equal(calls.indexOf("drawSolverOverlayCells"), -1);
+			assert.ok(calls.indexOf("drawSolverOverlayLines") >= 0);
+			assert.ok(calls.indexOf("drawSolverOverlayPekes") >= 0);
+		} finally {
+			names.forEach(function(name) {
+				painter[name] = originals[name];
+			});
+		}
+	});
+
+	it("offsets solver dots on numbered gravel clues", function() {
+		var puzzle = new pzpr.Puzzle({ type: "player" });
+		puzzle.open("gravel/7/7/00000000000000000i2q4s4y");
+
+		var painter = puzzle.painter;
+		var clue = puzzle.board.cell[3];
+		painter.bw = 20;
+		painter.bh = 20;
+		painter.cw = 40;
+
+		var drawn = null;
+		var g = {
+			fillCircle: function(px, py, r) {
+				drawn = { px: px, py: py, r: r };
+			}
+		};
+		var centerY =
+			clue.by * painter.bh + painter.getCellVerticalOffset(clue);
+
+		assert.equal(painter.drawGravelSolverCellEntry(g, clue, "dot"), true);
+		assert.ok(drawn);
+		assert.notEqual(drawn.py, centerY);
+	});
 });

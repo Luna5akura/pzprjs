@@ -358,6 +358,7 @@
 			this.drawBGCells();
 			this.drawShadedCells();
 			this.drawValidDashedGrid();
+			this.drawSolverOverlayCells();
 
 			this.drawCircles();
 			this.drawQuesNumbers();
@@ -369,6 +370,11 @@
 			this.drawInvalidIndicators(this.puzzle.editmode);
 
 			this.drawTarget();
+		},
+		paintPost: function() {
+			this.drawTrialStarts();
+			this.drawSolverOverlayLines();
+			this.drawSolverOverlayPekes();
 		},
 
 		drawInvalidIndicators: function(isDraw) {
@@ -544,6 +550,9 @@
 				return true;
 			}
 			if (kind === "dot") {
+				if (cell.isValidNum()) {
+					py += Math.max(this.cw * 0.18, 3);
+				}
 				g.fillStyle = color;
 				g.fillCircle(px, py, Math.max(this.cw * 0.06, 2));
 				return true;
@@ -565,7 +574,7 @@
 
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];
-				var entry = this.getSolverOverlayBorderEntry(border, ["line"]);
+				var entry = this.getSolverOverlayBorderEntry(border, ["line", "wall"]);
 				g.vid = "b_solver_line_" + border.id;
 				if (entry && !this.hasGravelAnswerBorderState(border)) {
 					g.strokeStyle = this.getSolverOverlayEntryColor(
