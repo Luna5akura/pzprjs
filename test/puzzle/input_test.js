@@ -101,6 +101,51 @@ function execinput(puzzle, str) {
 	}
 }
 
+function createKeyboardEvent(key, code, keyCode) {
+	return {
+		key: key,
+		code: code,
+		keyCode: keyCode,
+		charCode: 0,
+		shiftKey: false,
+		ctrlKey: false,
+		metaKey: false,
+		altKey: false,
+		target: null,
+		stopPropagation: function() {},
+		preventDefault: function() {}
+	};
+}
+
+describe("Keyboard number input", function() {
+	it("accepts number-row digits while answering", function() {
+		var puzzle = new pzpr.Puzzle().open("sudoku");
+		puzzle.setMode("play");
+		puzzle.cursor.init(1, 1);
+		puzzle.key.e_keydown(createKeyboardEvent("2", "Digit2", 50));
+
+		assert.equal(puzzle.board.getc(1, 1).anum, 2);
+	});
+
+	it("accepts numpad digits while answering", function() {
+		var puzzle = new pzpr.Puzzle().open("sudoku");
+		puzzle.setMode("play");
+		puzzle.cursor.init(1, 1);
+		puzzle.key.e_keydown(createKeyboardEvent("4", "Numpad4", 0));
+
+		assert.equal(puzzle.board.getc(1, 1).anum, 4);
+	});
+
+	it("does not consume valid answer digits as shortcuts in magic snail", function() {
+		var puzzle = new pzpr.Puzzle().open("magic-snail");
+		puzzle.setMode("play");
+		puzzle.cursor.init(1, 1);
+		puzzle.key.e_keydown(createKeyboardEvent("1", "Digit1", 49));
+
+		assert.equal(puzzle.board.getc(1, 1).anum, 1);
+	});
+});
+
 pzpr.variety.each(function(pid) {
 	describe(pid + " input test", function() {
 		describe("Input check", function() {

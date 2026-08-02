@@ -122,12 +122,12 @@
 			if (this.puzzle.playmode) {
 				var isSnum = this.cursor.targetdir !== 0;
 				if (isSnum) {
-				} else if (ca === "1") {
+				} else if (ca === "q" || ca === "a" || ca === "z") {
 					ca = "s1";
-				} else if (ca === "2" || ca === "x") {
+				} else if (ca === "w" || ca === "s" || ca === "x") {
 					ca = "s2";
-				} else if (ca === "3") {
-					ca = "BS";
+				} else if (ca === "e" || ca === "d" || ca === "c" || ca === "-") {
+					ca = " ";
 				}
 				this.key_inputqnum(ca);
 				if (!isSnum && ca === " ") {

@@ -124,9 +124,22 @@ pzpr.classmgr.makeCommon({
 			this.checkmodifiers(e);
 
 			var key = "",
-				keycode = !!e.keyCode ? e.keyCode : e.charCode;
+				keycode = !!e.keyCode ? e.keyCode : e.charCode,
+				eventkey = typeof e.key === "string" ? e.key : "",
+				eventcode = typeof e.code === "string" ? e.code : "";
 
-			if (keycode === 38) {
+			// keyCode is deprecated and may be zero in newer event sources.
+			// Keep it as a fallback for older browsers and synthetic events.
+			if (/^[0-9]$/.test(eventkey)) {
+				key = eventkey;
+			} else if (/^Digit[0-9]$/.test(eventcode)) {
+				key = eventcode.substr(5);
+			} else if (
+				/^Numpad[0-9]$/.test(eventcode) &&
+				eventkey === eventcode.substr(6)
+			) {
+				key = eventkey;
+			} else if (keycode === 38) {
 				key = "up";
 			} else if (keycode === 40) {
 				key = "down";
