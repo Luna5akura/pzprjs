@@ -309,7 +309,8 @@ pzpr.classmgr.makeCommon({
 			var hasIndicator =
 				this.pid === "easyasabc" ||
 				this.pid === "isowatari" ||
-				this.pid === "magic-snail";
+				this.pid === "magic-snail" ||
+				this.pid === "slovak-sums";
 
 			switch (ca) {
 				case "up":
@@ -604,7 +605,8 @@ pzpr.classmgr.makeCommon({
 			var hasIndicator =
 				this.pid === "easyasabc" ||
 				this.pid === "isowatari" ||
-				this.pid === "magic-snail";
+				this.pid === "magic-snail" ||
+				this.pid === "slovak-sums";
 			/* Address, Cellなどのオブジェクトいずれを入力しても良い */
 			if (
 				pos.bx < this.minx ||

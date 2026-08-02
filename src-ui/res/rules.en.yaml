@@ -362,3 +362,8 @@ sendai: "Draw lines over the dotted lines to divide each larger region (prefectu
 keywest: "Place a number between 0 and 4 in every island, and draw orthogonal bridges connecting them.\n1. Orthogonally adjacent islands cannot have the same number.\n2. Numbers indicate how many bridges are connected to this island.\n3. All islands with a number above 0 must be connected into a single network."
 energywalk: "Draw lines to form a single network that goes through every numbered cell.\n1. The network cannot have dead ends.\n2. Every visited energy cell must split off in all possible directions.\n3. The network cannot branch off or cross on unshaded cells.\n4. The network must not connect an energy cell to itself via only unshaded cells.\n5. A number indicates how many cells make up the continuous unshaded section of the network that the number is on."
 morningwalk: "Draw a loop that goes through every numbered cell.\n1. The loop cannot branch off or cross itself.\n2. A number indicates how many cells make up the continuous white section of the loop that the number is on.\n3. The lengths of two successive different coloured sections of the loop must not be equal."
+slovak-sums: |-
+  Place numbers from the given range into some of the empty cells.
+  1. Each row and column contains exactly one of each number (excluding numbers on shaded cells). Some cells remain empty.
+  2. Numbers on shaded cells indicate the sum of numbers in the (up to four) orthogonally adjacent cells.
+  3. The amount of circles on a shaded cell indicates how many of the (up to four) orthogonally adjacent cells must be filled with a number. Clues without any circles have an unknown amount.

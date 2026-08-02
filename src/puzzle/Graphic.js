@@ -457,7 +457,9 @@
 			//---------------------------------------------------------------------------
 			prepaint: function() {
 				var hasIndicator =
-					this.pid === "starbattle" || this.pid === "isowatari";
+					this.pid === "starbattle" ||
+					this.pid === "isowatari" ||
+					this.pid === "slovak-sums";
 				if (this.suspended || !this.context) {
 					return;
 				}
