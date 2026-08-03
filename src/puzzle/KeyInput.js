@@ -5,6 +5,31 @@
 //---------------------------------------------------------------------------
 // パズル共通 キーボード入力部
 // KeyEventクラスを定義
+function isEditableTarget(target) {
+	while (target) {
+		var tagName = typeof target.tagName === "string" ? target.tagName.toLowerCase() : "";
+		if (
+			tagName === "input" ||
+			tagName === "textarea" ||
+			tagName === "select" ||
+			tagName === "button"
+		) {
+			return true;
+		}
+		if (target.isContentEditable) {
+			return true;
+		}
+		if (target.getAttribute) {
+			var contenteditable = target.getAttribute("contenteditable");
+			if (contenteditable !== null) {
+				return contenteditable !== "false";
+			}
+		}
+		target = target.parentNode;
+	}
+	return false;
+}
+
 pzpr.classmgr.makeCommon({
 	//---------------------------------------------------------
 	KeyEvent: {
@@ -53,6 +78,9 @@ pzpr.classmgr.makeCommon({
 		//---------------------------------------------------------------------------
 		// この3つのキーイベントはwindowから呼び出される(kcをbindしている)
 		e_keydown: function(e) {
+			if (isEditableTarget(e.target)) {
+				return;
+			}
 			var c = this.getchar(e);
 			if (!this.enableKey) {
 				if (e.target === document.body && (c === "BS" || c === " ")) {
@@ -73,6 +101,9 @@ pzpr.classmgr.makeCommon({
 			}
 		},
 		e_keyup: function(e) {
+			if (isEditableTarget(e.target)) {
+				return;
+			}
 			var c = this.getchar(e);
 			if (!this.enableKey) {
 				if (e.target === document.body && (c === "BS" || c === " ")) {
@@ -323,6 +354,7 @@ pzpr.classmgr.makeCommon({
 				this.pid === "easyasabc" ||
 				this.pid === "isowatari" ||
 				this.pid === "magic-snail" ||
+				this.pid === "magic-summer" ||
 				this.pid === "slovak-sums";
 
 			switch (ca) {
@@ -619,6 +651,7 @@ pzpr.classmgr.makeCommon({
 				this.pid === "easyasabc" ||
 				this.pid === "isowatari" ||
 				this.pid === "magic-snail" ||
+				this.pid === "magic-summer" ||
 				this.pid === "slovak-sums";
 			/* Address, Cellなどのオブジェクトいずれを入力しても良い */
 			if (

@@ -112,8 +112,12 @@ function createKeyboardEvent(key, code, keyCode) {
 		metaKey: false,
 		altKey: false,
 		target: null,
-		stopPropagation: function() {},
-		preventDefault: function() {}
+		stopPropagation: function() {
+			this.stopped = true;
+		},
+		preventDefault: function() {
+			this.prevented = true;
+		}
 	};
 }
 
@@ -143,6 +147,46 @@ describe("Keyboard number input", function() {
 		puzzle.key.e_keydown(createKeyboardEvent("1", "Digit1", 49));
 
 		assert.equal(puzzle.board.getc(1, 1).anum, 1);
+	});
+
+	it("leaves Backspace in text controls to the browser", function() {
+		var puzzle = new pzpr.Puzzle().open("sudoku");
+		puzzle.setMode("play");
+		puzzle.cursor.init(1, 1);
+		puzzle.key.cancelDefault = false;
+
+		var event = createKeyboardEvent("Backspace", "Backspace", 8);
+		event.target = { tagName: "TEXTAREA" };
+		puzzle.key.e_keydown(event);
+		puzzle.key.e_keyup(event);
+
+		assert.equal(puzzle.board.getc(1, 1).anum, -1);
+		assert.equal(puzzle.key.cancelDefault, false);
+		assert.equal(event.stopped, undefined);
+		assert.equal(event.prevented, undefined);
+	});
+
+	it("leaves keys in nested contenteditable elements to the editor", function() {
+		var puzzle = new pzpr.Puzzle().open("sudoku");
+		puzzle.setMode("play");
+		puzzle.cursor.init(1, 1);
+
+		var event = createKeyboardEvent("Backspace", "Backspace", 8);
+		event.target = {
+			tagName: "SPAN",
+			parentNode: {
+				tagName: "DIV",
+				parentNode: null,
+				getAttribute: function(name) {
+					return name === "contenteditable" ? "true" : null;
+				}
+			}
+		};
+		puzzle.key.e_keydown(event);
+
+		assert.equal(puzzle.board.getc(1, 1).anum, -1);
+		assert.equal(event.stopped, undefined);
+		assert.equal(event.prevented, undefined);
 	});
 });
 

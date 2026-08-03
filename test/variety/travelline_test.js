@@ -980,4 +980,49 @@ describe("Variety:travelline", function() {
 		});
 		assert.equal(turn.check(true)[0], "tlIceTurn");
 	});
+
+	it("checks both passes of an ice white pearl at a crossing", function() {
+		var url =
+			"travelline/5/4/0000000r3g4k/-/-/-/b.f.1+c.f.1+d.f.1/0/2";
+		var valid = new pzpr.Puzzle().open(url);
+		var validBoard = valid.board;
+		[
+			[5, 4],
+			[5, 6],
+			[4, 5],
+			[6, 5],
+			[6, 3],
+			[7, 4]
+		].forEach(function(pos) {
+			validBoard.getb(pos[0], pos[1]).setLine();
+		});
+		var checker = valid.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkWhitePearl();
+		assert.equal(checker.failcode.length, 0);
+
+		var invalid = new pzpr.Puzzle().open(url);
+		var invalidBoard = invalid.board;
+		[
+			[5, 4],
+			[5, 6],
+			[4, 5],
+			[6, 5],
+			[6, 3]
+		].forEach(function(pos) {
+			invalidBoard.getb(pos[0], pos[1]).setLine();
+		});
+		checker = invalid.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkWhitePearl();
+		assert.equal(checker.failcode[0], "tlWhitePearl");
+	});
 });

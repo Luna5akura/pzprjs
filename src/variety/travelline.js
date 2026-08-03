@@ -3470,6 +3470,15 @@ var TL_BORDER_CLUES = {
 				if (!cell.isWhitePearl()) {
 					return false;
 				}
+				if (cell.lcnt === 4 && (cell.isIce() || cell.isCwFloor())) {
+					var verticalOk =
+						cell.relcell(0, -2).isLineCurveTravel() ||
+						cell.relcell(0, 2).isLineCurveTravel();
+					var horizontalOk =
+						cell.relcell(-2, 0).isLineCurveTravel() ||
+						cell.relcell(2, 0).isLineCurveTravel();
+					return !(verticalOk && horizontalOk);
+				}
 				if (cell.lcnt !== 2 || !cell.isLineStraightTravel()) {
 					return true;
 				}

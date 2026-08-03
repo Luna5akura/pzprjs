@@ -276,6 +276,7 @@
 			loopsp: [1, 0, "環状線スペシャル", "Loop Special", "pipelink"],
 			loute: [0, 0, "エルート", "L-route"],
 			"magic-snail": [0, 0, "Magic Snail", "Magic Snail", "magic_snail"],
+			"magic-summer": [0, 0, "Magic Summer", "Magic Summer", "magic_summer"],
 			magnets: [0, 0, "Magnets", "Magnets"],
 			makaro: [0, 0, "マカロ", "Makaro"],
 			mannequin: [0, 0, "マネキンゲート", "Mannequin Gate"],

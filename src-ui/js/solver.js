@@ -10,6 +10,14 @@ var solveRequestId = 0;
 var hasSolverState = false;
 var suppressHistory = false;
 var restartSolveAfterCurrent = false;
+var solverWorkerSequence = 0;
+var SOLVER_DIAGNOSTICS_STORAGE_KEY = "pzpr.solver.debug";
+var SOLVER_DIAGNOSTICS_MAX_EVENTS = 120;
+var solverDiagnostics = {
+	enabled: false,
+	sequence: 0,
+	events: []
+};
 var TL_FLOOR_FLAGS = {
 	BAR: 32,
 	ICE: 1,
@@ -23,6 +31,229 @@ var TL_BORDER_CLUES = {
 	REQUIRED: 2,
 	BLOCK: 3
 };
+
+function readSolverDiagnosticsEnabled() {
+	try {
+		return (
+			!!window.localStorage &&
+			window.localStorage.getItem(SOLVER_DIAGNOSTICS_STORAGE_KEY) === "1"
+		);
+	} catch (e) {
+		return false;
+	}
+}
+
+function cloneSolverDiagnosticValue(value) {
+	if (typeof value === "undefined") {
+		return null;
+	}
+	try {
+		return JSON.parse(JSON.stringify(value));
+	} catch (e) {
+		return String(value);
+	}
+}
+
+function recordSolverDiagnostic(type, data) {
+	if (!solverDiagnostics.enabled) {
+		return;
+	}
+
+	var record = {
+		sequence: ++solverDiagnostics.sequence,
+		time: new Date().toISOString(),
+		type: type,
+		data: cloneSolverDiagnosticValue(data || {})
+	};
+	solverDiagnostics.events.push(record);
+	if (solverDiagnostics.events.length > SOLVER_DIAGNOSTICS_MAX_EVENTS) {
+		solverDiagnostics.events.shift();
+	}
+	if (window.console && typeof window.console.debug === "function") {
+		window.console.debug("[pzpr solver]", record);
+	}
+}
+
+function getSolverDiagnosticsSnapshot() {
+	return {
+		version: 1,
+		enabled: solverDiagnostics.enabled,
+		page: window.location.href,
+		userAgent: window.navigator && window.navigator.userAgent,
+		events: cloneSolverDiagnosticValue(solverDiagnostics.events)
+	};
+}
+
+function installSolverDiagnostics() {
+	solverDiagnostics.enabled = readSolverDiagnosticsEnabled();
+	window.pzprSolverDiagnostics = {
+		enable: function() {
+			solverDiagnostics.enabled = true;
+			try {
+				window.localStorage.setItem(SOLVER_DIAGNOSTICS_STORAGE_KEY, "1");
+			} catch (e) {
+				// Diagnostics still work for the current page when storage is unavailable.
+			}
+			recordSolverDiagnostic("diagnostics-enabled", {});
+		},
+		disable: function() {
+			solverDiagnostics.enabled = false;
+			try {
+				window.localStorage.removeItem(SOLVER_DIAGNOSTICS_STORAGE_KEY);
+			} catch (e) {
+				// Ignore storage errors.
+			}
+		},
+		clear: function() {
+			solverDiagnostics.events = [];
+			solverDiagnostics.sequence = 0;
+		},
+		get: getSolverDiagnosticsSnapshot,
+		export: function() {
+			return JSON.stringify(getSolverDiagnosticsSnapshot(), null, 2);
+		}
+	};
+}
+
+function getSolverBoardSnapshot() {
+	if (!window.ui || !ui.puzzle) {
+		return null;
+	}
+
+	var puzzle = ui.puzzle;
+	var board = puzzle.board;
+	var snapshot = {
+		pid: puzzle.pid,
+		ready: puzzle.ready,
+		playmode: puzzle.playmode,
+		editmode: puzzle.editmode,
+		rows: board && board.rows,
+		cols: board && board.cols
+	};
+
+	try {
+		snapshot.pzprUrl = puzzle.getURL(pzpr.parser.URL_PZPRV3);
+	} catch (e) {
+		snapshot.pzprUrlError = String(e);
+	}
+	try {
+		snapshot.solverUrl = getSolverUrl();
+	} catch (e2) {
+		snapshot.solverUrlError = String(e2);
+	}
+
+	if (!board) {
+		return snapshot;
+	}
+
+	snapshot.cells = [];
+	for (var i = 0; i < board.cell.length; i++) {
+		var cell = board.cell[i];
+		if (!cell || cell.isnull) {
+			continue;
+		}
+		snapshot.cells.push({
+			id: cell.id,
+			x: cell.bx,
+			y: cell.by,
+			qnum: cell.qnum,
+			ques: cell.ques,
+			qans: cell.qans,
+			qsub: cell.qsub,
+			anum: cell.anum,
+			solverState: cloneSolverDiagnosticValue(cell._solverState),
+			walkwalkSolverState: cell._walkwalkSolverState,
+			travellineSolverCellState: cell._travellineSolverCellState
+		});
+	}
+	snapshot.borders = [];
+	for (var j = 0; j < board.border.length; j++) {
+		var border = board.border[j];
+		if (!border || border.isnull) {
+			continue;
+		}
+		snapshot.borders.push({
+			id: border.id,
+			x: border.bx,
+			y: border.by,
+			ques: border.ques,
+			qans: border.qans,
+			qsub: border.qsub,
+			line: !!(border.isLine && border.isLine()),
+			solverState: cloneSolverDiagnosticValue(border._solverState),
+			travellineSolverState: border._travellineSolverState
+		});
+	}
+	return snapshot;
+}
+
+function getSolverDescriptionSummary(result) {
+	var description = result && result.description;
+	var data =
+		description && Array.isArray(description.data) ? description.data : [];
+	var colors = {};
+	var kinds = {};
+	var coordinates = {};
+	var suspiciousCellCoordinates = [];
+
+	for (var i = 0; i < data.length; i++) {
+		var entry = data[i] || {};
+		var kind = getItemKind(entry.item) || "(unknown)";
+		var color = entry.color || "(missing)";
+		colors[color] = (colors[color] || 0) + 1;
+		kinds[kind] = (kinds[kind] || 0) + 1;
+
+		if (!isAnswerColor(entry) || !isCellCoordinate(entry)) {
+			continue;
+		}
+		var coordinate = entry.x + "," + entry.y;
+		if (!coordinates[coordinate]) {
+			coordinates[coordinate] = [];
+		}
+		coordinates[coordinate].push({
+			index: i,
+			color: color,
+			kind: kind,
+			item: cloneSolverDiagnosticValue(entry.item)
+		});
+	}
+
+	Object.keys(coordinates).forEach(function(coordinate) {
+		var entries = coordinates[coordinate];
+		var shapeKinds = [];
+		for (var i = 0; i < entries.length; i++) {
+			if (
+				entries[i].kind !== "text" &&
+				shapeKinds.indexOf(entries[i].kind) < 0
+			) {
+				shapeKinds.push(entries[i].kind);
+			}
+		}
+		var hasDarkMark =
+			shapeKinds.indexOf("block") >= 0 ||
+			shapeKinds.indexOf("fill") >= 0 ||
+			shapeKinds.indexOf("filledCircle") >= 0;
+		var hasLightMark =
+			shapeKinds.indexOf("dot") >= 0 || shapeKinds.indexOf("circle") >= 0;
+		if (hasDarkMark && hasLightMark) {
+			suspiciousCellCoordinates.push({
+				coordinate: coordinate,
+				entries: entries
+			});
+		}
+	});
+
+	return {
+		status: result && result.status,
+		description: cloneSolverDiagnosticValue(description),
+		dataLength: data.length,
+		colors: colors,
+		kinds: kinds,
+		suspiciousCellCoordinates: suspiciousCellCoordinates
+	};
+}
+
+installSolverDiagnostics();
 
 function isTravelLinePuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "travelline";
@@ -235,6 +466,11 @@ function cancelBackendWorker(message) {
 	}
 	var task = backendWorkerTask;
 	backendWorkerTask = null;
+	recordSolverDiagnostic("worker-cancel", {
+		taskId: task.id,
+		action: task.action,
+		message: message || "solver worker aborted"
+	});
 	task.worker.onmessage = null;
 	task.worker.onerror = null;
 	task.worker.terminate();
@@ -244,16 +480,32 @@ function cancelBackendWorker(message) {
 function runBackendWorker(action, payload) {
 	cancelBackendWorker("superseded by a newer solver request");
 	return new Promise(function(resolve, reject) {
+		var taskId = ++solverWorkerSequence;
 		var worker = new Worker(new URL("./solver-worker.js", import.meta.url), {
 			type: "module"
 		});
-		backendWorkerTask = { worker: worker, reject: reject };
+		backendWorkerTask = {
+			id: taskId,
+			action: action,
+			worker: worker,
+			reject: reject
+		};
+		recordSolverDiagnostic("worker-start", {
+			taskId: taskId,
+			action: action,
+			payload: payload
+		});
 
 		worker.onmessage = function(event) {
 			if (backendWorkerTask && backendWorkerTask.worker === worker) {
 				backendWorkerTask = null;
 			}
 			worker.terminate();
+			recordSolverDiagnostic("worker-result", {
+				taskId: taskId,
+				action: action,
+				result: getSolverDescriptionSummary(event.data)
+			});
 			resolve(event.data);
 		};
 		worker.onerror = function(event) {
@@ -261,6 +513,14 @@ function runBackendWorker(action, payload) {
 				backendWorkerTask = null;
 			}
 			worker.terminate();
+			recordSolverDiagnostic("worker-error", {
+				taskId: taskId,
+				action: action,
+				message:
+					event && event.message
+						? event.message
+						: "solver worker failed unexpectedly"
+			});
 			reject(
 				new Error(
 					event && event.message
@@ -1006,6 +1266,11 @@ function applyTravelLineDescription(result) {
 		);
 	}
 
+	recordSolverDiagnostic("description-apply-start", {
+		mode: "travelline",
+		result: getSolverDescriptionSummary(result),
+		board: getSolverBoardSnapshot()
+	});
 	var description = result.description;
 	var data = description.data || [];
 	var changed = 0;
@@ -1060,6 +1325,12 @@ function applyTravelLineDescription(result) {
 	}
 
 	hasSolverState = recognized > 0;
+	recordSolverDiagnostic("description-apply-finish", {
+		mode: "travelline",
+		recognized: recognized,
+		changed: changed,
+		board: getSolverBoardSnapshot()
+	});
 	return changed;
 }
 
@@ -1075,6 +1346,11 @@ function applyGenericSolverOverlayDescription(result) {
 		throw new Error("solver returned no drawable result");
 	}
 
+	recordSolverDiagnostic("description-apply-start", {
+		mode: "generic",
+		result: getSolverDescriptionSummary(result),
+		board: getSolverBoardSnapshot()
+	});
 	var changed = 0;
 	var recognized = 0;
 	var answerEntries = 0;
@@ -1101,12 +1377,26 @@ function applyGenericSolverOverlayDescription(result) {
 	if (!recognized) {
 		if (!answerEntries) {
 			hasSolverState = false;
+			recordSolverDiagnostic("description-apply-finish", {
+				mode: "generic",
+				recognized: recognized,
+				answerEntries: answerEntries,
+				changed: changed,
+				board: getSolverBoardSnapshot()
+			});
 			return 0;
 		}
 		throw new Error(getMessages().unsupported);
 	}
 
 	hasSolverState = changed > 0;
+	recordSolverDiagnostic("description-apply-finish", {
+		mode: "generic",
+		recognized: recognized,
+		answerEntries: answerEntries,
+		changed: changed,
+		board: getSolverBoardSnapshot()
+	});
 	return changed;
 }
 
@@ -1117,8 +1407,17 @@ function applyDescription(result) {
 async function runSolver() {
 	var requestId = ++solveRequestId;
 	var messages = getMessages();
+	var startedAt = Date.now();
+	recordSolverDiagnostic("solve-start", {
+		requestId: requestId,
+		board: getSolverBoardSnapshot()
+	});
 
 	if (isApplying) {
+		recordSolverDiagnostic("solve-skipped", {
+			requestId: requestId,
+			reason: "already applying"
+		});
 		return;
 	}
 
@@ -1140,11 +1439,23 @@ async function runSolver() {
 			} else {
 				setStatus(messages.noChange);
 			}
+			recordSolverDiagnostic("solve-finish", {
+				requestId: requestId,
+				durationMs: Date.now() - startedAt,
+				changed: backendResult.changed,
+				partial: backendResult.partial,
+				board: getSolverBoardSnapshot()
+			});
 			return;
 		}
 
 		await getSolverModule();
 		if (requestId !== solveRequestId) {
+			recordSolverDiagnostic("solve-stale", {
+				requestId: requestId,
+				currentRequestId: solveRequestId,
+				stage: "after module load"
+			});
 			return;
 		}
 
@@ -1168,6 +1479,12 @@ async function runSolver() {
 			result = await solveCurrentPuzzle();
 		}
 		if (requestId !== solveRequestId) {
+			recordSolverDiagnostic("solve-stale", {
+				requestId: requestId,
+				currentRequestId: solveRequestId,
+				stage: "after backend result",
+				board: getSolverBoardSnapshot()
+			});
 			return;
 		}
 
@@ -1177,10 +1494,28 @@ async function runSolver() {
 		setStatus(
 			appliedCount > 0 ? messages.applied(appliedCount) : messages.noChange
 		);
+		recordSolverDiagnostic("solve-finish", {
+			requestId: requestId,
+			durationMs: Date.now() - startedAt,
+			changed: appliedCount,
+			linePuzzle: linePuzzle,
+			board: getSolverBoardSnapshot()
+		});
 	} catch (error) {
 		if (error && error.code === "TL_ABORTED") {
+			recordSolverDiagnostic("solve-aborted", {
+				requestId: requestId,
+				durationMs: Date.now() - startedAt,
+				message: error.message
+			});
 			return;
 		}
+		recordSolverDiagnostic("solve-error", {
+			requestId: requestId,
+			durationMs: Date.now() - startedAt,
+			message: error && error.message ? error.message : String(error),
+			board: getSolverBoardSnapshot()
+		});
 		setStatus(
 			messages.error(error && error.message ? error.message : String(error))
 		);
@@ -1192,6 +1527,11 @@ async function runSolver() {
 			restartSolveAfterCurrent = false;
 			scheduleRestartSolve();
 		}
+		recordSolverDiagnostic("solve-cleanup", {
+			requestId: requestId,
+			currentRequestId: solveRequestId,
+			restartScheduled: !!autoSolveTimer
+		});
 	}
 }
 
@@ -1220,6 +1560,22 @@ function scheduleRestartSolve() {
 	}, AUTO_SOLVE_DELAY);
 }
 
+function invalidatePendingSolver(reason) {
+	var hadPendingWork = isApplying || !!backendWorkerTask || !!autoSolveTimer;
+	solveRequestId++;
+	restartSolveAfterCurrent = false;
+	if (autoSolveTimer) {
+		clearTimeout(autoSolveTimer);
+		autoSolveTimer = null;
+	}
+	cancelBackendWorker(reason);
+	recordSolverDiagnostic("solver-invalidated", {
+		reason: reason,
+		hadPendingWork: hadPendingWork,
+		currentRequestId: solveRequestId
+	});
+}
+
 function onHistoryChange() {
 	if (suppressHistory) {
 		return;
@@ -1230,6 +1586,10 @@ function onHistoryChange() {
 	if (isApplying) {
 		solveRequestId++;
 		restartSolveAfterCurrent = true;
+		recordSolverDiagnostic("board-changed-during-solve", {
+			currentRequestId: solveRequestId,
+			board: getSolverBoardSnapshot()
+		});
 		cancelBackendWorker("board changed during solve");
 		return;
 	}
@@ -1292,7 +1652,16 @@ function initializeSolverUi() {
 	});
 
 	ui.puzzle.on("ready", function() {
+		invalidatePendingSolver("puzzle reloaded");
+		if (isTravelLinePuzzle()) {
+			clearTravelLineSolverOverlay();
+		} else {
+			clearGenericSolverOverlay();
+		}
 		hasSolverState = false;
+		recordSolverDiagnostic("puzzle-ready", {
+			board: getSolverBoardSnapshot()
+		});
 		refreshVisibility();
 	});
 	ui.puzzle.on("history", onHistoryChange);

@@ -103,6 +103,7 @@ ui.keypopup = {
 		kusabi: [114, 0],
 		aqre: [10, 0],
 		doppelblock: [10, 115],
+		"magic-summer": [10, 10],
 		japanesesums: [10, 115],
 		interbd: [116, 0],
 		toichika2: [10, 10],
