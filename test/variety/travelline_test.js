@@ -350,6 +350,23 @@ describe("Variety:travelline", function() {
 		assert.equal(board.getEntryCell(board.arrowin).isBar(), false);
 	});
 
+	it("keeps a first-column downward IN endpoint valid when reducing the left edge", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var board = puzzle.board;
+
+		board.arrowin.set(board.getb(1, 0));
+		assert.equal(board.arrowin.getdir(), board.arrowin.getb().DN);
+
+		board.operate("reducelt");
+
+		assert.equal(board.cols, 2);
+		assert.equal(board.arrowin.onborder(), true);
+		assert.equal(board.arrowin.bx, 1);
+		assert.equal(board.arrowin.by, 0);
+		assert.equal(board.arrowin.getdir(), board.arrowin.getb().DN);
+		assert.equal(board.arrowin.getb().isnull, false);
+	});
+
 	it("accepts short drag gestures when placing internal bar endpoints", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		puzzle.setMode("edit");

@@ -297,6 +297,11 @@ pzpr.classmgr.makeCommon({
 		getAfterPos: function(key, d, piece) {
 			var puzzle = this.puzzle,
 				bd = puzzle.board;
+			// board.min/max include ExCell margins; these positions are for cells/borders.
+			var minbx = 0,
+				minby = 0,
+				maxbx = 2 * bd.cols,
+				maxby = 2 * bd.rows;
 			var xx = d.x1 + d.x2,
 				yy = d.y1 + d.y2,
 				bx1 = piece.bx,
@@ -322,34 +327,34 @@ pzpr.classmgr.makeCommon({
 					break;
 				case this.EXPANDUP:
 					bx2 = bx1;
-					by2 = by1 + (by1 === bd.minby ? 0 : 2);
+					by2 = by1 + (by1 === minby ? 0 : 2);
 					break;
 				case this.EXPANDDN:
 					bx2 = bx1;
-					by2 = by1 + (by1 === bd.maxby ? 2 : 0);
+					by2 = by1 + (by1 === maxby ? 2 : 0);
 					break;
 				case this.EXPANDLT:
-					bx2 = bx1 + (bx1 === bd.minbx ? 0 : 2);
+					bx2 = bx1 + (bx1 === minbx ? 0 : 2);
 					by2 = by1;
 					break;
 				case this.EXPANDRT:
-					bx2 = bx1 + (bx1 === bd.maxbx ? 2 : 0);
+					bx2 = bx1 + (bx1 === maxbx ? 2 : 0);
 					by2 = by1;
 					break;
 				case this.REDUCEUP:
 					bx2 = bx1;
-					by2 = by1 - (by1 <= bd.minby + 2 ? 0 : 2);
+					by2 = by1 - (by1 <= minby + 2 ? 0 : 2);
 					break;
 				case this.REDUCEDN:
 					bx2 = bx1;
-					by2 = by1 - (by1 >= bd.maxby - 2 ? 2 : 0);
+					by2 = by1 - (by1 >= maxby - 2 ? 2 : 0);
 					break;
 				case this.REDUCELT:
-					bx2 = bx1 - (bx1 <= bd.minbx + 2 ? 0 : 2);
+					bx2 = bx1 - (bx1 <= minbx + 2 ? 0 : 2);
 					by2 = by1;
 					break;
 				case this.REDUCERT:
-					bx2 = bx1 - (bx1 >= bd.maxbx - 2 ? 2 : 0);
+					bx2 = bx1 - (bx1 >= maxbx - 2 ? 2 : 0);
 					by2 = by1;
 					break;
 				default:
