@@ -26,6 +26,7 @@ ui.toolarea = {
 				border: { group: "borders", preview: "border-block" },
 				country: { group: "borders", preview: "border-country" },
 				"travel-required": { group: "borders", preview: "border-required" },
+				"travel-boundary-arrow": { group: "borders", preview: "arrow" },
 				arrow: { group: "cells", preview: "arrow" },
 				bar: { group: "cells", preview: "bar-cell" },
 				"travel-ice": { group: "cells", preview: "ice" },

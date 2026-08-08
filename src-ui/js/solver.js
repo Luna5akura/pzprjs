@@ -572,6 +572,23 @@ function getTravelLineDirSide(cell, dir) {
 	return null;
 }
 
+function getTravelLineCellBorder(cell, side) {
+	if (!cell || cell.isnull) {
+		return null;
+	}
+	switch (side) {
+		case "up":
+			return cell.adjborder.top;
+		case "down":
+			return cell.adjborder.bottom;
+		case "left":
+			return cell.adjborder.left;
+		case "right":
+			return cell.adjborder.right;
+	}
+	return null;
+}
+
 function getTravelLineOppositeSide(side) {
 	switch (side) {
 		case "up":
@@ -722,6 +739,7 @@ function getTravelLineBackendPayload() {
 	var requiredV = [];
 	var forcedH = [];
 	var forcedV = [];
+	var boundaryArrows = [];
 
 	for (var y = 0; y < rows; y++) {
 		var barRow = [];
@@ -901,13 +919,53 @@ function getTravelLineBackendPayload() {
 	// Cross clues are currently supported only for slither-style 0..4.
 	for (var borderId = 0; borderId < board.border.length; borderId++) {
 		var border = board.border[borderId];
-		if (border.inside && border.qnum !== -1) {
+		if (border.inside && border.qnum !== -1 && !border.isTravelLineBoundaryArrow()) {
 			throw new Error(
 				"travelline backend does not support border clue " +
 					border.qnum +
 					" at border " +
 					border.id
 			);
+		}
+		if (border.isTravelLineBoundaryArrow()) {
+			var arrowCell = null;
+			var arrowSide = null;
+			var arrowDir = border.getTravelLineBoundaryArrow();
+			var sideCells = border.inside
+				? border.sidecell
+				: [board.getEntryCellByBorder(border)];
+			for (var sideIndex = 0; sideIndex < sideCells.length; sideIndex++) {
+				var candidate = sideCells[sideIndex];
+				var candidateSide = getTravelLineDirSide(candidate, arrowDir);
+				if (
+					candidate &&
+					!candidate.isnull &&
+					candidateSide &&
+					getTravelLineCellBorder(candidate, candidateSide) === border
+				) {
+					arrowCell = candidate;
+					arrowSide = candidateSide;
+					break;
+				}
+			}
+			if (!arrowCell || !arrowSide) {
+				throw new Error(
+					"travelline backend cannot encode boundary arrow at border " +
+						border.id
+				);
+			}
+			var boundarySide = getTravelLineBorderSide(board, border);
+			if (!border.inside && !boundarySide) {
+				throw new Error(
+					"travelline backend cannot determine boundary arrow side at border " +
+						border.id
+				);
+			}
+			boundaryArrows.push({
+				cell: arrowCell.id,
+				side: arrowSide,
+				boundarySide: boundarySide
+			});
 		}
 	}
 
@@ -940,7 +998,8 @@ function getTravelLineBackendPayload() {
 		requiredH: requiredH,
 		requiredV: requiredV,
 		forcedH: forcedH,
-		forcedV: forcedV
+		forcedV: forcedV,
+		boundaryArrows: boundaryArrows
 	};
 }
 

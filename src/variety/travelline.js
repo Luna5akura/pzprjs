@@ -12,7 +12,8 @@ var TL_FLOOR_FLAGS = {
 var TL_BORDER_CLUES = {
 	COUNTRY: 1,
 	REQUIRED: 2,
-	BLOCK: 3
+	BLOCK: 3,
+	BOUNDARY_ARROW: 4
 };
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
@@ -47,6 +48,7 @@ var TL_BORDER_CLUES = {
 					"travel-cw",
 					"country",
 				"travel-required",
+				"travel-boundary-arrow",
 				"clear",
 				"info-line"
 			],
@@ -61,6 +63,10 @@ var TL_BORDER_CLUES = {
 				}
 				if (this.inputMode === "travel-required") {
 					this.inputRequiredLine();
+					return;
+				}
+				if (this.inputMode === "travel-boundary-arrow") {
+					this.inputBoundaryArrow();
 					return;
 				}
 				if (this.isBorderClueInputMode()) {
@@ -129,6 +135,8 @@ var TL_BORDER_CLUES = {
 				this.inputarrow_line();
 			} else if (this.inputMode === "travel-required") {
 				this.inputRequiredLine();
+			} else if (this.inputMode === "travel-boundary-arrow") {
+				this.inputBoundaryArrow();
 			} else if (this.isBorderClueInputMode()) {
 				this.inputBorderClue();
 			} else if (this.inputMode === "travel-order") {
@@ -151,6 +159,9 @@ var TL_BORDER_CLUES = {
 		},
 		isBorderClueInputMode: function() {
 			return this.inputMode === "border" || this.inputMode === "country";
+		},
+		isBoundaryArrowInputMode: function() {
+			return this.inputMode === "travel-boundary-arrow";
 		},
 		isCrossInputMode: function() {
 			return (
@@ -200,6 +211,132 @@ var TL_BORDER_CLUES = {
 				border.draw();
 			}
 			this.prevPos = pos;
+		},
+		inputBoundaryArrow: function() {
+			if (!this.mousestart && !this.mousemove && !this.mouseend) {
+				return;
+			}
+			var pos = this.getpos(0);
+			if (this.mousestart) {
+				this.firstPoint = this.inputPoint.clone();
+			}
+			if (this.prevPos.equals(pos)) {
+				if (this.mouseend) {
+					this.inputBoundaryArrowAtPointer();
+				}
+				return;
+			}
+			if (this.inputData !== null) {
+				this.prevPos = pos;
+				return;
+			}
+
+			var border = this.prevPos.getnb(pos);
+			if (!border.isnull) {
+				var dir = this.prevPos.getdir(pos, 2);
+				if (this.btn === "right") {
+					border.setQnum(-1);
+					border.draw();
+				} else if (this.isBoundaryArrowDirection(border, dir)) {
+					border.setQnum(border.qnum === dir ? -1 : dir);
+					border.draw();
+				}
+				this.inputData = 1;
+				this.prevPos = pos;
+				return;
+			}
+
+			border = this.prevPos.getborderobj(pos);
+			if (border.isnull) {
+				this.prevPos = pos;
+				return;
+			}
+
+			var dir = this.prevPos.getdir(pos, 1);
+			if (dir === border.NDIR) {
+				dir = pos.getdir(this.prevPos, 1);
+			}
+			if (this.btn === "right") {
+				if (border.isTravelLineBoundaryArrow()) {
+					border.setQnum(-1);
+					border.draw();
+				}
+			} else if (this.isBoundaryArrowDirection(border, dir)) {
+				border.setQnum(border.qnum === dir ? -1 : dir);
+				border.draw();
+			}
+			this.inputData = 1;
+			this.prevPos = pos;
+		},
+		inputBoundaryArrowAtPointer: function() {
+			var border = this.getborder(0.25);
+			if (border.isnull) {
+				return;
+			}
+			if (this.btn === "right") {
+				border.setQnum(-1);
+			} else if (border.inside) {
+				return;
+			} else if (border.isTravelLineBoundaryArrow()) {
+				border.setQnum(this.getNextBoundaryArrowDirection(border));
+			} else {
+				border.setQnum(this.getDefaultBoundaryArrowDirection(border));
+			}
+			border.draw();
+			this.mousereset();
+		},
+		isBoundaryArrowDirection: function(border, dir) {
+			if (border.inside) {
+				return (
+					dir === border.UP ||
+					dir === border.DN ||
+					dir === border.LT ||
+					dir === border.RT
+				);
+			}
+			var bd = this.board;
+			return (
+				(border.by === bd.minby + 2 &&
+					(dir === border.UP || dir === border.DN)) ||
+				(border.by === bd.maxby - 2 &&
+					(dir === border.UP || dir === border.DN)) ||
+				(border.bx === bd.minbx + 2 &&
+					(dir === border.LT || dir === border.RT)) ||
+				(border.bx === bd.maxbx - 2 &&
+					(dir === border.LT || dir === border.RT))
+			);
+		},
+		getDefaultBoundaryArrowDirection: function(border) {
+			var bd = this.board;
+			if (border.by === bd.minby + 2) {
+				return border.DN;
+			}
+			if (border.by === bd.maxby - 2) {
+				return border.UP;
+			}
+			if (border.bx === bd.minbx + 2) {
+				return border.RT;
+			}
+			if (border.bx === bd.maxbx - 2) {
+				return border.LT;
+			}
+			return border.NDIR;
+		},
+		getNextBoundaryArrowDirection: function(border) {
+			var dir = border.getTravelLineBoundaryArrow();
+			if (dir === border.UP) {
+				return border.DN;
+			}
+			if (dir === border.DN) {
+				return border.UP;
+			}
+			if (dir === border.LT) {
+				return border.RT;
+			}
+			if (dir === border.RT) {
+				return border.LT;
+			}
+			return this.getDefaultBoundaryArrowDirection(border);
 		},
 
 		inputarrow_line: function() {
@@ -668,10 +805,15 @@ var TL_BORDER_CLUES = {
 			}
 			var border = this.prevPos.getborderobj(borderPos);
 			this.prevPos = borderPos;
-			if (border.isnull || !border.inside || border === this.mouseCell) {
+			if (
+				border.isnull ||
+				!border.isTravelLineBoundaryArrow() ||
+				border === this.mouseCell
+			) {
 				return false;
 			}
 			border.setQues(0);
+			border.setQnum(-1);
 			border.draw();
 			this.mouseCell = border;
 			return true;
@@ -702,10 +844,15 @@ var TL_BORDER_CLUES = {
 		},
 		clearBorderClueAtPointer: function() {
 			var border = this.getborder(0.35);
-			if (border.isnull || !border.inside || border === this.mouseCell) {
+			if (
+				border.isnull ||
+				!border.isTravelLineBoundaryArrow() ||
+				border === this.mouseCell
+			) {
 				return false;
 			}
 			border.setQues(0);
+			border.setQnum(-1);
 			border.draw();
 			this.mouseCell = border;
 			return true;
@@ -927,6 +1074,12 @@ var TL_BORDER_CLUES = {
 
 	Border: {
 		enableLineNG: true,
+		isTravelLineBoundaryArrow: function() {
+			return this.qnum >= this.UP && this.qnum <= this.RT;
+		},
+		getTravelLineBoundaryArrow: function() {
+			return this.isTravelLineBoundaryArrow() ? this.qnum : this.NDIR;
+		},
 		isCountryBorder: function() {
 			return this.ques === TL_BORDER_CLUES.COUNTRY;
 		},
@@ -1288,6 +1441,15 @@ var TL_BORDER_CLUES = {
 		adjustBoardData: function(key, d) {
 			var bd = this.board;
 			this.adjustBorderArrow(key, d);
+			if (key & this.TURNFLIP) {
+				var trans = this.getTranslateDir(key);
+				for (var i = 0; i < bd.border.length; i++) {
+					var border = bd.border[i];
+					if (border.isTravelLineBoundaryArrow()) {
+						border.qnum = trans[border.qnum] || border.qnum;
+					}
+				}
+			}
 			this.posinfo_in = bd.arrowin.getState();
 			this.posinfo_out = bd.arrowout.getState();
 			this.adjustEndpointState(key, d, this.posinfo_in);
@@ -1564,6 +1726,7 @@ var TL_BORDER_CLUES = {
 			this.drawCellClues();
 			this.drawCrossClues();
 			this.drawBorderArrows();
+			this.drawTravelLineBoundaryArrows();
 			this.drawChassis();
 			this.drawBoxBorders(true);
 			this.drawTarget();
@@ -2091,6 +2254,95 @@ var TL_BORDER_CLUES = {
 				}
 			}
 		},
+		drawTravelLineBoundaryArrows: function() {
+			var g = this.vinc("travelline_boundary_arrow", "crispEdges", true);
+			var ll = this.cw * 0.3;
+			var lw = Math.max(this.cw / 42, 1);
+			var blist = this.range.borders;
+
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var dir = border.getTravelLineBoundaryArrow();
+				var px = border.bx * this.bw;
+				var py = border.by * this.bh;
+				g.fillStyle = this.quescolor;
+
+				g.vid = "b_tl_ar_" + border.id;
+				if (dir === border.UP || dir === border.DN) {
+					g.fillRectCenter(px, py, lw, ll);
+				} else if (dir === border.LT || dir === border.RT) {
+					g.fillRectCenter(px, py, ll, lw);
+				} else {
+					g.vhide();
+				}
+
+				g.vid = "b_tl_tipa_" + border.id;
+				if (dir === border.UP || dir === border.LT) {
+					g.beginPath();
+					if (dir === border.UP) {
+						g.setOffsetLinePath(
+							px,
+							py,
+							0,
+							-ll,
+							-ll / 2,
+							-ll * 0.4,
+							ll / 2,
+							-ll * 0.4,
+							true
+						);
+					} else {
+						g.setOffsetLinePath(
+							px,
+							py,
+							-ll,
+							0,
+							-ll * 0.4,
+							-ll / 2,
+							-ll * 0.4,
+							ll / 2,
+							true
+						);
+					}
+					g.fill();
+				} else {
+					g.vhide();
+				}
+
+				g.vid = "b_tl_tipb_" + border.id;
+				if (dir === border.DN || dir === border.RT) {
+					g.beginPath();
+					if (dir === border.DN) {
+						g.setOffsetLinePath(
+							px,
+							py,
+							0,
+							ll,
+							-ll / 2,
+							ll * 0.4,
+							ll / 2,
+							ll * 0.4,
+							true
+						);
+					} else {
+						g.setOffsetLinePath(
+							px,
+							py,
+							ll,
+							0,
+							ll * 0.4,
+							-ll / 2,
+							ll * 0.4,
+							ll / 2,
+							true
+						);
+					}
+					g.fill();
+				} else {
+					g.vhide();
+				}
+			}
+		},
 
 		drawInOut: function() {
 			var g = this.vinc("inout", "auto");
@@ -2382,29 +2634,32 @@ var TL_BORDER_CLUES = {
 		repaintParts: function(blist) {
 			this.range.borders = blist;
 			this.drawBorderArrows();
+			this.drawTravelLineBoundaryArrows();
 		}
 	},
 
 	Encode: {
-			decodePzpr: function() {
-				this.decodeBorder();
-				this.decodeNumber16();
-				this.decodeRequiredBorderExtras();
-				this.decodeCrossExtras();
-				this.decodeDirectedCellExtras();
-				this.decodeFloorCellExtras();
-				this.decodeInOut();
-				this.normalizeLegacyFloorClues();
-			},
-			encodePzpr: function() {
-				this.encodeBaseBorder();
-				this.encodeTravelNumber16();
-				this.encodeRequiredBorderExtras();
-				this.encodeCrossExtras();
-				this.encodeDirectedCellExtras();
-				this.encodeFloorCellExtras();
-				this.encodeInOut();
-			},
+		decodePzpr: function() {
+			this.decodeBorder();
+			this.decodeNumber16();
+			this.decodeRequiredBorderExtras();
+			this.decodeCrossExtras();
+			this.decodeDirectedCellExtras();
+			this.decodeFloorCellExtras();
+			this.decodeBoundaryArrowExtras();
+			this.decodeInOut();
+			this.normalizeLegacyFloorClues();
+		},
+		encodePzpr: function() {
+			this.encodeBaseBorder();
+			this.encodeTravelNumber16();
+			this.encodeRequiredBorderExtras();
+			this.encodeCrossExtras();
+			this.encodeDirectedCellExtras();
+			this.encodeFloorCellExtras();
+			this.encodeBoundaryArrowExtras();
+			this.encodeInOut();
+		},
 		encodeTravelNumber16: function() {
 			var bd = this.board;
 			this.genericEncodeNumber16(bd.cell.length, function(c) {
@@ -2621,6 +2876,47 @@ var TL_BORDER_CLUES = {
 				}
 				this.outbstr += "/" + (list.length ? list.join("+") : "-");
 			},
+			decodeBoundaryArrowExtras: function() {
+				var barray = this.outbstr.split("/");
+				if (barray.length <= 3) {
+					return;
+				}
+				var seg = barray[1] || "-";
+				if (seg.substr(0, 2) !== "ba") {
+					return;
+				}
+				var bd = this.board;
+				var items = seg.substr(2);
+				if (items) {
+					items = items.split("+");
+					for (var i = 0; i < items.length; i++) {
+						if (!items[i]) {
+							continue;
+						}
+						var parts = items[i].split(".");
+						var id = parseInt(parts[0], 36);
+						var dir = parseInt(parts[1], 10);
+						if (
+							bd.border[id] &&
+							dir >= bd.border[id].UP &&
+							dir <= bd.border[id].RT
+						) {
+							bd.border[id].qnum = dir;
+						}
+					}
+				}
+				this.outbstr = "/" + barray.slice(2).join("/");
+			},
+			encodeBoundaryArrowExtras: function() {
+				var list = [];
+				for (var i = 0; i < this.board.border.length; i++) {
+					var border = this.board.border[i];
+					if (border.isTravelLineBoundaryArrow()) {
+						list.push(i.toString(36) + "." + border.qnum);
+					}
+				}
+				this.outbstr += "/ba" + (list.length ? list.join("+") : "");
+			},
 			normalizeLegacyFloorClues: function() {
 				for (var i = 0; i < this.board.cell.length; i++) {
 					var cell = this.board.cell[i];
@@ -2684,122 +2980,128 @@ var TL_BORDER_CLUES = {
 			return "" + (address.getid() - idoffset);
 		}
 	},
-		FileIO: {
-			decodeData: function() {
-				this.decodeInOut();
-				this.decodeBorder(function(border, ca) {
-					if (ca === "1") {
-						border.ques = TL_BORDER_CLUES.COUNTRY;
-					} else if (ca === "2") {
-						border.ques = TL_BORDER_CLUES.REQUIRED;
-					} else if (ca === "3") {
-						border.ques = TL_BORDER_CLUES.BLOCK;
-					}
-				});
-				this.decodeCell(function(cell, ca) {
-					if (ca === ".") {
-						return;
-					}
-					var parts = ca.split(",");
-					if (parts[0] === "Y") {
-						cell.qnum = 14;
-						cell.qdir = +parts[1];
-						cell.qnum2 = +parts[2];
-						cell.ques = parts[3] ? +parts[3] : 0;
-						cell.qsub = parts[4] ? +parts[4] : 0;
-					} else if (parts[0] === "C") {
-						cell.qnum = 15;
-						cell.qdir = +parts[1];
-						cell.qnum2 = +parts[2];
-						cell.ques = parts[3] ? +parts[3] : 0;
-						cell.qsub = parts[4] ? +parts[4] : 0;
-					} else if (parts[0] === "O") {
-						cell.qnum = 16;
-						cell.qdir = 0;
-						cell.qnum2 = +parts[1];
-						cell.ques = parts[2] ? +parts[2] : 0;
-						cell.qsub = parts[3] ? +parts[3] : 0;
-					} else if (parts[0] === "F") {
-						cell.qnum = -1;
-						cell.qdir = 0;
-						cell.qnum2 = -1;
-						cell.ques = +parts[1];
-						cell.qsub = parts[2] ? +parts[2] : 0;
-					} else {
-						cell.qnum = +parts[0];
-						cell.ques = parts[1] ? +parts[1] : 0;
-						cell.qsub = parts[2] ? +parts[2] : 0;
-					}
-				});
-				this.decodeCross(function(cross, ca) {
-					if (ca !== ".") {
-						cross.qnum = +ca;
-					}
-				});
-				this.normalizeLegacyFloorClues();
-				this.decodeBorderArrowAns();
-			},
-			encodeData: function() {
-				this.filever = 1;
-				this.encodeInOut();
-				this.encodeBorder(function(border) {
-					if (border.ques === TL_BORDER_CLUES.COUNTRY) {
-						return "1 ";
-					}
-					if (border.ques === TL_BORDER_CLUES.REQUIRED) {
-						return "2 ";
-					}
-					if (border.ques === TL_BORDER_CLUES.BLOCK) {
-						return "3 ";
-					}
-					return "0 ";
-				});
-				this.encodeCell(function(cell) {
-					if (cell.qnum === 14) {
-						return (
-							"Y," +
-							cell.qdir +
-							"," +
-							Math.max(cell.qnum2, 0) +
-							"," +
-							(cell.ques || 0) +
-							"," +
-							(cell.qsub || 0) +
-							" "
-						);
-					}
-					if (cell.qnum === 15) {
-						return (
-							"C," +
-							cell.qdir +
-							"," +
-							Math.max(cell.qnum2, 0) +
-							"," +
-							(cell.ques || 0) +
-							"," +
-							(cell.qsub || 0) +
-							" "
-						);
-					}
-					if (cell.qnum === 16) {
-						return (
-							"O," +
-							Math.max(cell.qnum2, 0) +
-							"," +
-							(cell.ques || 0) +
-							"," +
-							(cell.qsub || 0) +
-							" "
-						);
-					}
-					if (cell.qnum >= 0) {
-						return cell.qnum + "," + (cell.ques || 0) + "," + (cell.qsub || 0) + " ";
-					}
-					return cell.ques || cell.qsub ? "F," + (cell.ques || 0) + "," + (cell.qsub || 0) + " " : ". ";
-				});
-				this.encodeCross(function(cross) {
-					return cross.qnum !== -1 ? cross.qnum + " " : ". ";
-				});
+	FileIO: {
+		decodeData: function() {
+			this.decodeInOut();
+			this.decodeBorder(function(border, ca) {
+				var parts = ca.split(",");
+				if (parts[0] === "4") {
+					border.qnum = +parts[1];
+				} else if (ca === "1") {
+					border.ques = TL_BORDER_CLUES.COUNTRY;
+				} else if (ca === "2") {
+					border.ques = TL_BORDER_CLUES.REQUIRED;
+				} else if (ca === "3") {
+					border.ques = TL_BORDER_CLUES.BLOCK;
+				}
+			});
+			this.decodeCell(function(cell, ca) {
+				if (ca === ".") {
+					return;
+				}
+				var parts = ca.split(",");
+				if (parts[0] === "Y") {
+					cell.qnum = 14;
+					cell.qdir = +parts[1];
+					cell.qnum2 = +parts[2];
+					cell.ques = parts[3] ? +parts[3] : 0;
+					cell.qsub = parts[4] ? +parts[4] : 0;
+				} else if (parts[0] === "C") {
+					cell.qnum = 15;
+					cell.qdir = +parts[1];
+					cell.qnum2 = +parts[2];
+					cell.ques = parts[3] ? +parts[3] : 0;
+					cell.qsub = parts[4] ? +parts[4] : 0;
+				} else if (parts[0] === "O") {
+					cell.qnum = 16;
+					cell.qdir = 0;
+					cell.qnum2 = +parts[1];
+					cell.ques = parts[2] ? +parts[2] : 0;
+					cell.qsub = parts[3] ? +parts[3] : 0;
+				} else if (parts[0] === "F") {
+					cell.qnum = -1;
+					cell.qdir = 0;
+					cell.qnum2 = -1;
+					cell.ques = +parts[1];
+					cell.qsub = parts[2] ? +parts[2] : 0;
+				} else {
+					cell.qnum = +parts[0];
+					cell.ques = parts[1] ? +parts[1] : 0;
+					cell.qsub = parts[2] ? +parts[2] : 0;
+				}
+			});
+			this.decodeCross(function(cross, ca) {
+				if (ca !== ".") {
+					cross.qnum = +ca;
+				}
+			});
+			this.normalizeLegacyFloorClues();
+			this.decodeBorderArrowAns();
+		},
+		encodeData: function() {
+			this.filever = 1;
+			this.encodeInOut();
+			this.encodeBorder(function(border) {
+				if (border.isTravelLineBoundaryArrow()) {
+					return "4," + border.qnum + " ";
+				}
+				if (border.ques === TL_BORDER_CLUES.COUNTRY) {
+					return "1 ";
+				}
+				if (border.ques === TL_BORDER_CLUES.REQUIRED) {
+					return "2 ";
+				}
+				if (border.ques === TL_BORDER_CLUES.BLOCK) {
+					return "3 ";
+				}
+				return "0 ";
+			});
+			this.encodeCell(function(cell) {
+				if (cell.qnum === 14) {
+					return (
+						"Y," +
+						cell.qdir +
+						"," +
+						Math.max(cell.qnum2, 0) +
+						"," +
+						(cell.ques || 0) +
+						"," +
+						(cell.qsub || 0) +
+						" "
+					);
+				}
+				if (cell.qnum === 15) {
+					return (
+						"C," +
+						cell.qdir +
+						"," +
+						Math.max(cell.qnum2, 0) +
+						"," +
+						(cell.ques || 0) +
+						"," +
+						(cell.qsub || 0) +
+						" "
+					);
+				}
+				if (cell.qnum === 16) {
+					return (
+						"O," +
+						Math.max(cell.qnum2, 0) +
+						"," +
+						(cell.ques || 0) +
+						"," +
+						(cell.qsub || 0) +
+						" "
+					);
+				}
+				if (cell.qnum >= 0) {
+					return cell.qnum + "," + (cell.ques || 0) + "," + (cell.qsub || 0) + " ";
+				}
+				return cell.ques || cell.qsub ? "F," + (cell.ques || 0) + "," + (cell.qsub || 0) + " " : ". ";
+			});
+			this.encodeCross(function(cross) {
+				return cross.qnum !== -1 ? cross.qnum + " " : ". ";
+			});
 			this.encodeBorderArrowAns();
 		},
 		decodeInOut: function() {
@@ -2846,17 +3148,18 @@ var TL_BORDER_CLUES = {
 			"checkCwClues",
 			"checkOrderClues",
 			"checkNoLineOnBar",
-			"checkIceStraight",
-			"checkClockwiseFloors",
-			"checkDotWhite",
-			"checkDotBlack",
-			"checkWhitePearl",
-			"checkBlackPearl",
-			"checkNoTouchTiles",
-			"checkNoAdjTiles",
-			"checkSloopCoverage",
-			"checkRequiredLine",
-			"checkCountryBorders"
+				"checkIceStraight",
+				"checkClockwiseFloors",
+				"checkDotWhite",
+					"checkDotBlack",
+					"checkWhitePearl",
+					"checkBlackPearl",
+					"checkNoTouchTiles",
+					"checkNoAdjTiles",
+					"checkSloopCoverage",
+					"checkRequiredLine",
+					"checkCountryBorders",
+					"checkBoundaryArrows"
 		],
 
 		checkStartGoalDegree: function() {
@@ -3636,6 +3939,123 @@ var TL_BORDER_CLUES = {
 					return;
 				}
 			}
+		},
+		getTravelBoundaryArrowCell: function(border) {
+			return this.board.getEntryCellByBorder(border);
+		},
+		getTravelBoundaryArrowInnerBorder: function(border, cell) {
+			if (!cell || cell.isnull) {
+				return this.board.emptyborder;
+			}
+			var bd = this.board;
+			if (border.by === bd.minby + 2) {
+				return cell.adjborder.bottom;
+			}
+			if (border.by === bd.maxby - 2) {
+				return cell.adjborder.top;
+			}
+			if (border.bx === bd.minbx + 2) {
+				return cell.adjborder.right;
+			}
+			if (border.bx === bd.maxbx - 2) {
+				return cell.adjborder.left;
+			}
+			return this.board.emptyborder;
+		},
+		isTravelBoundaryArrowInward: function(border) {
+			var bd = this.board;
+			var dir = border.getTravelLineBoundaryArrow();
+			return (
+				(border.by === bd.minby + 2 && dir === border.DN) ||
+				(border.by === bd.maxby - 2 && dir === border.UP) ||
+				(border.bx === bd.minbx + 2 && dir === border.RT) ||
+				(border.bx === bd.maxbx - 2 && dir === border.LT)
+			);
+		},
+		getTravelDirectionBetween: function(from, to) {
+			if (!from || !to || from.isnull || to.isnull) {
+				return this.board.emptycell.NDIR;
+			}
+			var dx = to.bx - from.bx;
+			var dy = to.by - from.by;
+			if (dx === 2 && dy === 0) {
+				return this.board.emptycell.RT;
+			}
+			if (dx === -2 && dy === 0) {
+				return this.board.emptycell.LT;
+			}
+			if (dx === 0 && dy === 2) {
+				return this.board.emptycell.DN;
+			}
+			if (dx === 0 && dy === -2) {
+				return this.board.emptycell.UP;
+			}
+			return this.board.emptycell.NDIR;
+		},
+		checkBoundaryArrows: function() {
+			var bd = this.board;
+			for (var i = 0; i < bd.border.length; i++) {
+				var border = bd.border[i];
+				if (!border.isTravelLineBoundaryArrow()) {
+					continue;
+				}
+				var cell = this.getTravelBoundaryArrowCell(border);
+				var matched = false;
+				if (border.inside) {
+					var cell1 = border.sidecell[0];
+					var cell2 = border.sidecell[1];
+					if (
+						!cell1.isnull &&
+						!cell2.isnull &&
+						border.isLine()
+					) {
+						this.forEachTravelPass(function(passCell, prevObj, nextObj) {
+							var target =
+								passCell === cell1
+									? cell2
+									: passCell === cell2
+										? cell1
+										: null;
+							if (!target || nextObj !== target) {
+								return false;
+							}
+							matched =
+								this.getTravelDirectionBetween(passCell, target) ===
+								border.getTravelLineBoundaryArrow();
+							return true;
+						});
+					}
+				} else {
+					var inner = this.getTravelBoundaryArrowInnerBorder(border, cell);
+					if (!cell.isnull && inner.isLine()) {
+						this.forEachTravelPass(function(passCell, prevObj, nextObj) {
+							if (passCell !== cell) {
+								return false;
+							}
+							if (this.isTravelBoundaryArrowInward(border)) {
+								matched =
+									this.getTravelDirectionBetween(passCell, nextObj) ===
+									border.getTravelLineBoundaryArrow();
+							} else {
+								matched =
+									this.getTravelDirectionBetween(prevObj, passCell) ===
+									border.getTravelLineBoundaryArrow();
+							}
+							return true;
+						});
+					}
+				}
+				if (!matched) {
+					this.failcode.add("tlBoundaryArrow");
+					if (!this.checkOnly) {
+						border.seterr(1);
+						if (!cell.isnull) {
+							cell.seterr(1);
+						}
+					}
+					return;
+				}
+			}
 		}
 	},
 
@@ -3662,6 +4082,10 @@ var TL_BORDER_CLUES = {
 		],
 		tlOrder: ["Order の文字順条件を満たしていません。", "An Order clue sequence is violated."],
 		tlReqLine: ["Required line が通っていません。", "A required line edge is not used."],
-		tlCountry: ["Country の境界の両側が未訪問です。", "Neither side of a Country border is visited."]
+		tlCountry: ["Country の境界の両側が未訪問です。", "Neither side of a Country border is visited."],
+		tlBoundaryArrow: [
+			"境界矢印の位置を線が正しい方向に通っていません。",
+			"The path does not pass a boundary arrow in the indicated direction."
+		]
 	}
 });

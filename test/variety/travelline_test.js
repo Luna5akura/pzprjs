@@ -243,6 +243,140 @@ describe("Variety:travelline", function() {
 		assert.equal(reloaded.board.getb(2, 3).ques, 2);
 	});
 
+	it("edits and round-trips boundary arrow clues", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("travel-boundary-arrow");
+
+		var top = puzzle.board.getb(1, 0);
+		puzzle.mouse.inputPath("left", 1, 0);
+		assert.equal(top.qnum, top.DN);
+		puzzle.mouse.inputPath("left", 1, 0);
+		assert.equal(top.qnum, top.UP);
+
+		var bottom = puzzle.board.getb(5, 6);
+		bottom.setQnum(bottom.UP);
+
+		var reloaded = new pzpr.Puzzle().open(puzzle.getURL());
+		assert.equal(reloaded.board.getb(1, 0).qnum, reloaded.board.getb(1, 0).UP);
+		assert.equal(reloaded.board.getb(5, 6).qnum, reloaded.board.getb(5, 6).UP);
+
+		puzzle.mouse.inputPath("right", 1, 0);
+		assert.equal(top.qnum, -1);
+	});
+
+	it("hits boundary arrows across each boundary segment", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("travel-boundary-arrow");
+
+		var cases = [
+			[puzzle.board.getb(1, 0), 1.5, 0, puzzle.board.getb(1, 0).DN],
+			[puzzle.board.getb(1, 6), 1.5, 6, puzzle.board.getb(1, 6).UP],
+			[puzzle.board.getb(0, 1), 0, 1.5, puzzle.board.getb(0, 1).RT],
+			[puzzle.board.getb(6, 1), 6, 1.5, puzzle.board.getb(6, 1).LT]
+		];
+
+		for (var i = 0; i < cases.length; i++) {
+			var item = cases[i];
+			puzzle.mouse.inputPath("left", item[1], item[2]);
+			assert.equal(item[0].qnum, item[3]);
+		}
+	});
+
+	it("edits one boundary arrow per center-to-center drag", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		puzzle.setMode("edit");
+		puzzle.mouse.setInputMode("travel-boundary-arrow");
+
+		puzzle.mouse.inputPath("left", 1, 1, 5, 1);
+		assert.equal(puzzle.board.getb(2, 1).qnum, puzzle.board.getb(2, 1).RT);
+		assert.equal(puzzle.board.getb(4, 1).qnum, -1);
+
+		puzzle.mouse.inputPath("left", 1, 1, 3, 1);
+		assert.equal(puzzle.board.getb(2, 1).qnum, -1);
+
+		puzzle.mouse.inputPath("left", 1, 1, 5, 1);
+		assert.equal(puzzle.board.getb(2, 1).qnum, puzzle.board.getb(2, 1).RT);
+
+		puzzle.mouse.inputPath("left", 5, 1, 1, 1);
+		assert.equal(puzzle.board.getb(2, 1).qnum, puzzle.board.getb(2, 1).RT);
+		assert.equal(puzzle.board.getb(4, 1).qnum, puzzle.board.getb(4, 1).LT);
+
+		var reloaded = new pzpr.Puzzle().open(puzzle.getURL());
+		assert.equal(reloaded.board.getb(2, 1).qnum, reloaded.board.getb(2, 1).RT);
+		assert.equal(reloaded.board.getb(4, 1).qnum, reloaded.board.getb(4, 1).LT);
+	});
+
+	it("checks boundary arrow direction against the in-to-out route", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var board = puzzle.board;
+		var checker = puzzle.checker;
+		var path = [0, 3, 4, 5, 2];
+
+		board.arrowin.set(board.getb(0, 1));
+		board.arrowout.set(board.getb(6, 1));
+		board.arrowin.getb().setLine();
+		board.arrowout.getb().setLine();
+		board.getb(1, 0).setQnum(board.getb(1, 0).DN);
+		for (var i = 1; i < path.length; i++) {
+			var from = board.cell[path[i - 1]];
+			var to = board.cell[path[i]];
+			board.getb((from.bx + to.bx) >> 1, (from.by + to.by) >> 1).setLine();
+		}
+
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkBoundaryArrows();
+		assert.equal(checker.failcode.length, 0);
+
+		board.getb(1, 0).setQnum(board.getb(1, 0).UP);
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkBoundaryArrows();
+		assert.equal(checker.failcode[0], "tlBoundaryArrow");
+	});
+
+	it("checks internal boundary arrow direction against the in-to-out route", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var board = puzzle.board;
+		var path = [0, 3, 4, 5, 2];
+
+		board.arrowin.set(board.getb(0, 1));
+		board.arrowout.set(board.getb(6, 1));
+		board.arrowin.getb().setLine();
+		board.arrowout.getb().setLine();
+		for (var i = 1; i < path.length; i++) {
+			var from = board.cell[path[i - 1]];
+			var to = board.cell[path[i]];
+			board.getb((from.bx + to.bx) >> 1, (from.by + to.by) >> 1).setLine();
+		}
+
+		var border = board.getb(2, 3);
+		border.setQnum(border.RT);
+		var checker = puzzle.checker;
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkOnly = true;
+		checker.checkBoundaryArrows();
+		assert.equal(checker.failcode.length, 0);
+
+		border.setQnum(border.LT);
+		checker.failcode = [];
+		checker.failcode.add = function(code) {
+			this.push(code);
+		};
+		checker.checkBoundaryArrows();
+		assert.equal(checker.failcode[0], "tlBoundaryArrow");
+	});
+
 	it("counts other yajilin clue cells and skips bars in a yajilin ray", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		var board = puzzle.board;
