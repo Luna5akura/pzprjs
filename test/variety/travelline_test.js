@@ -141,6 +141,54 @@ describe("Variety:travelline", function() {
 		assert.equal(cell.qnum2, 2);
 	});
 
+	it("keeps order text separate from Masyu-style dot graphics", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/3/3");
+		var cell = puzzle.board.getc(1, 1);
+		var graphic = puzzle.painter;
+		var hidden = [];
+		var disptextVid = null;
+		var context = {
+			vid: "",
+			vhide: function() {
+				hidden.push(this.vid);
+			},
+			shapeCircle: function() {}
+		};
+		var originalVinc = graphic.vinc;
+		var originalDisptext = graphic.disptext;
+		graphic.context = context;
+		graphic.range = { cells: [cell] };
+		graphic.cw = 36;
+		graphic.bw = 18;
+		graphic.bh = 18;
+		graphic.vinc = function() {
+			return this.context;
+		};
+		graphic.disptext = function() {
+			disptextVid = this.context.vid;
+		};
+
+		cell.setQnum(4);
+		graphic.drawCellClues();
+		cell.setQnum(8);
+		graphic.drawCellClues();
+		assert.equal(hidden.indexOf("c_order_" + cell.id) >= 0, true);
+
+		hidden = [];
+		cell.setQnum(16);
+		cell.setQnum2(0);
+		graphic.drawCellClues();
+		assert.equal(disptextVid, "c_order_" + cell.id);
+
+		hidden = [];
+		cell.setQnum(8);
+		graphic.drawCellClues();
+		assert.equal(hidden.indexOf("c_order_" + cell.id) >= 0, true);
+
+		graphic.vinc = originalVinc;
+		graphic.disptext = originalDisptext;
+	});
+
 	it("accepts multi-digit clue input until it exceeds the board cell count", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/3");
 		puzzle.setMode("edit");

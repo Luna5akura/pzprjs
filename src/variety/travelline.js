@@ -2028,6 +2028,8 @@ var TL_BORDER_CLUES = {
 				var py = cell.by * this.bh;
 				var qn = cell.qnum;
 
+				g.vid = "c_order_" + cell.id;
+				g.vhide();
 				g.vid = "c_pearl_" + cell.id;
 				if (qn === 3 || qn === 4) {
 					g.fillStyle = qn === 4 ? this.quescolor : "white";
@@ -2048,6 +2050,7 @@ var TL_BORDER_CLUES = {
 					g.vid = "c_dot_" + cell.id;
 					g.vhide();
 					g.fillStyle = this.getQuesNumberColor(cell);
+					g.vid = "c_order_" + cell.id;
 					this.disptext(this.getNumberTextCore_letter(Math.max(cell.qnum2, 0) + 1), px, py, {
 						ratio: 0.52
 					});
