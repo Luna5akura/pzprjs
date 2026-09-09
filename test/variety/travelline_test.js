@@ -617,6 +617,27 @@ describe("Variety:travelline", function() {
 		assert.equal(board2.arrowout.getdir(), goalBar.LT);
 	});
 
+	it("clears old border arrows when endpoints move onto bar cells", function() {
+		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
+		var board = puzzle.board;
+		var oldIn = board.arrowin.getb();
+		var oldOut = board.arrowout.getb();
+		var inBar = board.getc(3, 1);
+		var outBar = board.getc(7, 1);
+
+		inBar.setFloorFlag(32);
+		outBar.setFloorFlag(32);
+		board.arrowin.set(inBar, inBar.DN);
+		board.arrowout.set(outBar, outBar.UP);
+
+		assert.equal(oldIn.qdir, 0);
+		assert.equal(oldOut.qdir, 0);
+
+		var reloaded = new pzpr.Puzzle().open(puzzle.getURL());
+		assert.equal(reloaded.board.getb(oldIn.bx, oldIn.by).qdir, 0);
+		assert.equal(reloaded.board.getb(oldOut.bx, oldOut.by).qdir, 0);
+	});
+
 	it("places internal start and goal arrows by dragging across a bar cell", function() {
 		var puzzle = new pzpr.Puzzle().open("travelline/4/2");
 		puzzle.setMode("edit");
@@ -1126,6 +1147,7 @@ describe("Variety:travelline", function() {
 		assert.equal(board.arrowout.getdir(), topBar.UP);
 		assert.equal(board.arrowin.oncell(), false);
 		assert.equal(board.arrowin.getb(), oldOut);
+		assert.equal(oldOut.qdir, oldOut.DN);
 	});
 
 	it("clears floor clues while dragging clear input", function() {

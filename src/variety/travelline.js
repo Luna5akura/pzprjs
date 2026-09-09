@@ -1294,12 +1294,22 @@ var TL_BORDER_CLUES = {
 			this.enableInfo();
 		},
 		exchangeinout: function() {
-			var oldin = this.arrowin.getb();
-			var oldout = this.arrowout.getb();
-			oldin.setArrow(0);
-			oldout.setArrow(0);
-			this.arrowin.set(oldout);
-			this.arrowout.set(oldin);
+			var oldin = this.arrowin.getState();
+			var oldout = this.arrowout.getState();
+			var oldinborder = this.arrowin.onborder()
+				? this.arrowin.getb()
+				: this.emptyborder;
+			var oldoutborder = this.arrowout.onborder()
+				? this.arrowout.getb()
+				: this.emptyborder;
+			if (!oldinborder.isnull) {
+				oldinborder.setArrow(0);
+			}
+			if (!oldoutborder.isnull && oldoutborder !== oldinborder) {
+				oldoutborder.setArrow(0);
+			}
+			this.arrowin.setState(oldout, { skipArrowClear: true });
+			this.arrowout.setState(oldin, { skipArrowClear: true });
 
 			this.arrowin.draw();
 			this.arrowout.draw();
@@ -1458,8 +1468,8 @@ var TL_BORDER_CLUES = {
 		adjustBoardData2: function() {
 			var bd = this.board;
 			bd.disableInfo();
-			bd.arrowin.setState(this.posinfo_in);
-			bd.arrowout.setState(this.posinfo_out);
+			bd.arrowin.setState(this.posinfo_in, { skipArrowClear: true });
+			bd.arrowout.setState(this.posinfo_out, { skipArrowClear: true });
 			bd.enableInfo();
 		},
 		adjustEndpointState: function(key, d, info) {
@@ -1540,14 +1550,14 @@ var TL_BORDER_CLUES = {
 				dir: this.dir
 			};
 		},
-		setState: function(state) {
+		setState: function(state, options) {
 			if (!state) {
 				return;
 			}
 			if (state.mode === "cell") {
-				this.set(this.board.getc(state.bx, state.by), state.dir);
+				this.set(this.board.getc(state.bx, state.by), state.dir, options);
 			} else {
-				this.set(this.board.getb(state.bx, state.by));
+				this.set(this.board.getb(state.bx, state.by), null, options);
 			}
 		},
 
@@ -1564,25 +1574,16 @@ var TL_BORDER_CLUES = {
 					var oldstate = this.getState();
 					this.partner.setState(oldstate);
 					if (!this.oncell() || !this.equals(pos) || this.dir !== dir) {
-						if (this.onborder()) {
-							this.getb().setArrow(0);
-						}
 						this.set(pos, dir);
 					}
 					return;
 				}
 				if (!this.oncell() || !this.equals(pos) || this.dir !== dir) {
-					if (this.onborder()) {
-						this.getb().setArrow(0);
-					}
 					this.set(pos, dir);
 				}
 			} else {
 				if (!this.partner.equals(pos)) {
 					if (!this.equals(pos)) {
-						if (this.onborder()) {
-							this.getb().setArrow(0);
-						}
 						this.set(pos);
 					}
 				} else {
@@ -1590,12 +1591,21 @@ var TL_BORDER_CLUES = {
 				}
 			}
 		},
-		set: function(pos, dir) {
+		set: function(pos, dir, options) {
 			var pos0 = this.getaddr();
 			var oldstate = this.getState();
-			var newdir = pos.group === "cell" ? dir || this.NDIR : 0;
+			var newmode = pos.group === "cell" ? "cell" : "border";
+			var newdir = newmode === "cell" ? dir || this.NDIR : 0;
+			var moved =
+				oldstate.mode !== newmode ||
+				oldstate.bx !== pos.bx ||
+				oldstate.by !== pos.by ||
+				(newmode === "cell" && oldstate.dir !== newdir);
+			if (moved && !(options && options.skipArrowClear)) {
+				this.clearOldBorderArrow(oldstate, pos);
+			}
 			this.addOpe(oldstate, {
-				mode: pos.group === "cell" ? "cell" : "border",
+				mode: newmode,
 				bx: pos.bx,
 				by: pos.by,
 				dir: newdir
@@ -1614,6 +1624,27 @@ var TL_BORDER_CLUES = {
 				pos0.drawaround();
 				this.drawaround();
 			}
+		},
+
+		clearOldBorderArrow: function(oldstate, newpos) {
+			if (oldstate.mode !== "border") {
+				return;
+			}
+			if (oldstate.bx === newpos.bx && oldstate.by === newpos.by) {
+				return;
+			}
+			var oldborder = this.getb();
+			if (oldborder.isnull) {
+				return;
+			}
+			if (
+				this.partner &&
+				this.partner.onborder() &&
+				this.partner.equals(oldborder)
+			) {
+				return;
+			}
+			oldborder.setArrow(0);
 		},
 
 		addOpe: function(oldstate, newstate) {
