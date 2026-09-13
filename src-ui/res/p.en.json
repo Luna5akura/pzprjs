@@ -87,6 +87,7 @@
     "inputmode.slide": "Slide",
     "inputmode.shade": "Shaded cells",
     "inputmode.unshade": "Unshaded cells",
+    "inputmode.gray": "Outlined cells",
     "inputmode.number": "Number",
     "inputmode.number-": "Number (rev)",
     "inputmode.letter": "Alphabet",

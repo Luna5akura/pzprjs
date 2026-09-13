@@ -166,6 +166,24 @@ function getSolverBoardSnapshot() {
 			travellineSolverCellState: cell._travellineSolverCellState
 		});
 	}
+	snapshot.excells = [];
+	for (var e = 0; e < board.excell.length; e++) {
+		var excell = board.excell[e];
+		if (!excell || excell.isnull) {
+			continue;
+		}
+		snapshot.excells.push({
+			id: excell.id,
+			x: excell.bx,
+			y: excell.by,
+			qnum: excell.qnum,
+			ques: excell.ques,
+			qans: excell.qans,
+			qsub: excell.qsub,
+			anum: excell.anum,
+			solverState: cloneSolverDiagnosticValue(excell._solverState)
+		});
+	}
 	snapshot.borders = [];
 	for (var j = 0; j < board.border.length; j++) {
 		var border = board.border[j];
@@ -197,7 +215,7 @@ function getSolverDescriptionSummary(result) {
 	var suspiciousCellCoordinates = [];
 
 	for (var i = 0; i < data.length; i++) {
-		var entry = data[i] || {};
+		var entry = normalizeSolverEntryCoordinate(data[i] || {});
 		var kind = getItemKind(entry.item) || "(unknown)";
 		var color = entry.color || "(missing)";
 		colors[color] = (colors[color] || 0) + 1;
@@ -394,6 +412,12 @@ function clearGenericSolverOverlay() {
 			}
 			if (board.cell[j]._walkwalkSolverState) {
 				board.cell[j]._walkwalkSolverState = null;
+				changed++;
+			}
+		}
+		for (var k = 0; k < board.excell.length; k++) {
+			if (board.excell[k]._solverState) {
+				board.excell[k]._solverState = null;
 				changed++;
 			}
 		}
@@ -1070,12 +1094,68 @@ function isAnswerColor(entry) {
 	return !!entry && entry.color !== "black";
 }
 
+function isSkyNeighborPuzzle() {
+	return window.ui && ui.puzzle && ui.puzzle.pid === "skyneighbors";
+}
+
+/*
+ * The Sky-neighbor backend describes an 11x11 outer grid (all coordinates
+ * are non-negative), while pzpr's virtual board reserves the surrounding
+ * frame at -1 and 19 for a 9x9 board. Keep the conversion in one place so
+ * diagnostics and overlay application agree about the target piece.
+ */
+function normalizeSolverEntryCoordinate(entry) {
+	if (!entry || !isSkyNeighborPuzzle()) {
+		return entry;
+	}
+	if (!Number.isFinite(entry.x) || !Number.isFinite(entry.y)) {
+		return entry;
+	}
+	var normalized = Object.assign({}, entry, {
+		x: entry.x - 2,
+		y: entry.y - 2
+	});
+	if (entry.item && typeof entry.item === "object") {
+		normalized.item = Object.assign({}, entry.item);
+		if (Number.isFinite(entry.item.destX)) {
+			normalized.item.destX = entry.item.destX - 2;
+		}
+		if (Number.isFinite(entry.item.destY)) {
+			normalized.item.destY = entry.item.destY - 2;
+		}
+	}
+	return normalized;
+}
+
 function isCellCoordinate(entry) {
-	return !!entry && entry.x % 2 === 1 && entry.y % 2 === 1;
+	if (
+		!entry ||
+		Math.abs(entry.x % 2) !== 1 ||
+		Math.abs(entry.y % 2) !== 1
+	) {
+		return false;
+	}
+	if (isSkyNeighborPuzzle()) {
+		return entry.x >= 1 && entry.x <= 17 && entry.y >= 1 && entry.y <= 17;
+	}
+	return true;
+}
+
+function isSkyNeighborPieceCoordinate(entry) {
+	return (
+		!!entry &&
+		Math.abs(entry.x % 2) === 1 &&
+		Math.abs(entry.y % 2) === 1 &&
+		((entry.x >= 1 && entry.x <= 17 && entry.y >= 1 && entry.y <= 17) ||
+			(entry.y === -1 && entry.x >= 1 && entry.x <= 17) ||
+			(entry.y === 19 && entry.x >= 1 && entry.x <= 17) ||
+			(entry.x === -1 && entry.y >= 1 && entry.y <= 17) ||
+			(entry.x === 19 && entry.y >= 1 && entry.y <= 17))
+	);
 }
 
 function isBorderCoordinate(entry) {
-	return !!entry && (entry.x + entry.y) % 2 === 1;
+	return !!entry && Math.abs((entry.x + entry.y) % 2) === 1;
 }
 
 function getAnswerInputModes() {
@@ -1154,6 +1234,14 @@ function hasAnswerCellState(cell) {
 	);
 }
 
+function hasAnswerExCellState(excell) {
+	return (
+		!!excell &&
+		!excell.isnull &&
+		(excell.qans !== 0 || excell.qsub !== 0 || excell.anum !== -1)
+	);
+}
+
 function appendSolverOverlayState(piece, entry) {
 	var state = piece._solverState;
 	if (!state) {
@@ -1173,6 +1261,15 @@ function applyCellEntry(entry) {
 
 	var cell = ui.puzzle.board.getc(entry.x, entry.y);
 	if (cell.isnull) {
+		// Sky-neighbor outside positions use the same odd/odd virtual
+		// coordinates as cells. Resolve them as ExCells after the ordinary
+		// cell lookup fails.
+		if (isSkyNeighborPuzzle()) {
+			var excell = ui.puzzle.board.getex(entry.x, entry.y);
+			if (!excell.isnull) {
+				return applyExCellEntry(entry, excell);
+			}
+		}
 		return 0;
 	}
 	if (hasAnswerCellState(cell)) {
@@ -1188,6 +1285,17 @@ function applyCellEntry(entry) {
 	}
 
 	return appendSolverOverlayState(cell, entry);
+}
+
+function applyExCellEntry(entry, excell) {
+	var kind = getItemKind(entry.item);
+	if (!isSolverOverlayCellKind(kind)) {
+		return null;
+	}
+	if (hasAnswerExCellState(excell) || excell.qnum !== -1) {
+		return 0;
+	}
+	return appendSolverOverlayState(excell, entry);
 }
 
 function applyBorderEntry(entry) {
@@ -1241,8 +1349,21 @@ function applyGenericSolverOverlayEntry(entry) {
 }
 
 function applyEntry(entry) {
+	entry = normalizeSolverEntryCoordinate(entry);
 	if (!isAnswerColor(entry)) {
 		return null;
+	}
+
+	if (isSkyNeighborPuzzle() && isSkyNeighborPieceCoordinate(entry)) {
+		var skyCell = ui.puzzle.board.getc(entry.x, entry.y);
+		if (!skyCell.isnull) {
+			return applyCellEntry(entry);
+		}
+		var skyExCell = ui.puzzle.board.getex(entry.x, entry.y);
+		if (!skyExCell.isnull) {
+			return applyExCellEntry(entry, skyExCell);
+		}
+		return 0;
 	}
 
 	if (isCellCoordinate(entry)) {

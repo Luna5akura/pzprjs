@@ -232,6 +232,14 @@
 			kaidan: [0, 0, "かいだんしばり", "Stairwell"],
 			kaisu: [0, 0, "Kaisu", "Kaisu", "haisu"],
 			kakuro: [0, 1, "カックロ", "Kakuro"],
+			shapeminesweeper: [
+				0,
+				0,
+				"形状マインスイーパー",
+				"Shape Minesweeper",
+				"statuepark",
+				{ alias: "shape-minesweeper", alias2: "shape-minesweep" }
+			],
 			kakuru: [0, 0, "カックル", "Kakuru"],
 			kazunori: [0, 0, "かずのりのへや", "Kazunori Room"],
 			kinkonkan: [1, 0, "キンコンカン", "Kin-Kon-Kan"],
@@ -304,6 +312,24 @@
 			nanro: [0, 1, "ナンロー", "Nanro"],
 			narrow: [0, 0, "Narrowfence", "Narrowfence", "nawabari"],
 			nawabari: [1, 0, "なわばり", "Nawabari", "nawabari"],
+			neighbors: [
+				0,
+				0,
+				"Neighbors",
+				"Neighbors",
+				"neighbors",
+				{ alias: "neighbors" }
+			],
+			skyneighbors: [
+				0,
+				0,
+				"Sky Neighbors",
+				"Sky Neighbors",
+				"skyneighbors",
+				{
+					alias: "sky-neighbors"
+				}
+			],
 			news: [0, 0, "NEWS", "NEWS", "toichika"],
 			nibunnogo: [0, 0, "ニブンノゴ", "Nibun-nogo", "lightshadow"],
 			nikoji: [0, 0, "NIKOJI", "NIKOJI", "cbblock"],
@@ -438,7 +464,13 @@
 				0,
 				"Sheep Wolf Slitherlink",
 				"Sheep Wolf Slitherlink",
-				"slither"
+				"slither",
+				{
+					alias: "wolvesandsheepfences",
+					alias2: "wolves-and-sheep-fences",
+					alias3: "wolvesandsheep",
+					alias4: "wolves-and-sheep"
+				}
 			],
 			symmarea: [0, 0, "シンメトリーエリア", "Symmetry Area", "fillomino"],
 			tachibk: [0, 0, "たちあわせブロック", "Tachiawase Block"],

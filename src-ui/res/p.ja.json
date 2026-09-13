@@ -81,6 +81,7 @@
     "inputmode.slide": "平行移動",
     "inputmode.shade": "黒マス",
     "inputmode.unshade": "白マス",
+    "inputmode.gray": "灰色の枠",
     "inputmode.number": "数字",
     "inputmode.number-": "数字(逆順)",
     "inputmode.letter": "アルファベット",

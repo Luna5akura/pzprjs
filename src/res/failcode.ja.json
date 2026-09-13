@@ -529,6 +529,7 @@
     "nmLineNe.slither": "数字の周りにある線の本数が違います。",
     "nmLt1.lapaz": "数字が1x2のブロックに含まれていません。",
     "nmMinesNe.mines": "タテヨコナナメに接する爆弾の数が数字と異なります。",
+    "nmMinesNe.shapeminesweeper": "周囲の形マスの数が数字と異なります。",
     "nmMissing.lohkous": "領域内に数字と同じ長さのセグメントがありません。",
     "nmMissRow.easyasabc": "列に入っていないアルファベットがあります。",
     "nmMissRow.magic-snail": "列に入っていない数字があります。",
@@ -915,5 +916,14 @@
     "bdPierceGt1.blindrush": "ひとつながりになった壁が2回以上突き破られています。",
     "bdPierceLt1.blindrush": "ひとつながりになった壁が一度も突き破られていません。",
     "laLenNe.blindrush": "丸が壁を突き破った回数と数字が一致していません。",
-    "laWallStop.blindrush": "丸が壁にぶつかる前に止まっています。"
+    "laWallStop.blindrush": "丸が壁にぶつかる前に止まっています。",
+    "ceNoNum.neighbor": "数字の入っていないマスがあります。",
+    "nmFixed.neighbor": "固定数字が変更されています。",
+    "nmCount.neighbor": "各タテ列とヨコ列には1、2、3がそれぞれ3回ずつ入らなければなりません。",
+    "nmNeighbor.neighbor": "白マスは同じ数字に接し、枠付きマスは同じ数字に接してはいけません。",
+    "ceNoNum.skyneighbor": "数字の入っていないマスがあります。",
+    "nmFixed.skyneighbor": "固定数字が変更されています。",
+    "nmCount.skyneighbor": "大きな盤面の各タテ列とヨコ列には1、2、3がそれぞれ3回ずつ入らなければなりません。",
+    "nmNeighbor.skyneighbor": "白マスは同じ数字に接し、枠付きマスは同じ数字に接してはいけません。",
+    "nmSky.skyneighbor": "見えるビルの数が正しくありません。"
 }

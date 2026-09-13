@@ -889,6 +889,25 @@ ui.popupmgr.addpopup("imagesave", {
 ui.popupmgr.addpopup("adjust", {
 	formname: "adjust",
 
+	reset: function() {
+		var exec = ui.puzzle.board.exec;
+		var names = [
+			"expandup",
+			"expanddn",
+			"expandlt",
+			"expandrt",
+			"reduceup",
+			"reducedn",
+			"reducelt",
+			"reducert"
+		];
+		for (var i = 0; i < names.length; i++) {
+			if (this.form[names[i]]) {
+				this.form[names[i]].disabled = !exec.isBoardOp(names[i]);
+			}
+		}
+	},
+
 	adjust: function(e) {
 		ui.puzzle.board.operate(e.target.name);
 	}

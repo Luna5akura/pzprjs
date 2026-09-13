@@ -787,6 +787,7 @@
     "nmLt2.oyakodori": "There is a lonely bird.",
     "nmMidpoint.snakepit": "A grey cell is not a middle part of a snake.",
     "nmMinesNe.mines": "The number of mines in the surrounding cells is not equal to the number.",
+    "nmMinesNe.shapeminesweeper": "The number of surrounding shape cells is not equal to the clue.",
     "nmMissing.lohkous": "There is no segment of the given length in the room.",
     "nmMissRow.alter": "A row or column has less than two symbols.",
     "nmMissRow.easyasabc": "There are missing letters in a row or column.",
@@ -949,5 +950,14 @@
     "tentAround.tents": "Some tents touch.",
     "tooFewUnspecified.railpool": "The region contains fewer unspecified segment lengths than question marks.",
     "tooManyUnspecified.railpool": "The region contains more unspecified segment lengths than question marks.",
-    "unusedCell": "A cell is unused."
+    "unusedCell": "A cell is unused.",
+    "ceNoNum.neighbor": "There is an empty cell.",
+    "nmFixed.neighbor": "A given number has been changed.",
+    "nmCount.neighbor": "Each row and column must contain three 1s, three 2s and three 3s.",
+    "nmNeighbor.neighbor": "A white cell needs an equal neighbour; an outlined cell cannot have one.",
+    "ceNoNum.skyneighbor": "There is an empty cell.",
+    "nmFixed.skyneighbor": "A given number has been changed.",
+    "nmCount.skyneighbor": "Each row and column of the large grid must contain three 1s, three 2s and three 3s.",
+    "nmNeighbor.skyneighbor": "A white cell needs an equal neighbour; an outlined cell cannot have one.",
+    "nmSky.skyneighbor": "The number of visible skyscrapers is wrong."
 }

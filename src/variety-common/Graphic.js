@@ -19,6 +19,7 @@ pzpr.classmgr.makeCommon({
 		},
 		drawSolverOverlays: function() {
 			this.drawSolverOverlayCells();
+			this.drawSolverOverlayExCells();
 			this.drawSolverOverlayLines();
 			this.drawSolverOverlayPekes();
 		},
@@ -145,6 +146,101 @@ pzpr.classmgr.makeCommon({
 				g.vid = "c_solver_" + cell.id;
 				g.vhide();
 			}
+		},
+		drawSolverOverlayExCells: function() {
+			// Most varieties do not allocate ExCells (and consequently do not
+			// create an ExCell drawing layer).  Keep the generic solver painter
+			// harmless for those boards; only varieties with an actual outside
+			// cell collection need this pass.
+			if (!this.board || !this.board.hasexcell) {
+				return;
+			}
+			var g = this.vinc("solver_excell", "auto", true);
+			if (!g) {
+				return;
+			}
+			var exlist = this.range.excells || [];
+
+			for (var i = 0; i < exlist.length; i++) {
+				var excell = exlist[i];
+				var entries = this.getSolverOverlayEntries(excell);
+				var visible =
+					entries.length > 0 &&
+					!this.hasAnswerCellState(excell) &&
+					excell.qnum === -1
+						? Math.min(entries.length, this.solverCellOverlaySlots)
+						: 0;
+				var j = 0;
+
+				for (; j < visible; j++) {
+					g.vid = "e_solver_" + excell.id + "_" + j;
+					if (!this.drawSolverOverlayExCellEntry(g, excell, entries[j])) {
+						g.vhide();
+					}
+				}
+				for (; j < this.solverCellOverlaySlots; j++) {
+					g.vid = "e_solver_" + excell.id + "_" + j;
+					g.vhide();
+				}
+			}
+		},
+		drawSolverOverlayExCellEntry: function(g, excell, entry) {
+			var kind = this.getSolverOverlayEntryKind(entry);
+			var item = typeof entry === "string" ? null : entry && entry.item;
+			var px = excell.bx * this.bw;
+			var py = excell.by * this.bh;
+			var color = this.getSolverOverlayEntryColor(
+				entry,
+				this.solverCellMarkColor
+			);
+			var linewidth = Math.max((1 + this.cw / 40) | 0, 1);
+
+			if (kind === "text" && item && typeof item.data !== "undefined") {
+				var position = this.getSolverOverlayTextPosition(item);
+				g.fillStyle = this.getSolverOverlayEntryColor(entry, this.solverTextColor);
+				this.disptext(String(item.data), px, py, {
+					ratio: position === this.CENTER ? 0.6 : 0.34,
+					position: position
+				});
+				return true;
+			}
+			if (kind === "square") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeRectCenter(px, py, this.cw * 0.55, this.ch * 0.55);
+				return true;
+			}
+			if (kind === "block" || kind === "fill") {
+				g.fillStyle = this.getSolverOverlayEntryColor(
+					entry,
+					this.solverCellFillColor
+				);
+				g.fillRectCenter(px, py, this.bw + 0.5, this.bh + 0.5);
+				return true;
+			}
+			if (kind === "dot") {
+				g.fillStyle = color;
+				g.fillCircle(px, py, Math.max(this.cw * 0.06, 2));
+				return true;
+			}
+			if (kind === "circle" || kind === "smallCircle") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeCircle(px, py, this.cw * 0.3 * (kind === "smallCircle" ? 0.45 : 1));
+				return true;
+			}
+			if (kind === "filledCircle" || kind === "smallFilledCircle") {
+				g.fillStyle = color;
+				g.fillCircle(px, py, this.cw * 0.3 * (kind === "smallFilledCircle" ? 0.45 : 1));
+				return true;
+			}
+			if (kind === "cross") {
+				g.lineWidth = linewidth;
+				g.strokeStyle = color;
+				g.strokeCross(px, py, this.cw * 0.35);
+				return true;
+			}
+			return false;
 		},
 		drawSolverOverlayCellEntry: function(g, cell, entry) {
 			var kind = this.getSolverOverlayEntryKind(entry);

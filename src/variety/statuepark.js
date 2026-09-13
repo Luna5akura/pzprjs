@@ -13,6 +13,7 @@
 		"pentatouch",
 		"kissing",
 		"retroships",
+		"shapeminesweeper",
 		"regional-poly",
 		"distopia"
 	];
@@ -362,6 +363,12 @@
 			play: ["shade", "unshade", "clear", "completion"]
 		}
 	},
+	"MouseEvent@shapeminesweeper": {
+		inputModes: {
+			edit: ["number", "clear", "completion"],
+			play: ["shade", "unshade", "clear", "completion"]
+		}
+	},
 	"MouseEvent@kissing,regional-poly": {
 		inputModes: {
 			edit: ["completion", "border", "empty"],
@@ -630,6 +637,11 @@
 	"Bank@statuepark-aux": {
 		enabled: false
 	},
+	"Bank@shapeminesweeper": {
+		defaultPreset: function() {
+			return this.presets[1].constant;
+		}
+	},
 
 	"Bank@pentopia": {
 		shouldDrawBank: function() {
@@ -884,6 +896,26 @@
 
 		allowUnshade: function() {
 			return this.qnum !== 2;
+		}
+	},
+	"Cell@shapeminesweeper": {
+		maxnum: 8,
+		allowShade: function() {
+			return this.qnum === -1;
+		},
+		checkComplete: function() {
+			if (this.qnum < 0) {
+				return true;
+			}
+			var count = 0;
+			for (var dy = -1; dy <= 1; dy++) {
+				for (var dx = -1; dx <= 1; dx++) {
+					if ((dx || dy) && this.relcell(dx * 2, dy * 2).isShade()) {
+						count++;
+					}
+				}
+			}
+			return count === this.qnum;
 		}
 	},
 
@@ -1186,6 +1218,8 @@
 				this.drawCrossMarks();
 			} else if (this.pid === "statuepark") {
 				this.drawCircles();
+			} else if (this.pid === "shapeminesweeper") {
+				this.drawQuesNumbers();
 			} else if (this.pid === "distopia") {
 				this.drawQuesNumbers();
 			} else if (this.pid === "pentopia") {
@@ -1813,6 +1847,16 @@
 			this.outbstr = this.board.getShape() || "1:0";
 		}
 	},
+	"Encode@shapeminesweeper": {
+		decodePzpr: function(type) {
+			this.decodeNumber16();
+			this.decodePieceBank();
+		},
+		encodePzpr: function(type) {
+			this.encodeNumber16();
+			this.encodePieceBank();
+		}
+	},
 
 	"Encode@pentatouch": {
 		decodePzpr: function(type) {
@@ -1970,6 +2014,21 @@
 			}, "circleShade");
 		}
 	},
+	"AnsCheck@shapeminesweeper": {
+		checklist: [
+			"checkCellNumberShapeMinesweeper",
+			"checkBankPiecesAvailable",
+			"checkBankPiecesInvalid",
+			"checkShadeDiagonal",
+			"checkBankPiecesUsed"
+		],
+
+		checkCellNumberShapeMinesweeper: function() {
+			this.checkAllCell(function(cell) {
+				return cell.qnum >= 0 && (cell.isShade() || !cell.checkComplete());
+			}, "nmMinesNe");
+		}
+	},
 	"AnsCheck@kissing,regional-poly": {
 		checklist: [
 			"checkUnshadeOnCircle",
@@ -2074,7 +2133,7 @@
 		}
 	},
 
-	"AnsCheck@pentopia,distopia,battleship,retroships,pentatouch,regional-poly#1": {
+	"AnsCheck@pentopia,distopia,battleship,retroships,pentatouch,regional-poly,shapeminesweeper#1": {
 		checkShadeDiagonal: function() {
 			var bd = this.board;
 			for (var c = 0; c < bd.cell.length; c++) {

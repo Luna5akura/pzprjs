@@ -21,6 +21,20 @@
 		},
 		mouseinput_number: function() {
 			if (this.mousestart) {
+				// In edit mode, clicking a white cell with the number tool should
+				// create the diagonal clue cell immediately.  The stock cell51
+				// handler only selects such a cell first, which made it impossible
+				// to enter both triangles reliably with the mouse.
+				if (this.puzzle.editmode) {
+					var cell = this.getcell();
+					if (!cell.isnull && !cell.is51cell()) {
+						cell.set51cell();
+						var dx = this.inputPoint.bx - cell.bx;
+						var dy = this.inputPoint.by - cell.by;
+						this.cursor.targetdir = dx - dy >= 0 ? cell.RT : cell.DN;
+						this.setcursor(cell);
+					}
+				}
 				this.inputqnum_cell51();
 			}
 		},
@@ -137,6 +151,8 @@
 			this.drawBGCells();
 			this.drawBGExCells();
 			this.drawTargetSubNumber();
+			this.drawKakuroMissingClues();
+			this.drawKakuroMissingExClues();
 			this.drawQues51();
 
 			this.drawGrid();
@@ -150,6 +166,106 @@
 			this.drawQuesNumbers();
 
 			this.drawCursor();
+		},
+		drawKakuroMissingClues: function() {
+			var g = this.vinc("cell_missing_clue", "crispEdges", true);
+			g.fillStyle = "rgb(128,128,128)";
+			var clist = this.range.cells || [];
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var px = cell.bx * this.bw;
+				var py = cell.by * this.bh;
+
+				// Keep one stable vector id per triangle and hide it on every
+				// repaint when the clue is visible (or when the cell is no longer
+				// a clue).  Otherwise a previously missing triangle can remain as
+				// a stale gray patch after editing the clue.
+				g.vid = "missing_clue_rt_" + cell.id;
+				if (this.isKakuroClueTriangleMissing(cell, true)) {
+					this.drawKakuroMissingTriangle(g, px, py, true);
+				} else {
+					g.vhide();
+				}
+
+				g.vid = "missing_clue_dn_" + cell.id;
+				if (this.isKakuroClueTriangleMissing(cell, false)) {
+					this.drawKakuroMissingTriangle(g, px, py, false);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+		isKakuroClueTriangleMissing: function(piece, upperRight) {
+			if (!piece || piece.isnull || piece.ques !== 51) {
+				return false;
+			}
+			var value = upperRight ? piece.qnum : piece.qnum2;
+			if (value < 0) {
+				return true;
+			}
+
+			// Keep the fill in sync with drawQuesNumbersOn51_1.  A clue number is
+			// visible only when its run starts with a white cell.  In particular,
+			// native Kakuro URLs can encode 0 for a zero-length run; that 0 is
+			// intentionally hidden and its triangle is drawn as missing as well.
+			var adjacent = upperRight
+				? piece.relcell(2, 0)
+				: piece.relcell(0, 2);
+			return !adjacent || adjacent.isnull || adjacent.ques === 51;
+		},
+		drawKakuroMissingTriangle: function(g, px, py, upperRight) {
+			var bw = this.bw + 1;
+			var bh = this.bh + 1;
+			g.beginPath();
+			if (upperRight) {
+				g.moveTo(px - bw, py - bh); g.lineTo(px + bw, py - bh); g.lineTo(px + bw, py + bh);
+			} else {
+				g.moveTo(px - bw, py - bh); g.lineTo(px - bw, py + bh); g.lineTo(px + bw, py + bh);
+			}
+			g.closePath(); g.fill();
+		},
+		drawKakuroMissingExClues: function() {
+			var g = this.vinc("excell_missing_clue", "crispEdges", true);
+			g.fillStyle = "rgb(128,128,128)";
+			var list = this.range.excells || [];
+			for (var i = 0; i < list.length; i++) {
+				var ex = list[i];
+				var px = ex.bx * this.bw;
+				var py = ex.by * this.bh;
+				var isTopExCell =
+					ex.by === -1 && ex.bx > 0 && ex.bx < this.board.maxbx;
+				var isLeftExCell =
+					ex.bx === -1 && ex.by > 0 && ex.by < this.board.maxby;
+				var isCornerExCell = ex.bx === -1 && ex.by === -1;
+
+				// Top ExCells only use their lower-left half (qnum2) for a
+				// downward clue, so the upper-right half is structurally blank.
+				// Left ExCells only use their upper-right half (qnum) for a
+				// rightward clue, so the lower-left half is structurally blank.
+				// Shade those unused halves too; otherwise the first row/column
+				// appears to have a lighter, incomplete clue cell.
+				g.vid = "ex_missing_dn_" + ex.id;
+				if (
+					(isTopExCell && this.isKakuroClueTriangleMissing(ex, false)) ||
+					(isLeftExCell && ex.qnum2 < 0) ||
+					(isCornerExCell && ex.qnum2 < 0)
+				) {
+					this.drawKakuroMissingTriangle(g, px, py, false);
+				} else {
+					g.vhide();
+				}
+
+				g.vid = "ex_missing_rt_" + ex.id;
+				if (
+					(isTopExCell && ex.qnum < 0) ||
+					(isLeftExCell && this.isKakuroClueTriangleMissing(ex, true)) ||
+					(isCornerExCell && ex.qnum < 0)
+				) {
+					this.drawKakuroMissingTriangle(g, px, py, true);
+				} else {
+					g.vhide();
+				}
+			}
 		},
 
 		// オーバーライド drawBGCells用
