@@ -220,7 +220,7 @@ function toBGimage(pid) {
 		"starbattle",
 		"statuepark",
 		"subomino",
-		"swslither",
+		"wolvesandsheepfences",
 		"symmarea",
 		"tachibk",
 		"tajmahal",

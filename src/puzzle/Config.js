@@ -407,7 +407,7 @@
 						pid === "interbd" || (pid === "outofsight" && !puzzle.board.isMono);
 					break;
 				case "bgcolor":
-					exec = pid === "slither" || pid === "myopia" || pid === "swslither";
+					exec = pid === "slither" || pid === "myopia" || pid === "wolvesandsheepfences";
 					break;
 				case "irowake":
 					exec = puzzle.painter.irowake;
@@ -520,7 +520,7 @@
 						[
 							"slither",
 							"tslither",
-							"swslither",
+							"wolvesandsheepfences",
 							"myopia",
 							"lineofsight"
 						].indexOf(pid) >= 0;

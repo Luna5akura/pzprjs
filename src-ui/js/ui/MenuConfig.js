@@ -149,7 +149,7 @@
 					break;
 				case "slither":
 				case "tslither":
-				case "swslither":
+				case "wolvesandsheepfences":
 				case "myopia":
 				case "lineofsight":
 					idname = "slither_full";

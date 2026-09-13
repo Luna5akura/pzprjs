@@ -459,17 +459,16 @@
 			sukoro: [1, 0, "数コロ", "Sukoro", "sukoro"],
 			sukororoom: [0, 0, "数コロ部屋", "Sukoro-room", "sukoro"],
 			sumiwake: [0, 0, "すみわけ", "Sumiwake", "heyawake"],
-			swslither: [
+			wolvesandsheepfences: [
 				0,
 				0,
-				"Sheep Wolf Slitherlink",
-				"Sheep Wolf Slitherlink",
+				"Wolves and Sheep Fences",
+				"Wolves and Sheep Fences",
 				"slither",
 				{
-					alias: "wolvesandsheepfences",
-					alias2: "wolves-and-sheep-fences",
-					alias3: "wolvesandsheep",
-					alias4: "wolves-and-sheep"
+					alias: "wolves-and-sheep-fences",
+					alias2: "wolvesandsheep",
+					alias3: "wolves-and-sheep"
 				}
 			],
 			symmarea: [0, 0, "シンメトリーエリア", "Symmetry Area", "fillomino"],
