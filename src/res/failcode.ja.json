@@ -925,5 +925,12 @@
     "nmFixed.skyneighbor": "固定数字が変更されています。",
     "nmCount.skyneighbor": "大きな盤面の各タテ列とヨコ列には1、2、3がそれぞれ3回ずつ入らなければなりません。",
     "nmNeighbor.skyneighbor": "白マスは同じ数字に接し、枠付きマスは同じ数字に接してはいけません。",
-    "nmSky.skyneighbor": "見えるビルの数が正しくありません。"
+    "nmSky.skyneighbor": "見えるビルの数が正しくありません。",
+    "ceNum.japanese_arrows": "数字の入っていないマスがあります。",
+    "anNumberNe.japanese_arrows": "矢印の方向に見える異なる数字の個数が正しくありません。",
+    "nmArrowNe.fourwinds": "矢印の長さの合計が正しくありません。",
+    "arStartNe.fourwinds": "矢印が数字マスから始まっていません。",
+    "rowEmptyNe.fourwinds": "各行・各列には空きマスが1つだけ必要です。",
+    "colEmptyNe.fourwinds": "各行・各列には空きマスが1つだけ必要です。",
+    "nmAbcBox.abcbox": "ABCボックスのグループが手掛かりと一致していません。"
 }

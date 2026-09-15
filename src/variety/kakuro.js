@@ -7,7 +7,7 @@
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["kakuro"], {
+})(["kakuro", "consecutive"], {
 	//---------------------------------------------------------
 	// マウス入力系
 	MouseEvent: {

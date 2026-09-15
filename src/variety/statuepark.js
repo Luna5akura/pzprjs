@@ -899,6 +899,7 @@
 		}
 	},
 	"Cell@shapeminesweeper": {
+		minnum: 0,
 		maxnum: 8,
 		allowShade: function() {
 			return this.qnum === -1;
@@ -1849,7 +1850,19 @@
 	},
 	"Encode@shapeminesweeper": {
 		decodePzpr: function(type) {
-			this.decodeNumber16();
+			// Keep the slash-delimited bank payload out of decodeNumber16.  A
+			// new-board URL is normalized to e.g. `v///t` (16 empty clues and
+			// the tetromino preset); decodeNumber16 otherwise consumes the
+			// slashes as malformed clue characters and leaves an empty bank.
+			var bstr = this.outbstr;
+			var slash = bstr.indexOf("/");
+			if (slash < 0) {
+				this.decodeNumber16();
+			} else if (slash > 0) {
+				this.outbstr = bstr.substr(0, slash);
+				this.decodeNumber16();
+				this.outbstr = bstr.substr(slash);
+			}
 			this.decodePieceBank();
 		},
 		encodePzpr: function(type) {

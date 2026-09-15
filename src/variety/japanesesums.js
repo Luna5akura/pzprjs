@@ -7,7 +7,7 @@
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["japanesesums"], {
+})(["japanesesums", "japanesesumswithzeroes", "abcbox"], {
 	//---------------------------------------------------------
 	// マウス入力系
 	MouseEvent: {
@@ -114,7 +114,84 @@
 			cell.draw();
 		}
 	},
-
+	"MouseEvent@abcbox": {
+		inputModes: {
+			// Outside cells accept either a numeric length or one of the
+			// symbolic clues.  Keep the letter tool as a convenient cycling
+			// editor for A/B/C/? while the number tool uses normal number input.
+			edit: ["number", "letter", "clear"],
+			play: ["number", "clear"]
+		},
+		mouseinput_other: function() {
+			if (this.inputMode.indexOf("letter") === 0) {
+				this.mouseinput_letter();
+			}
+		},
+		mouseinput_auto: function() {
+			if (this.puzzle.playmode) {
+				if (this.mousestart) {
+					var piece = this.getcell_excell();
+					if (!piece.isnull && piece.group === "cell") {
+						this.inputqnum();
+					}
+				}
+			} else {
+				this.mouseinput_number();
+			}
+		},
+		mouseinput_number: function() {
+			if (!this.mousestart) {
+				return;
+			}
+			if (!this.puzzle.editmode) {
+				this.inputqnum();
+				return;
+			}
+			var ex = this.getpos(0).getex();
+			if (!ex.isnull && ex.group === "excell") {
+				this.setcursor(this.getpos(0));
+				this.inputqnum_main(ex);
+			} else {
+				this.inputqnum();
+			}
+		},
+		mouseinput_clear: function() {
+			var piece = this.getcell_excell();
+			if (!piece.isnull && piece.group === "excell") {
+				if (!this.puzzle.editmode) {
+					return;
+				}
+				if (this.mousestart || this.mousemove) {
+					piece.setQnum(-1);
+					piece.setQchar(0);
+					this.mouseCell = piece;
+					piece.draw();
+				}
+			} else {
+				this.inputclean_cell();
+			}
+		},
+		mouseinput_letter: function() {
+			if (!this.mousestart) {
+				return;
+			}
+			var ex = this.getpos(0).getex();
+			if (ex.isnull || ex.group !== "excell") {
+				return;
+			}
+			this.setcursor(this.getpos(0));
+			// The letter tool intentionally does not cycle through numeric
+			// clues; a numeric clue starts a fresh A/B/C/? cycle.
+			var n = ex.qnum === -2 ? 4 : ex.qchar || 0;
+			if (ex.qnum > 0) {
+				n = 0;
+			}
+			n = (n + (this.btn === "right" ? 4 : 1)) % 5;
+			ex.setQchar(n > 0 && n < 4 ? n : 0);
+			ex.setQnum(n === 4 ? -2 : -1);
+			ex.draw();
+		}
+	},
 	//---------------------------------------------------------
 	// キーボード入力系
 	KeyEvent: {
@@ -159,6 +236,55 @@
 			this.prev = bd.indicator;
 		}
 	},
+	"KeyEvent@abcbox": {
+		keyinput: function(ca) {
+			if (this.puzzle.editmode) {
+				var ex = this.cursor.getex();
+				if (!ex.isnull && ex.group === "excell") {
+					ca =
+						typeof ca === "string" && ca.length === 1 ? ca.toLowerCase() : ca;
+					if (ca === "a" || ca === "b" || ca === "c") {
+						ex.setQchar(ca.charCodeAt(0) - 96);
+						ex.setQnum(-1);
+						ex.draw();
+						return;
+					}
+					if (ca === "-" || ca === "?") {
+						ex.setQchar(0);
+						ex.setQnum(ex.qnum === -2 ? -1 : -2);
+						ex.draw();
+						return;
+					}
+					if (ca === " ") {
+						ex.setQchar(0);
+						ex.setQnum(-1);
+						ex.draw();
+						return;
+					}
+					if (ca === "BS") {
+						if (ex.qnum >= 10) {
+							this.key_inputqnum_main(ex, ca);
+						} else {
+							ex.setQchar(0);
+							ex.setQnum(-1);
+							ex.draw();
+						}
+						return;
+					}
+					// Digits (including multi-digit lengths) use the common
+					// numeric editor, which enforces this side's line length.
+					if (ca >= "0" && ca <= "9") {
+						this.key_inputqnum_main(ex, ca);
+						return;
+					}
+					return;
+				}
+				this.key_inputqnum(ca);
+				return;
+			}
+			this.key_inputqnum(ca);
+		}
+	},
 
 	TargetCursor: {
 		initCursor: function() {
@@ -177,13 +303,24 @@
 			this.miny = 1;
 		}
 	},
-
+	"TargetCursor@abcbox": {
+		setminmax_customize: function() {
+			// There is no numeric range indicator below the ABC-Box grid.
+			if (!this.puzzle.editmode) {
+				this.minx = 1;
+				this.miny = 1;
+			}
+		}
+	},
 	//---------------------------------------------------------
 	// 盤面管理系
 	Cell: {
 		disInputHatena: true,
 		enableSubNumberArray: true,
 		numberWithMB: true,
+		minnum: function() {
+			return this.pid === "japanesesumswithzeroes" ? 0 : 1;
+		},
 
 		maxnum: function() {
 			return this.board.indicator.count;
@@ -197,7 +334,10 @@
 			if (this.qnum !== -1) {
 				return this.qnum;
 			}
-			if (this.anum > 0) {
+			if (
+				this.anum > 0 ||
+				(this.anum === 0 && this.puzzle.pid === "japanesesumswithzeroes")
+			) {
 				return this.anum;
 			}
 			if (this.qans > 0) {
@@ -222,7 +362,10 @@
 				return;
 			}
 
-			if (val > 0) {
+			if (
+				val > 0 ||
+				(val === 0 && this.puzzle.pid === "japanesesumswithzeroes")
+			) {
 				this.setAnum(val);
 				this.setQsub(0);
 				this.setQans(0);
@@ -243,6 +386,51 @@
 						break;
 				}
 			}
+			this.clrSnum();
+		}
+	},
+
+	"Cell@japanesesumswithzeroes": {
+		// Unlike the original Japanese Sums, this variant has no shaded-cell
+		// answer state. Its two blank-cell annotations are qsub ○ and ×.
+		noNum: function() {
+			return this.qnum < 0 && this.anum < 0 && this.qsub !== 2;
+		},
+		getNum: function() {
+			if (this.qnum !== -1) {
+				return this.qnum;
+			}
+			if (this.anum >= 0) {
+				return this.anum;
+			}
+			if (this.qsub === 1) {
+				return -2;
+			}
+			if (this.qsub === 2) {
+				return -3;
+			}
+			return -1;
+		},
+		setNum: function(val) {
+			if (this.puzzle.editmode) {
+				this.setQnum(val);
+				this.setAnum(-1);
+				this.setQsub(0);
+				this.setQans(0);
+				this.clrSnum();
+				return;
+			}
+			if (this.qnum !== -1) {
+				return;
+			}
+			if (val >= 0) {
+				this.setAnum(val);
+				this.setQsub(0);
+			} else {
+				this.setAnum(-1);
+				this.setQsub(val === -2 ? 1 : val === -3 ? 2 : 0);
+			}
+			this.setQans(0);
 			this.clrSnum();
 		}
 	},
@@ -292,7 +480,10 @@
 		},
 		initExtraObject: function(col, row) {
 			this.indicator.init();
-			this.indicator.count = this.klass.Indicator.prototype.count;
+			this.indicator.count =
+				this.pid === "japanesesumswithzeroes"
+					? 6
+					: this.klass.Indicator.prototype.count;
 		},
 		getex: function(bx, by) {
 			if (by <= this.maxby) {
@@ -311,7 +502,8 @@
 
 			for (var bx = this.minbx + 1; bx < 0; bx += 2) {
 				for (var by = 1; by < this.maxby; by += 2) {
-					if (this.getex(bx, by).qnum !== -1) {
+					var ex = this.getex(bx, by);
+					if (ex.qnum !== -1 || (this.pid === "abcbox" && ex.qchar > 0)) {
 						this.excellOffsets[0] = (this.minbx + 1 - bx) / -2;
 						bx = 0;
 					}
@@ -320,7 +512,8 @@
 
 			for (var by = this.minby + 1; by < 0; by += 2) {
 				for (var bx = 1; bx < this.maxbx; bx += 2) {
-					if (this.getex(bx, by).qnum !== -1) {
+					var ex = this.getex(bx, by);
+					if (ex.qnum !== -1 || (this.pid === "abcbox" && ex.qchar > 0)) {
 						this.excellOffsets[1] = (this.minby + 1 - by) / -2;
 						by = 0;
 					}
@@ -378,7 +571,7 @@
 			return 9;
 		},
 		getminnum: function() {
-			return 1;
+			return this.puzzle.pid === "japanesesumswithzeroes" ? 0 : 1;
 		},
 		addOpe: function(old, num) {
 			this.puzzle.opemgr.add(new this.klass.IndicatorOperation(old, num));
@@ -432,7 +625,14 @@
 			this.drawBGCells();
 			this.drawBGExCells();
 			this.drawShadedCells();
-			this.drawDotCells();
+			// The added variants use compact Slitherlink-style ○/× marks for
+			// auxiliary cell annotations.  The original Japanese Sums keeps its
+			// traditional single-cell dot marker.
+			if (this.pid === "japanesesumswithzeroes" || this.pid === "abcbox") {
+				this.drawSlitherlinkMarks();
+			} else {
+				this.drawDotCells();
+			}
 			this.drawTargetSubNumber();
 
 			this.drawGrid();
@@ -448,7 +648,40 @@
 			this.drawIndicator();
 			this.drawCursor_japanesesums();
 		},
-
+		// ○/× auxiliary marks, matching vslither.drawDots geometry and colors.
+		drawSlitherlinkMarks: function() {
+			var g = this.vinc("cell_mb", "auto", true);
+			var size = Math.max(this.cw * 0.15, 3);
+			g.lineWidth = (1 + this.cw / 40) | 0;
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var px = cell.bx * this.bw;
+				var py = cell.by * this.bh;
+				var color = cell.trial ? this.trialcolor : this.pekecolor;
+				g.vid = "c_MB1_" + cell.id;
+				if (cell.qsub === 1) {
+					g.strokeStyle = color;
+					g.fillStyle = color;
+					g.shapeCircle(px, py, this.cw * 0.1);
+				} else {
+					g.vhide();
+				}
+				g.vid = "c_MB2_" + cell.id;
+				if (cell.qsub === 2) {
+					g.strokeStyle = color;
+					g.beginPath();
+					g.moveTo(px - size, py - size);
+					g.lineTo(px + size, py + size);
+					g.moveTo(px - size, py + size);
+					g.lineTo(px + size, py - size);
+					g.closePath();
+					g.stroke();
+				} else {
+					g.vhide();
+				}
+			}
+		},
 		/* 下に入力可能数字の表示領域を追加 */
 		drawIndicator: function() {
 			var g = this.vinc("indicator", "auto", true),
@@ -592,7 +825,11 @@
 					if (ca === "+") {
 						obj.qsub = 1;
 					} else if (ca === "-") {
-						obj.qans = 1;
+						if (this.pid === "japanesesumswithzeroes") {
+							obj.qsub = 2;
+						} else {
+							obj.qans = 1;
+						}
 					} else if (ca !== ".") {
 						obj.anum = +ca;
 					}
@@ -614,6 +851,11 @@
 						ca = "" + obj.anum;
 					} else if (obj.qsub === 1) {
 						ca = "+";
+					} else if (
+						this.pid === "japanesesumswithzeroes" &&
+						obj.qsub === 2
+					) {
+						ca = "-";
 					} else if (obj.qans === 1) {
 						ca = "-";
 					}
@@ -665,19 +907,28 @@
 			}
 
 			var sum = 0,
+				hasDigit = false,
 				sums = [];
 			for (var i = 0; i < clist.length; i++) {
 				var cell = clist[i];
-				if (cell.isShade()) {
-					if (sum > 0) {
+				var isEmpty =
+					this.pid === "japanesesumswithzeroes"
+						? cell.qsub === 2
+						: cell.isShade();
+				if (isEmpty) {
+					if (hasDigit) {
 						sums.push(sum);
 						sum = 0;
+						hasDigit = false;
 					}
 				}
 				var n = cell.getNum();
-				sum += n > 0 ? n : 0;
+				if (n >= 0) {
+					sum += n;
+					hasDigit = true;
+				}
 			}
-			if (sum > 0) {
+			if (hasDigit) {
 				sums.push(sum);
 			}
 
@@ -696,6 +947,287 @@
 			}
 
 			return true;
+		}
+	},
+	// ABC-Box uses the Japanese Sums outside-cell layout, but has no
+	// visibility/saturation constraints: all cells simply contain A, B or C.
+	"Cell@abcbox": {
+		numberAsLetter: true,
+		maxnum: 3,
+		minnum: 1,
+		getNum: function() {
+			if (this.qnum !== -1) {
+				return this.qnum;
+			}
+			if (this.anum >= 1 && this.anum <= 3) {
+				return this.anum;
+			}
+			if (this.qsub === 1) {
+				return -2;
+			}
+			if (this.qsub === 2) {
+				return -3;
+			}
+			return -1;
+		},
+		setNum: function(val) {
+			if (this.puzzle.editmode) {
+				this.setQnum(val);
+				this.setAnum(-1);
+				this.setQsub(0);
+				this.setQans(0);
+				this.clrSnum();
+				return;
+			}
+			if (this.qnum !== -1) {
+				return;
+			}
+			this.setAnum(val >= 1 && val <= 3 ? val : -1);
+			this.setQans(0);
+			this.setQsub(val === -2 ? 1 : val === -3 ? 2 : 0);
+			this.clrSnum();
+		}
+	},
+	"ExCell@abcbox": {
+		numberAsLetter: false,
+		disInputHatena: true,
+		qchar: 0,
+		// A left-hand clue describes a row and a top clue describes a
+		// column, so its numeric length is bounded by that line's size.
+		maxnum: function() {
+			return this.bx < 0 ? this.board.cols : this.board.rows;
+		},
+		minnum: 1,
+		setQnum: function(val) {
+			if (val !== -2 && (val < 1 || val > this.getmaxnum())) {
+				val = -1;
+			}
+			this.setdata("qnum", val);
+			if (val === -2 || val >= 1) {
+				this.setdata("qchar", 0);
+			}
+		},
+		setQchar: function(val) {
+			val = val >= 1 && val <= 3 ? val : 0;
+			this.setdata("qchar", val);
+			if (val > 0) {
+				this.setdata("qnum", -1);
+			}
+		}
+	},
+	"Indicator@abcbox": { count: 3 },
+	"Board@abcbox": {
+		// Unlike Japanese Sums, ABC-Box permits a clue for every
+		// group, so reserve one outside cell per row/column position.
+		excellRows: function(cols, rows) {
+			return rows;
+		},
+		excellCols: function(cols, rows) {
+			return cols;
+		}
+	},
+	"Graphic@abcbox": {
+		// ABC-Box has no configurable numeric range indicator.
+		drawIndicator: function() {},
+		getQuesNumberText: function(cell) {
+			if (cell.qchar > 0 && cell.qchar <= 3 && cell.qnum === -1) {
+				return String.fromCharCode(64 + cell.qchar);
+			}
+			return this.getNumberText(cell, cell.qnum);
+		}
+	},
+	"FileIO@abcbox": {
+		decodeData: function() {
+			this.decodeIndicator();
+			this.decodeCellExCell(function(obj, ca) {
+				if (ca === ".") {
+					return;
+				}
+				if (obj.group === "excell") {
+					if (ca === "?") {
+						obj.qchar = 0;
+						obj.qnum = -2;
+					} else if (/^[ABC]$/i.test(ca)) {
+						obj.qnum = -1;
+						obj.qchar = ca.toUpperCase().charCodeAt(0) - 64;
+					} else if (/^\d+$/.test(ca) && +ca > 0) {
+						obj.qnum = +ca;
+						obj.qchar = 0;
+					} else {
+						obj.qnum = -1;
+						obj.qchar = 0;
+					}
+				} else if (ca === "+") {
+					obj.qsub = 1;
+				} else if (ca === "-") {
+					obj.qsub = 2;
+				} else if (ca !== ".") {
+					obj.anum = +ca;
+				}
+			});
+		},
+		encodeData: function() {
+			this.encodeIndicator();
+			this.encodeCellExCell(function(obj) {
+				if (obj.group === "excell") {
+					if (obj.qchar > 0 && obj.qchar <= 3) {
+						return String.fromCharCode(64 + obj.qchar) + " ";
+					}
+					if (obj.qnum > 0) {
+						return obj.qnum + " ";
+					}
+					if (obj.qnum === -2) {
+						return "? ";
+					}
+				} else if (obj.anum !== -1) {
+					return obj.anum + " ";
+				} else if (obj.qsub === 1) {
+					return "+ ";
+				} else if (obj.qsub === 2) {
+					return "- ";
+				}
+				return ". ";
+			});
+		}
+	},
+	"Encode@abcbox": {
+		decodePzpr: function() {
+			this.decodeIndicator();
+			this.decodeAbcBoxExCell();
+			this.decodeNumber16();
+		},
+		encodePzpr: function() {
+			this.encodeIndicator();
+			this.encodeAbcBoxExCell();
+			if (
+				this.board.cell.some(function(cell) {
+					return cell.qnum !== -1;
+				})
+			) {
+				this.encodeNumber16();
+			}
+		},
+		decodeAbcBoxExCell: function() {
+			var bd = this.board,
+				bstr = this.outbstr,
+				i = 0,
+				ec = 0;
+			for (; ec < bd.excell.length && i < bstr.length; ec++) {
+				var ex = bd.excell[ec],
+					ca = bstr.charAt(i++);
+				ex.qnum = -1;
+				ex.qchar = 0;
+				if (ca === ".") {
+					ex.qnum = -2;
+				} else if (/^[ABC]$/i.test(ca)) {
+					ex.qchar = ca.toUpperCase().charCodeAt(0) - 64;
+				} else if (ca >= "1" && ca <= "9") {
+					ex.qnum = +ca;
+				} else if (ca === "-" || ca === "+" || ca === "=" || ca === "@" || ca === "*" || ca === "$") {
+					var digits = ca === "-" ? 2 : ca === "+" || ca === "=" || ca === "@" ? 3 : ca === "*" ? 4 : 5;
+					var number = parseInt(bstr.substr(i, digits), 16);
+					var offset = ca === "=" ? 4096 : ca === "@" ? 8192 : ca === "*" ? 12240 : ca === "$" ? 77776 : 0;
+					if (!isNaN(number) && number + offset > 0) {
+						ex.qnum = number + offset;
+						i += digits;
+					}
+				} // "x" denotes an empty outside cell.
+			}
+			this.outbstr = bstr.substr(i);
+		},
+		encodeAbcBoxExCell: function() {
+			var bd = this.board,
+				cm = "";
+			for (var i = 0; i < bd.excell.length; i++) {
+				var ex = bd.excell[i];
+				if (ex.qchar > 0 && ex.qchar <= 3) {
+					cm += String.fromCharCode(64 + ex.qchar);
+				} else if (ex.qnum === -2) {
+					cm += ".";
+				} else if (ex.qnum >= 1 && ex.qnum <= 9) {
+					cm += String(ex.qnum);
+				} else if (ex.qnum > 9 && ex.qnum < 256) {
+					cm += "-" + ex.qnum.toString(16).padStart(2, "0");
+				} else if (ex.qnum >= 256 && ex.qnum < 4096) {
+					cm += "+" + ex.qnum.toString(16).padStart(3, "0");
+				} else if (ex.qnum >= 4096 && ex.qnum < 8192) {
+					cm += "=" + (ex.qnum - 4096).toString(16).padStart(3, "0");
+				} else if (ex.qnum >= 8192 && ex.qnum < 12240) {
+					cm += "@" + (ex.qnum - 8192).toString(16).padStart(3, "0");
+				} else if (ex.qnum >= 12240 && ex.qnum < 77776) {
+					cm += "*" + (ex.qnum - 12240).toString(16).padStart(4, "0");
+				} else if (ex.qnum >= 77776) {
+					cm += "$" + (ex.qnum - 77776).toString(16).padStart(5, "0");
+				} else {
+					cm += "x";
+				}
+			}
+			this.outbstr += cm;
+		}
+	},
+	"AnsCheck@abcbox": {
+		checklist: ["checkNoNumCell+", "checkAbcBoxGroups"],
+		checkAbcBoxGroups: function() {
+			var bd = this.board,
+				ok = true;
+			var checkLine = function(cells, clues) {
+				var groups = [],
+					cur = null;
+				for (var i = 0; i < cells.length; i++) {
+					var n = cells[i].getNum();
+					if (n < 1 || n > 3) {
+						return false;
+					}
+					if (cur === null || cur.letter !== n) {
+						cur = { letter: n, length: 1 };
+						groups.push(cur);
+					} else {
+						cur.length++;
+					}
+				}
+				if (clues.length !== groups.length) {
+					return false;
+				}
+				for (var j = 0; j < groups.length; j++) {
+					var clue = clues[j];
+					if (clue.qchar > 0 && clue.qchar !== groups[j].letter) {
+						return false;
+					}
+					if (clue.qnum > 0 && clue.qnum !== groups[j].length) {
+						return false;
+					}
+				}
+				return true;
+			};
+			for (var y = 1; y < bd.maxby; y += 2) {
+				var row = bd.cellinside(1, y, bd.maxbx - 1, y);
+				var cluesR = bd.excellinside(bd.minbx, y, -1, y).filter(function(e) {
+					return (
+						e.qnum === -2 ||
+						e.qnum > 0 ||
+						(e.qchar > 0 && e.qchar <= 3)
+					);
+				});
+				if (cluesR.length && !checkLine(row, cluesR)) {
+					ok = false;
+				}
+			}
+			for (var x = 1; x < bd.maxbx; x += 2) {
+				var col = bd.cellinside(x, 1, x, bd.maxby - 1);
+				var cluesC = bd.excellinside(x, bd.minby, x, -1).filter(function(e) {
+					return (
+						e.qnum === -2 ||
+						e.qnum > 0 ||
+						(e.qchar > 0 && e.qchar <= 3)
+					);
+				});
+				if (cluesC.length && !checkLine(col, cluesC)) {
+					ok = false;
+				}
+			}
+			if (!ok) {
+				this.failcode.add("nmAbcBox");
+			}
 		}
 	}
 });

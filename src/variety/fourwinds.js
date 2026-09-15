@@ -13,13 +13,15 @@
 	MouseEvent: {
 		use: true,
 		inputModes: {
-			edit: ["number", "clear"],
+			edit: ["number", "shade", "clear"],
 			play: ["arrow", "clear"]
 		},
 		autoedit_func: "qnum",
 		mouseinput_auto: function() {
 			if (this.puzzle.editmode) {
-				if (this.mousestart || this.mousemove) {
+				if (this.inputMode === "shade") {
+					if (this.mousestart || this.mousemove) { this.inputshade(); }
+				} else if (this.mousestart || this.mousemove) {
 					this.inputqnum();
 				}
 			} else if (this.puzzle.playmode && (this.mousestart || this.mousemove)) {
@@ -27,7 +29,7 @@
 			}
 		},
 		inputarrow_cell_main: function(cell, dir) {
-			if (!cell || cell.isnull || cell.qnum !== -1) {
+			if (!cell || cell.isnull || cell.qnum !== -1 || cell.ques === 1) {
 				return;
 			}
 			cell.setQdir(cell.qdir === dir ? 0 : dir);
@@ -38,7 +40,7 @@
 	Cell: {
 		minnum: 0,
 		maxnum: function() { return this.board.cols * this.board.rows; },
-		getArrow: function() { return this.qdir || 0; }
+			getArrow: function() { return this.qdir || 0; }
 	},
 	Board: { cols: 8, rows: 8, hasborder: 1 },
 	Graphic: {
@@ -47,6 +49,7 @@
 		paint: function() {
 			this.drawBGCells();
 			this.drawGrid();
+			this.drawShadedCells();
 			this.drawCellArrows(true);
 			this.drawQuesNumbers();
 			this.drawChassis();
@@ -58,8 +61,14 @@
 		encodePzpr: function() { this.encodeArrowNumber16(); }
 	},
 	FileIO: {
-		decodeData: function() { this.decodeCellQnum(); },
-		encodeData: function() { this.encodeCellQnum(); }
+		decodeData: function() {
+			this.decodeCell(function(cell, ca) { if (ca === "#") { cell.ques = 1; } });
+			this.decodeCellQnum();
+		},
+		encodeData: function() {
+			this.encodeCell(function(cell) { return cell.ques === 1 ? "# " : ". "; });
+			this.encodeCellQnum();
+		}
 	},
 	AnsCheck: {
 		checklist: ["checkFourWindsNumber", "checkArrowStarts", "checkEmptyRowsCols"],
@@ -106,7 +115,7 @@
 				var empty = 0;
 				for (var c = 1; c <= bd.cols; c++) {
 					var cell = bd.getc(c, r);
-					if (!cell.qdir && cell.qnum < 0) {
+					if (!cell.qdir && cell.qnum < 0 && cell.ques !== 1) {
 						empty++;
 					}
 				}
@@ -118,7 +127,7 @@
 				var empty2 = 0;
 				for (var r2 = 1; r2 <= bd.rows; r2++) {
 					var cell2 = bd.getc(c2, r2);
-					if (!cell2.qdir && cell2.qnum < 0) {
+					if (!cell2.qdir && cell2.qnum < 0 && cell2.ques !== 1) {
 						empty2++;
 					}
 				}

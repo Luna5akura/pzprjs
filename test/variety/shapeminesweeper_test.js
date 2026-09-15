@@ -19,5 +19,17 @@ describe("Variety:shapeminesweeper", function() {
 		cell.setQnum(8);
 		assert.equal(cell.qnum, 8);
 		assert.equal(cell.allowShade(), false);
+		cell.setQnum(0);
+		assert.equal(cell.qnum, 0);
+		assert.equal(cell.allowShade(), false);
+	});
+
+	it("loads the selected bank preset on a new-board URL", function() {
+		var puzzle = new pzpr.Puzzle().open("shapeminesweeper/4/4///t");
+		assert.equal(puzzle.board.bank.pieces.length, 5);
+		assert.deepEqual(
+			puzzle.board.bank.pieces.map(function(piece) { return piece.serialize(); }),
+			["14u", "23bg", "22u", "23f", "23eg"]
+		);
 	});
 });
