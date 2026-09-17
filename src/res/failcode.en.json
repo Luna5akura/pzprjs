@@ -962,9 +962,10 @@
     "nmSky.skyneighbor": "The number of visible skyscrapers is wrong.",
     "ceNum.japanese_arrows": "There is an empty cell.",
     "anNumberNe.japanese_arrows": "The number of distinct digits seen by an arrow is wrong.",
-    "nmArrowNe.fourwinds": "The total arrow length is wrong.",
-    "arStartNe.fourwinds": "An arrow does not start next to a numbered cell.",
-    "rowEmptyNe.fourwinds": "Each row and column must have exactly one empty cell.",
-    "colEmptyNe.fourwinds": "Each row and column must have exactly one empty cell.",
-    "nmAbcBox.abcbox": "The ABC-Box group clues do not match."
+    "nmArrowNe.fourwindswithparks": "The total arrow length is wrong.",
+    "arStartNe.fourwindswithparks": "An arrow does not start next to a numbered cell.",
+    "rowEmptyNe.fourwindswithparks": "Each row and column must have exactly one empty cell.",
+    "colEmptyNe.fourwindswithparks": "Each row and column must have exactly one empty cell.",
+    "nmAbcBox.abcbox": "The ABC-Box group clues do not match.",
+    "nmNotConsecutive.consecutivekakuro": "The numbers do not satisfy the white-bar consecutive rule."
 }

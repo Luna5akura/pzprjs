@@ -928,9 +928,10 @@
     "nmSky.skyneighbor": "見えるビルの数が正しくありません。",
     "ceNum.japanese_arrows": "数字の入っていないマスがあります。",
     "anNumberNe.japanese_arrows": "矢印の方向に見える異なる数字の個数が正しくありません。",
-    "nmArrowNe.fourwinds": "矢印の長さの合計が正しくありません。",
-    "arStartNe.fourwinds": "矢印が数字マスから始まっていません。",
-    "rowEmptyNe.fourwinds": "各行・各列には空きマスが1つだけ必要です。",
-    "colEmptyNe.fourwinds": "各行・各列には空きマスが1つだけ必要です。",
-    "nmAbcBox.abcbox": "ABCボックスのグループが手掛かりと一致していません。"
+    "nmArrowNe.fourwindswithparks": "矢印の長さの合計が正しくありません。",
+    "arStartNe.fourwindswithparks": "矢印が数字マスから始まっていません。",
+    "rowEmptyNe.fourwindswithparks": "各行・各列には空きマスが1つだけ必要です。",
+    "colEmptyNe.fourwindswithparks": "各行・各列には空きマスが1つだけ必要です。",
+    "nmAbcBox.abcbox": "ABCボックスのグループが手掛かりと一致していません。",
+    "nmNotConsecutive.consecutivekakuro": "白い棒による連続条件を満たしていません。"
 }

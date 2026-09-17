@@ -7,7 +7,7 @@
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["kakuro", "consecutive"], {
+})(["kakuro", "consecutivekakuro"], {
 	//---------------------------------------------------------
 	// マウス入力系
 	MouseEvent: {
@@ -47,6 +47,22 @@
 				if (this.mousestart) {
 					this.input51();
 				}
+			}
+		}
+	},
+	// Consecutive Kakuro uses a problem border (the white bar) between two
+	// neighbouring answer cells.  Keep this as a separate override so ordinary
+	// Kakuro retains its normal triangle-clue editor.
+	"MouseEvent@consecutivekakuro": {
+		inputModes: { edit: ["border", "clear", "number"], play: ["number", "clear"] },
+		mouseinput_clear: function() {
+			if (this.puzzle.editmode && this.isBorderMode()) {
+				this.inputData = 0;
+				this.inputborder();
+			} else if (this.puzzle.playmode) {
+				this.inputclean_cell();
+			} else {
+				this.input51_fixed();
 			}
 		}
 	},
@@ -302,6 +318,44 @@
 			return !cell.is51cell() && cell.anum > 0 ? "" + cell.anum : "";
 		}
 	},
+	"Graphic@consecutivekakuro": {
+		drawBorders: function() {
+			var g = this.context;
+			this.vinc("consecutive_bar", "crispEdges", true);
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				g.vid = "consecutive_bar_outer_" + border.id;
+				if (!border.isBorder()) {
+					g.vhide();
+					g.vid = "consecutive_bar_inner_" + border.id;
+					g.vhide();
+					continue;
+				}
+
+				var px = border.bx * this.bw + this.getBorderHorizontalOffset(border);
+				var py = border.by * this.bh;
+				var length = border.isVert() ? this.bh * 0.62 : this.bw * 0.62;
+				var outerThickness = Math.max(this.lw + 2, 3);
+				var innerThickness = Math.max(this.lw, 1);
+
+				g.fillStyle = "black";
+				if (border.isVert()) {
+					g.fillRectCenter(px, py, outerThickness / 2, length / 2);
+				} else {
+					g.fillRectCenter(px, py, length / 2, outerThickness / 2);
+				}
+
+				g.vid = "consecutive_bar_inner_" + border.id;
+				g.fillStyle = "white";
+				if (border.isVert()) {
+					g.fillRectCenter(px, py, innerThickness / 2, Math.max(1, length / 2 - 1));
+				} else {
+					g.fillRectCenter(px, py, Math.max(1, length / 2 - 1), innerThickness / 2);
+				}
+			}
+		}
+	},
 
 	//---------------------------------------------------------
 	// URLエンコード/デコード処理
@@ -426,6 +480,33 @@
 				return (val - 10).toString(36).toUpperCase();
 			}
 			return "-";
+		}
+	},
+	"Encode@consecutivekakuro": {
+		decodePzpr: function() {
+			this.decodeKakuro();
+			// decodeKakuro leaves the outside clue segment in outbstr; consume it
+			// before reading the consecutive-bar segment appended below.
+			var bd = this.board, outside = 0;
+			for (var bx = 1; bx < bd.maxbx; bx += 2) {
+				if (!bd.getc(bx, 1).is51cell()) { outside++; }
+			}
+			for (var by = 1; by < bd.maxby; by += 2) {
+				if (!bd.getc(1, by).is51cell()) { outside++; }
+			}
+			this.outbstr = this.outbstr.substr(outside);
+			this.genericDecodeNumber16(this.board.cell.length, function(c, val) {
+				var cell = this.board.cell[c];
+				if (!cell.adjborder.right.isnull) { cell.adjborder.right.ques = (val / 2) | 0; }
+				if (!cell.adjborder.bottom.isnull) { cell.adjborder.bottom.ques = val % 2; }
+			}.bind(this));
+		},
+		encodePzpr: function() {
+			this.encodeKakuro();
+			this.genericEncodeNumber16(this.board.cell.length, function(c) {
+				var cell = this.board.cell[c];
+				return (cell.adjborder.right.ques ? 2 : 0) + (cell.adjborder.bottom.ques ? 1 : 0);
+			});
 		}
 	},
 	//---------------------------------------------------------
@@ -581,6 +662,39 @@
 				return "n" + cell.anum;
 			});
 		}
+	},
+	"FileIO@consecutivekakuro": {
+		decodeData: function() {
+			this.decodeCellQnum51();
+			this.decodeBorderQues();
+			this.decodeCellAnumsub();
+		},
+		encodeData: function() {
+			this.encodeCellQnum51();
+			this.encodeBorderQues();
+			this.encodeCellAnumsub();
+		}
+	},
+	"AnsCheck@consecutivekakuro": {
+		checkConsecutiveBars: function() {
+			var bd = this.board;
+			for (var i = 0; i < bd.border.length; i++) {
+				var border = bd.border[i], a = border.sidecell[0], b = border.sidecell[1];
+				if (border.isnull || a.isnull || b.isnull || a.is51cell() || b.is51cell() ||
+					a.anum < 1 || b.anum < 1) { continue; }
+				var consecutive = Math.abs(a.anum - b.anum) === 1;
+				if ((border.ques === 1) !== consecutive) {
+					a.error = b.error = 1;
+					this.failcode.add("nmNotConsecutive");
+				}
+			}
+		},
+		checklist: [
+			"checkSameNumberInLine",
+			"checkSumOfNumberInLine",
+			"checkNoNumCell+",
+			"checkConsecutiveBars"
+		]
 	},
 
 	//---------------------------------------------------------
