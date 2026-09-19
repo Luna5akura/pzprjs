@@ -1,3 +1,4 @@
+* pills: New puzzle type Pills (WPF GP 2015 Round 7, due to Roger Kohler)
 * aqre: New puzzle type Aqre
 * interbd: New puzzle type International Borders (due to Lennard Sprong)
 * tapaloop: New puzzle type Tapa-Like Loop (due to Giuliano Montelucci)

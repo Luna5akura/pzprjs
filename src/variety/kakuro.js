@@ -503,8 +503,9 @@
 		},
 		encodePzpr: function() {
 			this.encodeKakuro();
-			this.genericEncodeNumber16(this.board.cell.length, function(c) {
-				var cell = this.board.cell[c];
+			var bd = this.board;
+			this.genericEncodeNumber16(bd.cell.length, function(c) {
+				var cell = bd.cell[c];
 				return (cell.adjborder.right.ques ? 2 : 0) + (cell.adjborder.bottom.ques ? 1 : 0);
 			});
 		}

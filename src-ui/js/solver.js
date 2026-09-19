@@ -1207,6 +1207,10 @@ function isSolverOverlayCellKind(kind) {
 		kind === "arrowDown" ||
 		kind === "arrowLeft" ||
 		kind === "arrowRight" ||
+		kind === "arrowUpLeft" ||
+		kind === "arrowUpRight" ||
+		kind === "arrowDownLeft" ||
+		kind === "arrowDownRight" ||
 		kind === "sideArrowUp" ||
 		kind === "sideArrowDown" ||
 		kind === "sideArrowLeft" ||

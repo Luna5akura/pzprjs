@@ -1,6 +1,6 @@
 // Japanese Arrows
-// Fill every unnumbered cell. The number and arrow in a cell indicate the
-// number of distinct values visible in that direction, excluding the cell.
+// Every cell has a given arrow. Fill every unnumbered cell so its number is
+// the count of distinct values on that arrow's ray, excluding the cell.
 // Gray-dotted arrows point along diagonally touching cells.
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
@@ -123,6 +123,37 @@
 	Graphic: {
 		qanscolor: "#000000",
 		numbercolor_func: "qnum",
+		drawJapaneseArrowGlyph: function(g, px, py, dir, color) {
+			var unit = Math.min(this.cw, this.ch);
+			var length = unit * 0.62;
+			var shaft = Math.max(unit * 0.24, 2);
+			var head = unit * 0.46;
+			var headLength = unit * 0.25;
+			var vectors = {
+				1: [0, -1], 2: [0, 1], 3: [-1, 0], 4: [1, 0],
+				5: [-1, -1], 6: [1, -1], 7: [-1, 1], 8: [1, 1]
+			};
+			var v = vectors[dir];
+			if (!v) { return; }
+			var norm = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+			var ux = v[0] / norm, uy = v[1] / norm;
+			var vx = -uy, vy = ux;
+			var tx = px - ux * length * 0.5, ty = py - uy * length * 0.5;
+			var bx = px + ux * (length * 0.5 - headLength);
+			var by = py + uy * (length * 0.5 - headLength);
+			var tipx = px + ux * length * 0.5, tipy = py + uy * length * 0.5;
+			g.fillStyle = color;
+			g.beginPath();
+			g.moveTo(tx + vx * shaft * 0.5, ty + vy * shaft * 0.5);
+			g.lineTo(bx + vx * shaft * 0.5, by + vy * shaft * 0.5);
+			g.lineTo(bx + vx * head * 0.5, by + vy * head * 0.5);
+			g.lineTo(tipx, tipy);
+			g.lineTo(bx - vx * head * 0.5, by - vy * head * 0.5);
+			g.lineTo(bx - vx * shaft * 0.5, by - vy * shaft * 0.5);
+			g.lineTo(tx - vx * shaft * 0.5, ty - vy * shaft * 0.5);
+			g.closePath();
+			g.fill();
+		},
 		/*
 		 * Japanese Arrows always puts the arrow on the left and the number on
 		 * the right of a cell.  drawCellArrows/drawArrowNumbers use the generic
@@ -135,44 +166,20 @@
 			this.vinc("japanese_arrow", "auto", true);
 			var clist = this.range.cells;
 			var unit = Math.min(this.cw, this.ch);
-			var length = unit * 0.62;
-			var shaft = Math.max(unit * 0.24, 2);
-			var head = unit * 0.46;
-			var headLength = unit * 0.25;
 			for (var i = 0; i < clist.length; i++) {
 				var cell = clist[i], dir = cell.qdir;
 				var px = cell.bx * this.bw, py = cell.by * this.bh;
-				var text = cell.qnum >= 0
-					? this.getNumberText(cell, cell.qnum)
-					: this.getNumberText(cell, cell.anum);
+				var hasQuestionNumber = cell.qnum >= 0 || cell.qnum === -2;
+				var text = hasQuestionNumber
+					? this.getQuesNumberText(cell)
+					: this.getAnsNumberText(cell);
 
 				g.vid = "ja_arrow_" + cell.id;
 				if (dir < 1 || dir > 8) {
 					g.vhide();
 				} else {
-					var vectors = {
-						1: [0, -1], 2: [0, 1], 3: [-1, 0], 4: [1, 0],
-						5: [-1, -1], 6: [1, -1], 7: [-1, 1], 8: [1, 1]
-					};
-					var v = vectors[dir], norm = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
-					var ux = v[0] / norm, uy = v[1] / norm;
-					var vx = -uy, vy = ux;
 					var cx = px - this.cw * 0.18, cy = py;
-					var tx = cx - ux * length * 0.5, ty = cy - uy * length * 0.5;
-					var bx = cx + ux * (length * 0.5 - headLength);
-					var by = cy + uy * (length * 0.5 - headLength);
-					var tipx = cx + ux * length * 0.5, tipy = cy + uy * length * 0.5;
-					g.fillStyle = this.qanscolor;
-					g.beginPath();
-					g.moveTo(tx + vx * shaft * 0.5, ty + vy * shaft * 0.5);
-					g.lineTo(bx + vx * shaft * 0.5, by + vy * shaft * 0.5);
-					g.lineTo(bx + vx * head * 0.5, by + vy * head * 0.5);
-					g.lineTo(tipx, tipy);
-					g.lineTo(bx - vx * head * 0.5, by - vy * head * 0.5);
-					g.lineTo(bx - vx * shaft * 0.5, by - vy * shaft * 0.5);
-					g.lineTo(tx - vx * shaft * 0.5, ty - vy * shaft * 0.5);
-					g.closePath();
-					g.fill();
+					this.drawJapaneseArrowGlyph(g, cx, cy, dir, this.qanscolor);
 				}
 
 				g.vid = "ja_dot_" + cell.id;
@@ -185,7 +192,7 @@
 
 				g.vid = "ja_number_" + cell.id;
 				if (text) {
-					g.fillStyle = cell.qnum >= 0
+					g.fillStyle = hasQuestionNumber
 						? this.getQuesNumberColor(cell)
 						: this.getAnsNumberColor(cell);
 					var numberX = dir >= 1 && dir <= 8 ? px + this.cw * 0.25 : px;
@@ -195,10 +202,42 @@
 				}
 			}
 		},
+		drawSolverOverlayCellEntry: function(g, cell, entry) {
+			var kind = this.getSolverOverlayEntryKind(entry);
+			var item = typeof entry === "string" ? null : entry && entry.item;
+			var arrowKinds = {
+				arrowUp: 1, arrowDown: 2, arrowLeft: 3, arrowRight: 4,
+				arrowUpLeft: 5, arrowUpRight: 6, arrowDownLeft: 7, arrowDownRight: 8
+			};
+			if (arrowKinds[kind]) {
+				var px = cell.bx * this.bw - this.cw * 0.18;
+				var py = cell.by * this.bh;
+				var color = this.getSolverOverlayEntryColor(entry, this.qanscolor);
+				this.drawJapaneseArrowGlyph(g, px, py, arrowKinds[kind], color);
+				if (arrowKinds[kind] >= 5) {
+					g.fillStyle = "#999999";
+					g.fillCircle(px, py, Math.min(this.cw, this.ch) * 0.09);
+				}
+				return true;
+			}
+			if (kind === "text" && item && item.pos === "upperRight") {
+				var text = String(item.data);
+				var numberX = cell.bx * this.bw + this.cw * 0.25;
+				var numberY = cell.by * this.bh;
+				g.fillStyle = this.getSolverOverlayEntryColor(entry, this.solverTextColor);
+				this.disptext(text, numberX, numberY, { ratio: 0.7 });
+				return true;
+			}
+			return this.common.drawSolverOverlayCellEntry.call(this, g, cell, entry);
+		},
 		paint: function() {
 			this.drawBGCells();
 			this.drawGrid();
 			this.drawJapaneseArrows();
+			// drawGrid intentionally omits the outermost border; Japanese Arrows
+			// uses a solid frame around the whole puzzle as shown in the printed
+			// competition layout.
+			this.drawChassis();
 			this.drawTarget();
 		}
 	},
@@ -258,23 +297,35 @@
 				cell.qdir = +values[0] || 0;
 				cell.qnum = values[1] === "*" ? -1 : +values[1];
 			});
-			this.decodeCellAns();
+			// The answer is a number, not a shaded/unshaded cell state.  Using
+			// decodeCellAns here silently discarded every entered answer number
+			// when a .pza/.pzpr file was saved and loaded again.
+			this.decodeCellAnumsub();
 		},
 		encodeData: function() {
 			this.encodeCell(function(cell) {
 				if (!cell.qdir && cell.qnum < 0) { return ". "; }
 				return cell.qdir + "," + (cell.qnum < 0 ? "*" : cell.qnum) + " ";
 			});
-			this.encodeCellAns();
+			this.encodeCellAnumsub();
 		}
 	},
 	AnsCheck: {
-		checklist: ["checkNoNumCell+", "checkArrowNumber"],
+		checklist: ["checkNoNumCell+", "checkArrow+", "checkArrowNumber"],
+		checkArrow: function() {
+			// Unlike arrow-number variants where an arrow is optional, Japanese
+			// Arrows prints one arrow in every cell.  Only the number may be
+			// omitted from the problem, so a missing/invalid arrow is an error in
+			// its own right.
+			this.checkAllCell(function(cell) {
+				return cell.qdir < 1 || cell.qdir > 8;
+			}, "anNoArrow");
+		},
 		checkArrowNumber: function() {
 			var bd = this.board;
 			for (var i = 0; i < bd.cell.length; i++) {
 				var cell = bd.cell[i], val = cell.getNum();
-				if (!cell.qdir || val < 1) {continue;}
+				if (cell.qdir < 1 || cell.qdir > 8 || val < 1) {continue;}
 				var pos = cell.getaddr(), seen = {}, list = [], dir = cell.qdir;
 				while (1) {
 					if (dir <= 4) {

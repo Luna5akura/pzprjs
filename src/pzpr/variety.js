@@ -373,6 +373,7 @@
 			pentatouch: [0, 0, "Penta Touch", "Penta Touch", "statuepark"],
 			pentominous: [0, 0, "Pentominous", "Pentominous", "fillomino"],
 			pentopia: [0, 0, "Pentopia", "Pentopia", "statuepark"],
+			pills: [0, 0, "ピルズ", "Pills"],
 			pipelink: [1, 0, "パイプリンク", "Pipelink", "pipelink"],
 			pipelinkr: [
 				1,
