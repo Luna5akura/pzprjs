@@ -119,11 +119,17 @@ ui.auxeditor = {
 			ui.auxeditor.puzzle.setCanvasSizeByCellSize(cellsize);
 
 			var bounds = pzpr.util.getRect(getEL("popauxeditor"));
+
+			// 非同期で開いた場合、再配置の際にclose()が呼ばれて
+			// コールバックが消費されてしまうため、一時的に退避する
+			var savedcb = ui.auxeditor.cb;
+			ui.auxeditor.cb = null;
 			ui.popupmgr.open(
 				"auxeditor",
 				Math.max(4, rect.left - bounds.width),
 				bounds.top
 			);
+			ui.auxeditor.cb = savedcb;
 		});
 
 		ui.auxeditor.current = args.key;

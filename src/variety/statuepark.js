@@ -14,6 +14,7 @@
 		"kissing",
 		"retroships",
 		"shapeminesweeper",
+		"placebyproduct",
 		"regional-poly",
 		"distopia"
 	];
@@ -369,6 +370,64 @@
 			play: ["shade", "unshade", "clear", "completion"]
 		}
 	},
+	"MouseEvent@placebyproduct": {
+		inputModes: {
+			edit: ["number", "clear", "completion"],
+			play: ["shade", "unshade", "clear", "completion"]
+		},
+
+		mouseinput_auto: function() {
+			if (this.puzzle.playmode) {
+				if (this.mousestart || this.mousemove) {
+					this.inputcell();
+				}
+				if (this.notInputted() && this.mousestart) {
+					this.inputqcmp();
+				}
+			} else if (this.puzzle.editmode && this.mousestart) {
+				if (!this.inputqnum_excell()) {
+					this.inputqnum();
+				}
+				if (this.notInputted()) {
+					if (this.btn === "left") {
+						this.inputpiece();
+					} else {
+						this.inputqcmp();
+					}
+				}
+			}
+		},
+
+		mouseinput_number: function() {
+			if (this.mousestart) {
+				this.inputqnum_excell();
+			}
+		},
+
+		mouseinput_clear: function() {
+			var excell = this.getcell_excell();
+			if (!excell.isnull && excell.group === "excell") {
+				excell.setQnum(-1);
+				excell.draw();
+				return;
+			}
+			this.common.mouseinput_clear.call(this);
+		},
+
+		inputqnum_excell: function() {
+			var excell = this.getcell_excell();
+			if (excell.isnull || excell.group !== "excell") {
+				return false;
+			}
+
+			if (excell !== this.cursor.getex()) {
+				this.setcursor(excell);
+			} else {
+				this.inputqnum_main(excell);
+			}
+			return true;
+		}
+	},
 	"MouseEvent@kissing,regional-poly": {
 		inputModes: {
 			edit: ["completion", "border", "empty"],
@@ -378,6 +437,18 @@
 
 	KeyEvent: {
 		enablemake: true
+	},
+	"KeyEvent@placebyproduct": {
+		keyinput: function(ca) {
+			if (!this.cursor.getex().isnull) {
+				this.key_inputexcell(ca);
+			} else {
+				if (ca === "BS") {
+					ca = " ";
+				}
+				this.key_inputqnum(ca);
+			}
+		}
 	},
 	"KeyEvent@pentopia": {
 		moveTarget: function(ca) {
@@ -445,6 +516,9 @@
 	"Board@statuepark,pentatouch,regional-poly": {
 		rows: 12,
 		cols: 12
+	},
+	"Board@placebyproduct": {
+		hasexcell: 1
 	},
 	Board: {
 		getBankPiecesInGrid: function() {
@@ -638,6 +712,11 @@
 		enabled: false
 	},
 	"Bank@shapeminesweeper": {
+		defaultPreset: function() {
+			return this.presets[1].constant;
+		}
+	},
+	"Bank@placebyproduct": {
 		defaultPreset: function() {
 			return this.presets[1].constant;
 		}
@@ -898,6 +977,22 @@
 			return this.qnum !== 2;
 		}
 	},
+	"Cell@placebyproduct": {
+		numberAsObject: true,
+		disInputHatena: true,
+		minnum: 2,
+		maxnum: 2,
+
+		isShade: function() {
+			return !this.isnull && (this.qnum === 2 || this.qans === 1);
+		},
+		isUnshade: function() {
+			return !this.isnull && !this.isShade();
+		},
+		allowUnshade: function() {
+			return this.qnum !== 2;
+		}
+	},
 	"Cell@shapeminesweeper": {
 		minnum: 0,
 		maxnum: 8,
@@ -1119,6 +1214,19 @@
 			return true;
 		}
 	},
+	"ExCell@placebyproduct": {
+		disInputHatena: true,
+
+		maxnum: function() {
+			var bx = this.bx,
+				by = this.by;
+			if (bx === -1 && by === -1) {
+				return 0;
+			}
+			return 255;
+		},
+		minnum: 0
+	},
 	"BoardExec@battleship,retroships": {
 		adjustBoardData: function(key, d) {
 			this.adjustCellArrow(key, d);
@@ -1165,6 +1273,15 @@
 		}
 	},
 
+	"BoardExec@placebyproduct": {
+		adjustBoardData: function(key, d) {
+			this.adjustExCellTopLeft_1(key, d);
+		},
+		adjustBoardData2: function(key, d) {
+			this.adjustExCellTopLeft_2(key, d);
+		}
+	},
+
 	AreaShadeGraph: {
 		enabled: true
 	},
@@ -1172,6 +1289,9 @@
 		enabled: true
 	},
 	"AreaShadeGraph@battleship,retroships": {
+		relation: { "cell.qnum": "node", "cell.qans": "node" }
+	},
+	"AreaShadeGraph@placebyproduct": {
 		relation: { "cell.qnum": "node", "cell.qans": "node" }
 	},
 	"AreaUnshadeGraph@statuepark": {
@@ -1515,6 +1635,38 @@
 		}
 	},
 
+	"Graphic@placebyproduct": {
+		enablebcolor: true,
+
+		shadecolor: "black",
+		bgcellcolor_func: "qsub1",
+
+		getShadedCellColor: function(cell) {
+			if (!cell.isShade()) {
+				return null;
+			}
+			var info = cell.error || cell.qinfo;
+			if (info === 1) {
+				return this.errcolor1;
+			} else if (info === 2) {
+				return this.errcolor2;
+			} else if (cell.trial) {
+				return this.trialcolor;
+			}
+			return this.shadecolor;
+		},
+
+		paint: function() {
+			this.drawBGCells();
+			this.drawShadedCells();
+			this.drawGrid();
+			this.drawNumbersExCell();
+			this.drawChassis();
+			this.drawBank();
+			this.drawTarget();
+		}
+	},
+
 	"Graphic@battleship,retroships": {
 		MODE_SHARP: 0,
 		MODE_ROUNDED: 1,
@@ -1836,6 +1988,22 @@
 			this.encodePieceBank();
 		}
 	},
+	"Encode@placebyproduct": {
+		decodePzpr: function(type) {
+			if (this.outbstr[0] !== "/") {
+				this.decodeNumber16ExCell();
+			}
+			if (this.outbstr[0] !== "/") {
+				this.decodeCircle();
+			}
+			this.decodePieceBank();
+		},
+		encodePzpr: function(type) {
+			this.encodeNumber16ExCell();
+			this.encodeCircle();
+			this.encodePieceBank();
+		}
+	},
 
 	"Encode@statuepark-aux": {
 		decodePzpr: function(type) {
@@ -1950,6 +2118,32 @@
 
 		decodeConfig: function() {},
 		encodeConfig: function() {}
+	},
+
+	"FileIO@placebyproduct": {
+		decodeData: function() {
+			this.decodePieceBank();
+			this.decodeCellExCell(function(obj, ca) {
+				if (obj.isnull) {
+					return;
+				}
+				if (ca === ".") {
+					obj.qnum = -1;
+				} else {
+					obj.qnum = +ca;
+				}
+			});
+			this.decodeCellAns();
+			this.decodePieceBankQcmp();
+		},
+		encodeData: function() {
+			this.encodePieceBank();
+			this.encodeCellExCell(function(obj) {
+				return obj.qnum === -1 ? ". " : obj.qnum + " ";
+			});
+			this.encodeCellAns();
+			this.encodePieceBankQcmp();
+		}
 	},
 
 	"FileIO@pentopia,distopia": {
@@ -2146,7 +2340,95 @@
 		}
 	},
 
-	"AnsCheck@pentopia,distopia,battleship,retroships,pentatouch,regional-poly,shapeminesweeper#1": {
+	"AnsCheck@placebyproduct": {
+		checklist: [
+			"checkBankPiecesAvailable",
+			"checkBankPiecesInvalid",
+			"checkShadeDiagonal",
+			"checkProductRowsCols",
+			"checkBankPiecesUsed"
+		],
+
+		checkProductRowsCols: function() {
+			var result = true,
+				bd = this.board;
+
+			allloop: do {
+				/* 横方向サーチ */
+				for (var by = 1; by <= bd.maxby; by += 2) {
+					var excell = bd.getex(-1, by);
+					if (
+						excell.qnum === -1 ||
+						this.checkProductLine(
+							bd.cellinside(bd.minbx + 1, by, bd.maxbx - 1, by),
+							excell
+						)
+					) {
+						continue;
+					}
+
+					result = false;
+					if (this.checkOnly) {
+						break allloop;
+					}
+				}
+				/* 縦方向サーチ */
+				for (var bx = 1; bx <= bd.maxbx; bx += 2) {
+					var excell2 = bd.getex(bx, -1);
+					if (
+						excell2.qnum === -1 ||
+						this.checkProductLine(
+							bd.cellinside(bx, bd.minby + 1, bx, bd.maxby - 1),
+							excell2
+						)
+					) {
+						continue;
+					}
+
+					result = false;
+					if (this.checkOnly) {
+						break allloop;
+					}
+				}
+			} while (0);
+
+			if (!result) {
+				this.failcode.add("exProdNe");
+			}
+		},
+
+		checkProductLine: function(clist, excell) {
+			var product = 1,
+				groups = 0,
+				count = 0;
+
+			for (var i = 0; i < clist.length; i++) {
+				if (clist[i].isShade()) {
+					if (count > 0) {
+						product *= count;
+						groups++;
+						count = 0;
+					}
+				} else {
+					count++;
+				}
+			}
+			if (count > 0) {
+				product *= count;
+				groups++;
+			}
+
+			var val = groups === 0 ? 0 : product;
+			if (excell.qnum !== val) {
+				excell.seterr(1);
+				clist.seterr(1);
+				return false;
+			}
+			return true;
+		}
+	},
+
+	"AnsCheck@pentopia,distopia,battleship,retroships,pentatouch,regional-poly,shapeminesweeper,placebyproduct#1": {
 		checkShadeDiagonal: function() {
 			var bd = this.board;
 			for (var c = 0; c < bd.cell.length; c++) {

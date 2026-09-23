@@ -75,6 +75,10 @@
     "preset.tetrominoes": "テトロミノ",
     "preset.double_tetrominoes": "テトロミノ2つずつ",
     "preset.copy_answer": "回答にあるものすべて",
+    "preset.square": "正方形",
+    "preset.domino": "ドミノ",
+    "preset.two_dominoes": "ドミノ2個",
+    "preset.two_squares": "正方形2個",
     "preset.zero": "ブロックなし",
     "inputmode": "入力モード",
     "inputmode.auto": "自動",
@@ -103,6 +107,13 @@
     "inputmode.wolf": "オオカミ",
     "inputmode.moon": "月",
     "inputmode.sun": "太陽",
+    "inputmode.dot-black": "黒点",
+    "inputmode.dot-white": "黒白抜き点",
+    "inputmode.dot-blue": "青点",
+    "inputmode.dot-double": "青赤点",
+    "inputmode.triangle": "三角",
+    "inputmode.start-blue": "青起点",
+    "inputmode.start-red": "赤起点",
     "inputmode.empty": "無効セル",
     "inputmode.ice": "アイスバーン",
     "inputmode.water": "ウォーターハザード",
@@ -334,5 +345,6 @@
     "pause.desc.mobile": "「スタート」を押して再開",
     "aqre_borders": "線が黒マスに触れるのは一度だけ",
     "slither_full": "全ての点に線が通る",
-    "outlineshaded": "黒マスを線で囲む"
+    "outlineshaded": "黒マスを線で囲む",
+    "inputmode.dot-red": "赤点"
 }

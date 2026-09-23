@@ -76,6 +76,10 @@
     "preset.tetrominoes": "Tetrominoes",
     "preset.double_tetrominoes": "Double tetrominoes",
     "preset.copy_answer": "Copy answer to bank",
+    "preset.square": "Square",
+    "preset.domino": "Domino",
+    "preset.two_dominoes": "Two dominoes",
+    "preset.two_squares": "Two squares",
     "preset.zero": "No pieces",
     "preset.fleet3": "Battleships (size 3)",
     "preset.fleet4": "Battleships (size 4)",
@@ -110,6 +114,13 @@
     "inputmode.boulder": "Boulders",
     "inputmode.moon": "Marks of moon",
     "inputmode.sun": "Marks of sun",
+    "inputmode.dot-black": "Black dots",
+    "inputmode.dot-white": "Hollow dots",
+    "inputmode.dot-blue": "Blue dots",
+    "inputmode.dot-double": "Blue-red dots",
+    "inputmode.triangle": "Triangles",
+    "inputmode.start-blue": "Blue starts",
+    "inputmode.start-red": "Red starts",
     "inputmode.empty": "Invalid cells",
     "inputmode.ice": "Icebarns",
     "inputmode.water": "Water hazard",
@@ -336,5 +347,6 @@
     "network.start": "Start",
     "network.share": "Share this link to play with someone:",
     "list.sort.date": "Sort by date",
-    "list.sort.alpha": "Sort alphabetically"
+    "list.sort.alpha": "Sort alphabetically",
+    "inputmode.dot-red": "Red dots"
 }
