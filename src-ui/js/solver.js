@@ -286,6 +286,7 @@ function getMessages() {
 				applied: function(count) {
 					return count + " 個の solver 結果を表示しました";
 				},
+				multipleSolutions: " (この問題は解が複数あります)",
 				partial: function(count) {
 					return count + " 個の確定 solver 結果を表示しました";
 				},
@@ -304,8 +305,11 @@ function getMessages() {
 				loading: "loading solver...",
 				solving: "running solver from a blank answer...",
 				applied: function(count) {
-					return "displayed " + count + " solver result" + (count === 1 ? "" : "s");
+					return (
+						"displayed " + count + " solver result" + (count === 1 ? "" : "s")
+					);
 				},
+				multipleSolutions: " (this puzzle has multiple solutions)",
 				partial: function(count) {
 					return (
 						"displayed " +
@@ -331,7 +335,10 @@ function setStatus(message) {
 		controls.status.textContent = message;
 		controls.status.title = message;
 	}
-	if (window.ui && typeof ui.scheduleControlPanelHeightStabilize === "function") {
+	if (
+		window.ui &&
+		typeof ui.scheduleControlPanelHeightStabilize === "function"
+	) {
 		ui.scheduleControlPanelHeightStabilize();
 	}
 }
@@ -370,7 +377,8 @@ async function getSolverModule() {
 		solverModulePromise = Module({
 			locateFile: function(path) {
 				if (path.endsWith(".wasm")) {
-					return new URL("../wasm/cspuz_solver_backend.wasm", import.meta.url).href;
+					return new URL("../wasm/cspuz_solver_backend.wasm", import.meta.url)
+						.href;
 				}
 				return path;
 			}
@@ -708,7 +716,9 @@ function getForcedLinePayload() {
 		var hRow = [];
 		for (var x = 0; x + 1 < cols; x++) {
 			var cell = board.cell[y * cols + x];
-			var hState = getForcedLineStateForBorder(board.getb(cell.bx + 1, cell.by));
+			var hState = getForcedLineStateForBorder(
+				board.getb(cell.bx + 1, cell.by)
+			);
 			if (hState !== -1) {
 				hasForced = true;
 			}
@@ -721,7 +731,9 @@ function getForcedLinePayload() {
 		var vRow = [];
 		for (var x2 = 0; x2 < cols; x2++) {
 			var cell2 = board.cell[y2 * cols + x2];
-			var vState = getForcedLineStateForBorder(board.getb(cell2.bx, cell2.by + 1));
+			var vState = getForcedLineStateForBorder(
+				board.getb(cell2.bx, cell2.by + 1)
+			);
 			if (vState !== -1) {
 				hasForced = true;
 			}
@@ -742,7 +754,9 @@ function getTravelLineBackendPayload() {
 	var board = ui.puzzle.board;
 	var rows = board.rows;
 	var cols = board.cols;
-	var startCell = board.getStartCell ? board.getStartCell() : board.startpos.getc();
+	var startCell = board.getStartCell
+		? board.getStartCell()
+		: board.startpos.getc();
 	var goalCell = board.getGoalCell ? board.getGoalCell() : board.goalpos.getc();
 	var bars = [];
 	var ice = [];
@@ -809,9 +823,9 @@ function getTravelLineBackendPayload() {
 				specialsRow.push(-1);
 			}
 			orderRow.push(qnum === 16 ? Math.max(cell.qnum2, 0) : -1);
-				if (
-					qnum !== -1 &&
-					qnum !== 2 &&
+			if (
+				qnum !== -1 &&
+				qnum !== 2 &&
 				qnum !== 3 &&
 				qnum !== 4 &&
 				qnum !== 5 &&
@@ -820,38 +834,38 @@ function getTravelLineBackendPayload() {
 				qnum !== 8 &&
 				qnum !== 9 &&
 				qnum !== 14 &&
-					qnum !== 15 &&
-					qnum !== 16
-				) {
-					throw new Error(
-						"travelline backend does not support clue " +
-							qnum +
-							" at row " +
-							(y + 1) +
-							", col " +
-							(x + 1)
-					);
-				}
-				if (
-					floors &
+				qnum !== 15 &&
+				qnum !== 16
+			) {
+				throw new Error(
+					"travelline backend does not support clue " +
+						qnum +
+						" at row " +
+						(y + 1) +
+						", col " +
+						(x + 1)
+				);
+			}
+			if (
+				floors &
 				~(
 					TL_FLOOR_FLAGS.BAR |
 					TL_FLOOR_FLAGS.ICE |
 					TL_FLOOR_FLAGS.NOTOUCH |
 					TL_FLOOR_FLAGS.NOADJ |
 					TL_FLOOR_FLAGS.SLOOP |
-						TL_FLOOR_FLAGS.CWFLOOR
-					)
-				) {
-					throw new Error(
-						"travelline backend does not support floor flag value " +
-							floors +
-							" at row " +
-							(y + 1) +
-							", col " +
-							(x + 1)
-					);
-				}
+					TL_FLOOR_FLAGS.CWFLOOR
+				)
+			) {
+				throw new Error(
+					"travelline backend does not support floor flag value " +
+						floors +
+						" at row " +
+						(y + 1) +
+						", col " +
+						(x + 1)
+				);
+			}
 			if (x + 1 < cols) {
 				var hBorder = board.getb(cell.bx + 1, cell.by);
 				reqHRow.push(hBorder.ques === TL_BORDER_CLUES.REQUIRED);
@@ -898,22 +912,19 @@ function getTravelLineBackendPayload() {
 			}
 			if (cross.qnum >= 0 && cross.qnum <= 4) {
 				crossRow.push(cross.qnum);
-				} else if (
-					cross.qnum === -1 ||
-					(cross.qnum >= 11 && cross.qnum <= 13)
-				) {
-					crossRow.push(-1);
-				} else {
-					throw new Error(
-						"travelline backend does not support cross clue " +
-							cross.qnum +
-							" at cross " +
-							cross.id
-					);
-				}
+			} else if (cross.qnum === -1 || (cross.qnum >= 11 && cross.qnum <= 13)) {
+				crossRow.push(-1);
+			} else {
+				throw new Error(
+					"travelline backend does not support cross clue " +
+						cross.qnum +
+						" at cross " +
+						cross.id
+				);
 			}
-			slither.push(crossRow);
 		}
+		slither.push(crossRow);
+	}
 
 	for (var y2 = 0; y2 + 1 < rows; y2++) {
 		var reqVRow = [];
@@ -943,7 +954,11 @@ function getTravelLineBackendPayload() {
 	// Cross clues are currently supported only for slither-style 0..4.
 	for (var borderId = 0; borderId < board.border.length; borderId++) {
 		var border = board.border[borderId];
-		if (border.inside && border.qnum !== -1 && !border.isTravelLineBoundaryArrow()) {
+		if (
+			border.inside &&
+			border.qnum !== -1 &&
+			!border.isTravelLineBoundaryArrow()
+		) {
 			throw new Error(
 				"travelline backend does not support border clue " +
 					border.qnum +
@@ -1128,11 +1143,7 @@ function normalizeSolverEntryCoordinate(entry) {
 }
 
 function isCellCoordinate(entry) {
-	if (
-		!entry ||
-		Math.abs(entry.x % 2) !== 1 ||
-		Math.abs(entry.y % 2) !== 1
-	) {
+	if (!entry || Math.abs(entry.x % 2) !== 1 || Math.abs(entry.y % 2) !== 1) {
 		return false;
 	}
 	if (isSkyNeighborPuzzle()) {
@@ -1344,7 +1355,9 @@ function hasAnswerLineState(border) {
 	return (
 		!!border &&
 		!border.isnull &&
-		((border.isLine && border.isLine()) || border.qans !== 0 || border.qsub === 2)
+		((border.isLine && border.isLine()) ||
+			border.qans !== 0 ||
+			border.qsub === 2)
 	);
 }
 
@@ -1430,8 +1443,10 @@ function recomputeTravelLineCellOverlayStates(board) {
 	var recognized = 0;
 	for (var c = 0; c < board.cell.length; c++) {
 		var boardCell = board.cell[c];
-		var explicitState = boardCell._travellineSolverCellState === "cross" ? "cross" : null;
-		var derivedState = explicitState || deriveTravelLineCellOverlayState(boardCell);
+		var explicitState =
+			boardCell._travellineSolverCellState === "cross" ? "cross" : null;
+		var derivedState =
+			explicitState || deriveTravelLineCellOverlayState(boardCell);
 		if (boardCell._travellineSolverCellState !== derivedState) {
 			boardCell._travellineSolverCellState = derivedState;
 			changed++;
@@ -1446,7 +1461,8 @@ function recomputeTravelLineCellOverlayStates(board) {
 function applyTravelLineDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
-			(result && result.description) || "solver did not return a board description"
+			(result && result.description) ||
+				"solver did not return a board description"
 		);
 	}
 
@@ -1521,7 +1537,8 @@ function applyTravelLineDescription(result) {
 function applyGenericSolverOverlayDescription(result) {
 	if (!result || result.status !== "ok" || !result.description) {
 		throw new Error(
-			(result && result.description) || "solver did not return a board description"
+			(result && result.description) ||
+				"solver did not return a board description"
 		);
 	}
 
@@ -1675,9 +1692,12 @@ async function runSolver() {
 		var appliedCount = linePuzzle
 			? applyGenericSolverOverlayDescription(result)
 			: applyDescription(result);
-		setStatus(
-			appliedCount > 0 ? messages.applied(appliedCount) : messages.noChange
-		);
+		var statusMessage =
+			appliedCount > 0 ? messages.applied(appliedCount) : messages.noChange;
+		if (result && result.description && result.description.isUnique === false) {
+			statusMessage += messages.multipleSolutions;
+		}
+		setStatus(statusMessage);
 		recordSolverDiagnostic("solve-finish", {
 			requestId: requestId,
 			durationMs: Date.now() - startedAt,
@@ -1797,7 +1817,10 @@ function refreshVisibility() {
 	if (supported && !isApplying && !hasSolverState) {
 		setStatus(getMessages().idle);
 	}
-	if (window.ui && typeof ui.scheduleControlPanelHeightStabilize === "function") {
+	if (
+		window.ui &&
+		typeof ui.scheduleControlPanelHeightStabilize === "function"
+	) {
 		ui.scheduleControlPanelHeightStabilize();
 	}
 }

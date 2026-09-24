@@ -109,6 +109,91 @@ describe("Variety:lostspeech", function() {
 		assert.equal(r.codes[0], "nmDotNe");
 	});
 
+	it("only allows shapes to extend the chain from the start cell", function() {
+		var p = new pzpr.Puzzle().open("lostspeech/3/2/l/1/21o");
+		p.setMode("play");
+		var mouse = p.mouse;
+		mouse.setInputMode("auto");
+		mouse.activepiece = 0;
+		p.board.getc(1, 1).setQnum(6);
+		p.board.getc(3, 1).setQnum(2);
+		p.board.getc(5, 1).setQnum(2);
+
+		// 最初の形状が起点マスを覆わない配置は禁止
+		mouse.inputPath("left", 3, 1);
+		assert.equal(p.board.getc(3, 1).qans, 0);
+
+		// 最初の形状は起点マスを覆う
+		mouse.inputPath("left", 1, 1);
+		assert.equal(p.board.getc(1, 1).qans, 1);
+		assert.equal(p.board.getc(3, 1).qans, 1);
+
+		// 2つ目の形状は既存の形状と隣接していない配置は禁止
+		var p2 = new pzpr.Puzzle().open("lostspeech/6/1/l/1/21o");
+		p2.setMode("play");
+		p2.mouse.setInputMode("auto");
+		p2.mouse.activepiece = 0;
+		for (var bx2 = 1; bx2 <= 11; bx2 += 2) {
+			p2.board.getc(bx2, 1).setQnum(2);
+		}
+		p2.board.getc(1, 1).setQnum(6);
+		p2.mouse.inputPath("left", 1, 1);
+		p2.mouse.inputPath("left", 7, 1);
+		assert.equal(p2.board.getc(7, 1).qans, 0);
+
+		// 隣接していれば配置できる (重複しないよう (5,1) から)
+		p2.mouse.inputPath("left", 5, 1);
+		assert.equal(p2.board.getc(5, 1).qans, 2);
+		assert.equal(p2.board.getc(7, 1).qans, 2);
+	});
+
+	it("rejects a branching chain with no Hamiltonian path", function() {
+		// 単格5つ: 起点(3,7), 黒点(5,3)(5,5)(7,5), 青点(3,5)
+		// T字形に分岐しており、一筆書きの順序が存在しない
+		var p = new pzpr.Puzzle().open(
+			"lostspeech/8/8/p1l311k6zx0000000000000/1/11g"
+		);
+		// マーク位置: 黒点(5,3), 青点(3,5), 黒点(5,5), 黒点(7,5), 起点(3,7)
+		// 各マスがそれぞれ1つの形状
+		p.board.getc(5, 3).setQans(1);
+		p.board.getc(3, 5).setQans(2);
+		p.board.getc(5, 5).setQans(3);
+		p.board.getc(7, 5).setQans(4);
+		p.board.getc(3, 7).setQans(5);
+		var r = p.check(true);
+		var codes = [];
+		for (var i = 0; i < r.length; i++) {
+			codes.push(r[i]);
+		}
+		assert.equal(codes[0], "csNoConn");
+	});
+
+	it("only allows the next shape adjacent to the immediately previous one", function() {
+		// 単格3つ: 3つ目は直前の2つ目と隣接していないと置けない
+		var p = new pzpr.Puzzle().open("lostspeech/3/3/o/1/11g");
+		p.setMode("play");
+		p.mouse.setInputMode("auto");
+		p.mouse.activepiece = 0;
+		p.board.getc(3, 1).setQnum(6); // 青起点
+		p.board.getc(3, 3).setQnum(2); // 起点の下
+		p.board.getc(1, 1).setQnum(2); // 1つ目と隣接 (2つ目とは隣接しない)
+		p.board.getc(5, 3).setQnum(2); // 2つ目と隣接
+
+		// 1つ目: 起点を覆う
+		p.mouse.inputPath("left", 3, 1);
+		assert.equal(p.board.getc(3, 1).qans, 1);
+		// 2つ目: 1つ目と隣接
+		p.mouse.inputPath("left", 3, 3);
+		assert.equal(p.board.getc(3, 3).qans, 2);
+		// 3つ目: 直前(2つ目)と隣接しない配置は禁止
+		// (1つ目とは隣接しているが、それだけでは置けない)
+		p.mouse.inputPath("left", 1, 1);
+		assert.equal(p.board.getc(1, 1).qans, 0);
+		// 直前の形状と隣接する配置は許可
+		p.mouse.inputPath("left", 5, 3);
+		assert.equal(p.board.getc(5, 3).qans, 3);
+	});
+
 	it("checks dot coverage rules", function() {
 		var r = checkResult(
 			new pzpr.Puzzle().open("lostspeech/2/2/j/1/12o"),
@@ -238,8 +323,8 @@ describe("Variety:lostspeech", function() {
 		puzzle.setMode("play");
 		var mouse = puzzle.mouse;
 		mouse.setInputMode("auto");
-		puzzle.board.getc(1, 1).setQnum(6);
-		puzzle.board.getc(1, 3).setQnum(2);
+		puzzle.board.getc(1, 1).setQnum(2);
+		puzzle.board.getc(1, 3).setQnum(7);
 
 		// 赤の形状を置いて削除できる
 		mouse.activepiece = 1;
@@ -277,6 +362,7 @@ describe("Variety:lostspeech", function() {
 				puzzle.board.getc(bx, by).setQnum(2);
 			}
 		}
+		puzzle.board.getc(1, 1).setQnum(6);
 
 		mouse.inputPath("left", 1, 1);
 		assert.equal(puzzle.board.getc(1, 1).qans, 1);

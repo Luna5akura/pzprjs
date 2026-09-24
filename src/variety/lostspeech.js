@@ -59,12 +59,13 @@
 		// プレビュー中のセル
 		previewcell: null,
 
-		// ボタンを押していないマウス移動でもプレビューを更新する
+		// ボタン状態に関わらず、ホバー位置でプレビューを更新する
+		// (btnは前回のクリックの値が残っているため、ボタン状態では判定しない)
 		e_mousemove: function(e) {
 			this.common.e_mousemove.call(this, e);
 
-			if (!this.btn) {
-				var addr = this.getBoardAddress(e);
+			var addr = this.getBoardAddress(e);
+			if (!isNaN(addr.bx) && !isNaN(addr.by)) {
 				this.inputPoint.init(addr.bx, addr.by);
 				this.updatePreview();
 			}
@@ -203,16 +204,15 @@
 
 			var shape = this.getShapeOffsets(piece, this.orient[this.activepiece]);
 			var prop = this.getPieceProp(this.activepiece);
+			if (!this.isPlaceable(cell, shape.offsets, prop)) {
+				return;
+			}
+
 			var cells = [];
 			var bd = this.board;
-
 			for (var i = 0; i < shape.offsets.length; i++) {
 				var o = shape.offsets[i];
-				var c = bd.getc(cell.bx + 2 * o.x, cell.by + 2 * o.y);
-				if (c.isnull || c.ques === 7 || c.qnum < 1 || c[prop] > 0) {
-					return;
-				}
-				cells.push(c);
+				cells.push(bd.getc(cell.bx + 2 * o.x, cell.by + 2 * o.y));
 			}
 
 			var id = this.getNewShapeId(prop);
@@ -357,7 +357,61 @@
 					return false;
 				}
 			}
-			return true;
+
+			// 同じ色の形状は、起点から順番に鎖状に配置する。
+			// 最初の形状は起点マスを覆い、以降の形状は
+			// 「直前に置いた形状」(最大のIDを持つ形状)の
+			// 非三角マスと辺で隣接していなければならない。
+			var isBlue = prop === "qans";
+			var startMarker = isBlue ? 6 : 7;
+			var hasStart = false,
+				lastshape = 0;
+			for (var y = 0; y < bd.cell.length; y++) {
+				var cc = bd.cell[y];
+				if (cc.qnum === startMarker) {
+					hasStart = true;
+				}
+				if (cc[prop] > lastshape) {
+					lastshape = cc[prop];
+				}
+			}
+			if (!hasStart) {
+				return false;
+			}
+
+			var coversStart = false,
+				adjacent = false;
+			var dirs = [
+				[2, 0],
+				[-2, 0],
+				[0, 2],
+				[0, -2]
+			];
+			for (var j = 0; j < offsets.length; j++) {
+				var o = offsets[j];
+				var c = bd.getc(cell.bx + 2 * o.x, cell.by + 2 * o.y);
+				if (c.qnum === startMarker) {
+					coversStart = true;
+				}
+				for (var d = 0; d < dirs.length; d++) {
+					var nb = c.relcell(dirs[d][0], dirs[d][1]);
+					// 三角格は連結判定に参加しないため、
+					// 新形状側・直前の形状側の両方とも非三角格でなければならない
+					if (
+						!nb.isnull &&
+						nb[prop] === lastshape &&
+						nb.qnum !== 5 &&
+						c.qnum !== 5
+					) {
+						adjacent = true;
+					}
+				}
+			}
+
+			if (lastshape === 0) {
+				return coversStart;
+			}
+			return adjacent;
 		},
 
 		// 次の形状IDを採番する
@@ -1136,62 +1190,106 @@
 				return;
 			}
 
-			var parent = {};
+			// 形状間の隣接グラフを作る (両側とも非三角マスで隣接している場合のみ)
+			var adj = {};
 			for (var i = 0; i < ids.length; i++) {
-				parent[ids[i]] = ids[i];
+				adj[ids[i]] = {};
 			}
-			var find = function(x) {
-				while (parent[x] !== x) {
-					parent[x] = parent[parent[x]];
-					x = parent[x];
-				}
-				return x;
-			};
-			var union = function(a, b) {
-				var ra = find(a),
-					rb = find(b);
-				if (ra !== rb) {
-					parent[ra] = rb;
-				}
-			};
-
+			var dirs = [
+				[2, 0],
+				[-2, 0],
+				[0, 2],
+				[0, -2]
+			];
 			for (var c = 0; c < bd.cell.length; c++) {
 				var cell = bd.cell[c];
 				if (cell[prop] <= 0 || cell.qnum === 5 || cell.ques === 7) {
 					continue;
 				}
-
-				var right = cell.relcell(2, 0);
-				if (
-					!right.isnull &&
-					right[prop] > 0 &&
-					right[prop] !== cell[prop] &&
-					right.qnum !== 5
-				) {
-					union(cell[prop], right[prop]);
-				}
-				var bottom = cell.relcell(0, 2);
-				if (
-					!bottom.isnull &&
-					bottom[prop] > 0 &&
-					bottom[prop] !== cell[prop] &&
-					bottom.qnum !== 5
-				) {
-					union(cell[prop], bottom[prop]);
+				for (var d = 0; d < dirs.length; d++) {
+					var nb = cell.relcell(dirs[d][0], dirs[d][1]);
+					if (
+						!nb.isnull &&
+						nb[prop] > 0 &&
+						nb[prop] !== cell[prop] &&
+						nb.qnum !== 5
+					) {
+						adj[cell[prop]][nb[prop]] = true;
+					}
 				}
 			}
 
-			var root = find(ids[0]);
-			for (var j = 0; j < ids.length; j++) {
-				if (find(ids[j]) === root) {
-					continue;
+			// 「次の形状は直前の形状の隣にしか置けない」ため、
+			// 起点マスを覆う形状から出発して全形状を一筆書きで
+			// 訪れる順序(ハミルトン路)が存在しなければならない
+			var startMarker = prop === "qans" ? 6 : 7;
+			var startId = null;
+			for (var s = 0; s < bd.cell.length; s++) {
+				if (bd.cell[s].qnum === startMarker && bd.cell[s][prop] > 0) {
+					startId = bd.cell[s][prop];
+					break;
 				}
+			}
+			if (startId === null) {
+				return; // 起点が無い場合は checkStarts が担当
+			}
 
+			var visited = {};
+			visited[startId] = true;
+			var ok = false;
+
+			// 現在地から到達できない未訪問の形状で、未訪問の隣接形状が
+			// 無いものがあれば、これ以上進めない (枝刈り)
+			var canContinue = function(cur) {
+				for (var u = 0; u < ids.length; u++) {
+					var id = ids[u];
+					if (visited[id] || adj[cur][id]) {
+						continue;
+					}
+					var hasUnvisitedNb = false;
+					for (var nb in adj[id]) {
+						if (!visited[nb]) {
+							hasUnvisitedNb = true;
+							break;
+						}
+					}
+					if (!hasUnvisitedNb) {
+						return false;
+					}
+				}
+				return true;
+			};
+
+			var dfs = function(cur, count) {
+				if (count === ids.length) {
+					ok = true;
+					return;
+				}
+				if (!canContinue(cur)) {
+					return;
+				}
+				var nbs = adj[cur];
+				for (var nb in nbs) {
+					if (!visited[nb]) {
+						visited[nb] = true;
+						dfs(nb, count + 1);
+						visited[nb] = false;
+						if (ok) {
+							return;
+						}
+					}
+				}
+			};
+			dfs(startId, 1);
+
+			if (!ok) {
 				this.failcode.add("csNoConn");
 				if (this.checkOnly) {
 					return;
 				}
-				map[ids[j]].seterr(1);
+				for (var j = 0; j < ids.length; j++) {
+					map[ids[j]].seterr(1);
+				}
 			}
 		},
 
