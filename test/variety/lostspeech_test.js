@@ -396,11 +396,10 @@ describe("Variety:lostspeech", function() {
 		assert.equal(r.codes.indexOf("csContained") >= 0, true);
 	});
 
-	it("exempts shapes that contain a start cell from containment", function() {
+	it("counts start cells for containment", function() {
 		// 3x3: 青起点(0,0), 赤起点(1,1), 空心点(0,1),(0,2),(1,0),(2,0)
-		// 赤=単セル(1,1)は起点マスを含むため包含判定から除外される。
-		// 青の2x2正方形も起点を含むため除外される → complete
-		// (盤面2の青=3連トロミノも起点を含むため除外される)
+		// 赤=単セル(1,1)が青の2x2正方形に完全に含まれる → csContained
+		// (起点豁免は無い)
 		var r = checkResult(
 			new pzpr.Puzzle().open("lostspeech/3/3/62227g2h00/4/22u/11g/13s/11g"),
 			function(p) {
@@ -417,7 +416,8 @@ describe("Variety:lostspeech", function() {
 				p.board.getc(3, 3).setAnum2(1);
 			}
 		);
-		assert.equal(r.complete, true);
+		assert.equal(r.complete, false);
+		assert.equal(r.codes.indexOf("csContained") >= 0, true);
 	});
 
 	it("rejects shapes contained in shapes of the other solution", function() {

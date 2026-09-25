@@ -1787,30 +1787,8 @@
 
 				for (var a in mapA) {
 					var cellsA = mapA[a];
-					// 起点マス (青起点6・赤起点7) を含む形状は包含判定から除外
-					var aHasStart = false;
-					for (var i0 = 0; i0 < cellsA.length; i0++) {
-						if (cellsA[i0].qnum === 6 || cellsA[i0].qnum === 7) {
-							aHasStart = true;
-							break;
-						}
-					}
-					if (aHasStart) {
-						continue;
-					}
 					for (var b in mapB) {
 						var cellsB = mapB[b];
-						// 起点マスを含む形状は包含判定から除外
-						var bHasStart = false;
-						for (var j0 = 0; j0 < cellsB.length; j0++) {
-							if (cellsB[j0].qnum === 6 || cellsB[j0].qnum === 7) {
-								bHasStart = true;
-								break;
-							}
-						}
-						if (bHasStart) {
-							continue;
-						}
 
 						var containedAinB = true;
 						for (var i = 0; i < cellsA.length; i++) {

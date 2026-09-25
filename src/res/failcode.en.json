@@ -984,5 +984,5 @@
     "nmNotConsecutive.consecutivekakuro": "The numbers do not satisfy the white-bar consecutive rule.",
     "nmNoDotNe.lostspeech": "A shape covers a cell without a dot.",
     "csNoConn.lostspeech": "Shapes of the same color are not connected.",
-    "csCrossContained.lostspeech": "A shape is completely contained in a shape of the solution on the other board (shapes that contain a start cell are excluded from the containment check)."
+    "csCrossContained.lostspeech": "A shape is completely contained in a shape of the solution on the other board."
 }
