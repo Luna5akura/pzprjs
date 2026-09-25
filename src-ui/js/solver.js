@@ -369,7 +369,16 @@ function getSolverUrl() {
 	var url = ui.puzzle.getURL(pzpr.parser.URL_PZPRV3);
 	var query = url.split("?")[1] || "";
 	query = query.replace(/^type=[^&]+&/, "");
-	return "https://puzz.link/p?" + query;
+	// pzprのバリアントIDセグメント (v:...) は solver では不要なので除去する
+	// (直後の "/" も含めて除去し、二重スラッシュにならないようにする)
+	query = query.replace(/(^|\/)v:[^/]*\/?/g, "$1");
+	var result = "https://puzz.link/p?" + query;
+	if (isLostSpeechPuzzle()) {
+		// 「this puzzle uses variant rule」の状態を solver にも伝える
+		result +=
+			"&variant=" + (ui.puzzle.getConfig("variant") ? "1" : "0");
+	}
+	return result;
 }
 
 async function getSolverModule() {

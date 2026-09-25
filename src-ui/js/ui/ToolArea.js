@@ -504,6 +504,20 @@ ui.toolarea = {
 	//---------------------------------------------------------------------------
 	toolclick: function(e) {
 		var el = e.target;
+		// チェックボックスは data-value 属性を持たないため、
+		// data-config を持つ親要素から設定項目を特定して
+		// チェック状態を反映する
+		if (el.nodeName === "INPUT" && el.type === "checkbox") {
+			var p = el.parentNode;
+			while (p && !ui.customAttr(p, "config") && p !== document.body) {
+				p = p.parentNode;
+			}
+			if (!p || !ui.customAttr(p, "config")) {
+				return;
+			}
+			ui.menuconfig.set(ui.customAttr(p, "config"), !!el.checked);
+			return;
+		}
 		while (el && !ui.customAttr(el, "value") && el !== document.body) {
 			el = el.parentNode;
 		}

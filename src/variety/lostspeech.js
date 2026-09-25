@@ -1766,15 +1766,21 @@
 				blue2: "qans2",
 				red2: "anum2"
 			};
-			// 各盤面内の青-赤2組 + 左右の盤面をまたぐ4組
+			// 各盤面内の青-赤2組
 			var pairs = [
 				["blue1", "red1", "csContained"],
-				["blue2", "red2", "csContained"],
-				["blue1", "blue2", "csCrossContained"],
-				["blue1", "red2", "csCrossContained"],
-				["red1", "blue2", "csCrossContained"],
-				["red1", "red2", "csCrossContained"]
+				["blue2", "red2", "csContained"]
 			];
+			// 「this puzzle uses variant rule」が有効な場合のみ、
+			// 左右の盤面をまたぐ4組も禁止する
+			if (this.puzzle.getConfig("variant")) {
+				pairs.push(
+					["blue1", "blue2", "csCrossContained"],
+					["blue1", "red2", "csCrossContained"],
+					["red1", "blue2", "csCrossContained"],
+					["red1", "red2", "csCrossContained"]
+				);
+			}
 
 			for (var p = 0; p < pairs.length; p++) {
 				var nameA = pairs[p][0],

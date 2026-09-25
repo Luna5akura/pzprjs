@@ -420,13 +420,14 @@ describe("Variety:lostspeech", function() {
 		assert.equal(r.codes.indexOf("csContained") >= 0, true);
 	});
 
-	it("rejects shapes contained in shapes of the other solution", function() {
+	it("rejects shapes contained in shapes of the other solution with the variant rule", function() {
 		// 3x3: 青起点(0,0), 赤起点(1,1), 空心点(0,1),(0,2),(1,0),(1,2)。
-		// 起点を含まない2つ目の形状 {(0,2),(1,2)} が両盤面で同一のため
-		// 跨盤包含 (csCrossContained) になる。
+		// variantルール有効時、起点を含まない2つ目の形状 {(0,2),(1,2)} が
+		// 両盤面で同一のため跨盤包含 (csCrossContained) になる。
 		var r = checkResult(
 			new pzpr.Puzzle().open("lostspeech/3/3/622272i00/4/12o/12o/12o/12o"),
 			function(p) {
+				p.setConfig("variant", true);
 				// 盤面1: 青の鎖 {(0,0),(0,1)} + {(0,2),(1,2)}、赤 {(1,0),(1,1)}
 				p.board.getc(1, 1).setQans(1);
 				p.board.getc(3, 1).setQans(1);
@@ -445,6 +446,30 @@ describe("Variety:lostspeech", function() {
 		);
 		assert.equal(r.complete, false);
 		assert.equal(r.codes.indexOf("csCrossContained") >= 0, true);
+	});
+
+	it("allows contained shapes across boards without the variant rule", function() {
+		// variantルール無効時は跨盤包含を検査しない (各盤面内のルールのみ)
+		var r = checkResult(
+			new pzpr.Puzzle().open("lostspeech/3/3/622272i00/4/12o/12o/12o/12o"),
+			function(p) {
+				// 盤面1: 青の鎖 {(0,0),(0,1)} + {(0,2),(1,2)}、赤 {(1,0),(1,1)}
+				p.board.getc(1, 1).setQans(1);
+				p.board.getc(3, 1).setQans(1);
+				p.board.getc(5, 1).setQans(2);
+				p.board.getc(5, 3).setQans(2);
+				p.board.getc(1, 3).setAnum(1);
+				p.board.getc(3, 3).setAnum(1);
+				// 盤面2: 同じ配置 (跨盤包含だがvariant無効なので不問)
+				p.board.getc(1, 1).setQans2(1);
+				p.board.getc(3, 1).setQans2(1);
+				p.board.getc(5, 1).setQans2(2);
+				p.board.getc(5, 3).setQans2(2);
+				p.board.getc(1, 3).setAnum2(1);
+				p.board.getc(3, 3).setAnum2(1);
+			}
+		);
+		assert.equal(r.complete, true);
 	});
 
 	it("round-trips board 2 answers through the file data", function() {
