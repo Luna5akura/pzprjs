@@ -437,12 +437,11 @@
     "csAdjacent.fakearrow": "Shaded arrows are adjacent.",
     "csAdjacent.kaidan": "Some circles are adjacent.",
     "csAdjacent": "Some shaded cells are adjacent.",
-    "csContained.lostspeech": "A shape is completely contained in a shape of the other color.",
+    "csContained.lostspeech": "On the same board, a shape is completely contained in a shape of the other color.",
     "csDotBlack": "A black dot doesn't overlap more shaded cells than unshaded cells.",
     "csDotGray": "A gray dot doesn't overlap an equal number of shaded and unshaded cells.",
     "csDotWhite": "A white dot doesn't overlap more unshaded cells than shaded cells.",
     "csConnOut.kurodoko": "Some shaded cells are not connected to the outside.",
-    "csNoConn.lostspeech": "Shapes of the same color are not connected.",
     "csConsecGt3.tawa": "Three or more shaded cells continue horizontally.",
     "csCornerSize.nuribou": "Masses of shaded cells with the same length share a corner.",
     "csdDivide.scrin": "There is a rectangle that is not connected to the other rectangles.",
@@ -983,5 +982,7 @@
     "colEmptyNe.fourwindswithparks": "Each row and column must have exactly one empty cell.",
     "nmAbcBox.abcbox": "The ABC-Box group clues do not match.",
     "nmNotConsecutive.consecutivekakuro": "The numbers do not satisfy the white-bar consecutive rule.",
-    "nmNoDotNe.lostspeech": "A shape covers a cell without a dot."
+    "nmNoDotNe.lostspeech": "A shape covers a cell without a dot.",
+    "csNoConn.lostspeech": "Shapes of the same color are not connected.",
+    "csCrossContained.lostspeech": "A shape is completely contained in a shape of the solution on the other board (shapes that contain a start cell are excluded from the containment check)."
 }

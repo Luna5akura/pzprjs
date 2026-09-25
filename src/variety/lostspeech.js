@@ -1,19 +1,18 @@
 //
 // lostspeech.js
-// Lost Speech
+// Lost Speech (ツイン盤面)
 //
-// Place the shape assigned to each start cell (blue or red) repeatedly from
-// that start cell. Every newly placed shape must be edge-adjacent to the
-// previously placed shape of the same color, but connections through
-// triangle-marked cells do not count. Dots constrain how many shapes cover
-// each cell:
-//   black dot      : exactly one shape
-//   hollow dot     : at most one shape
-//   blue dot       : exactly one blue shape (no red)
-//   blue-red dot   : exactly one blue and one red shape
-// Shapes of the same color never overlap; shapes of different colors may
-// overlap anywhere, but no shape may be completely contained in a shape of
-// the other color.
+// 2つの同一盤面が左右に並び、マーカー (点・三角・起点・灰色) は共有される。
+// 各盤面には青と赤の形状が1つずつ割り当てられ、その形状を起点マスを覆う
+// ように1回だけ配置する。点は各盤面の覆われ方を制約する:
+//   黒点      : ちょうど1つの形状
+//   黒空心点  : 高々1つの形状
+//   青点      : ちょうど1つの青の形状 (赤なし)
+//   青赤点    : ちょうど1つの青と1つの赤
+//   赤点      : ちょうど1つの赤の形状 (青なし)
+// 同じ盤面内の青と赤は重なってもよいが、互いに完全に含まれない。
+// さらに、2つの解 (各盤面の形状) の間でも、どの形状も他の解のどの形状に
+// 完全に含まれてはならない。
 //
 
 (function(pidlist, classbase) {
@@ -47,17 +46,36 @@
 			play: ["shade", "unshade", "clear"]
 		},
 
-		// 選択中のbankピース(偶数:青 奇数:赤)
+		// 選択中のbankピース (0:青1 1:赤1 2:青2 3:赤2)
 		activepiece: 0,
 
-		// 選択中のピースの色に応じたプロパティ(qans:青 anum:赤)を返す
-		getPieceProp: function(index) {
-			return index % 2 === 0 ? "qans" : "anum";
-		},
 		// ピースごとの向き(0-7: 0-3は回転, 4-7は反転+回転)
 		orient: [0, 0, 0, 0],
 		// プレビュー中のセル
 		previewcell: null,
+
+		// 右側の盤面のxオフセット (仮想座標)
+		getTwinOffset: function() {
+			return this.board.cols * 2 + 2;
+		},
+
+		// 選択中のピースが属する盤面(0/1)と色に応じたプロパティを返す
+		getPieceProp: function(index) {
+			var board = index >= 2 ? 1 : 0;
+			var prop = index % 2 === 0 ? "qans" : "anum";
+			return board ? prop + "2" : prop;
+		},
+
+		// ツイン盤面: 右側の盤面のセルは左側のセルと共有のため、
+		// 座標を折り返してセルを取得する
+		getcell: function() {
+			var pos = this.getpos(0);
+			var off = this.getTwinOffset();
+			if (pos.bx >= off) {
+				pos.bx -= off;
+			}
+			return pos.getc();
+		},
 
 		// ボタン状態に関わらず、ホバー位置でプレビューを更新する
 		// (btnは前回のクリックの値が残っているため、ボタン状態では判定しない)
@@ -116,7 +134,7 @@
 						if (this.btn === "left") {
 							this.inputpiece();
 						}
-					} else if (!this.inputbankadd()) {
+					} else {
 						this.inputqnum();
 					}
 				}
@@ -151,15 +169,18 @@
 				cell.setQues(0);
 				cell.setQans(0);
 				cell.setAnum(-1);
+				cell.setdata("qans2", 0);
+				cell.setdata("anum2", -1);
 				cell.draw();
 			} else {
-				var blue = cell.qans > 0,
-					red = cell.anum > 0;
-				if (!!blue) {
-					this.removeShape("qans", blue);
-				}
-				if (!!red) {
-					this.removeShape("anum", red);
+				var off = this.getTwinOffset();
+				var isboard2 = this.inputPoint.bx >= off;
+				var props = isboard2 ? ["qans2", "anum2"] : ["qans", "anum"];
+				for (var p = 0; p < 2; p++) {
+					var id = cell[props[p]];
+					if (id > 0) {
+						this.removeShape(props[p], id);
+					}
 				}
 			}
 			this.mouseCell = cell;
@@ -185,6 +206,15 @@
 			} else {
 				cell.setQnum(num);
 				cell.setQues(0);
+				// 起点は各色1つだけ: 新しく置いた起点以外の同色起点を消す
+				if (num === 6 || num === 7) {
+					var cells = this.board.cell;
+					for (var i = 0; i < cells.length; i++) {
+						if (cells[i] !== cell && cells[i].qnum === num) {
+							cells[i].setQnum(-1);
+						}
+					}
+				}
 			}
 			cell.draw();
 			this.mouseCell = cell;
@@ -199,6 +229,12 @@
 
 			var piece = this.board.bank.pieces[this.activepiece];
 			if (!piece) {
+				return;
+			}
+
+			// ピースは自分の盤面にしか置けない
+			var isboard2 = this.inputPoint.bx >= this.getTwinOffset();
+			if ((this.activepiece >= 2) !== isboard2) {
 				return;
 			}
 
@@ -217,52 +253,71 @@
 
 			var id = this.getNewShapeId(prop);
 			for (var j = 0; j < cells.length; j++) {
-				if (prop === "qans") {
-					cells[j].setQans(id);
-				} else {
-					cells[j].setAnum(id);
-				}
+				cells[j].setdata(prop, id);
 			}
 			var clist = new this.klass.CellList(cells);
 			clist.draw();
 			this.mouseCell = cell;
 		},
 
-		// クリックしたセルを含む形状(選択中の色優先)を削除する
+		// クリックしたセルを含む形状を削除する (クリックした盤面の色を優先)
 		inputremove: function() {
 			var cell = this.getcell();
 			if (cell.isnull || cell.ques === 7 || cell === this.mouseCell) {
 				return;
 			}
 
-			var prop = this.getPieceProp(this.activepiece);
-			var id = cell[prop];
-			if (!id) {
-				prop = prop === "qans" ? "anum" : "qans";
-				id = cell[prop];
+			var off = this.getTwinOffset();
+			var isboard2 = this.inputPoint.bx >= off;
+
+			// クリックした盤面の形状のみを削除する
+			var props = isboard2 ? ["qans2", "anum2"] : ["qans", "anum"];
+			var prop = null,
+				id = 0;
+			for (var p = 0; p < props.length; p++) {
+				if (cell[props[p]] > 0) {
+					prop = props[p];
+					id = cell[props[p]];
+					break;
+				}
 			}
-			if (!id) {
+			if (!prop) {
 				return;
 			}
 
-			this.removeShape(prop, id);
+			// クリックした形状と、同じ色でそれ以降に置いた形状をまとめて削除する
+			// (鎖の後半を巻き戻せるように)
+			this.removeShapeFrom(prop, id);
 			this.mouseCell = cell;
 		},
 
 		removeShape: function(prop, id) {
 			var bd = this.board;
 			var clist = new this.klass.CellList();
+			var empty = prop === "anum" || prop === "anum2" ? -1 : 0;
 			for (var i = 0; i < bd.cell.length; i++) {
 				var cell = bd.cell[i];
 				if (cell[prop] !== id) {
 					continue;
 				}
-				if (prop === "qans") {
-					cell.setQans(0);
-				} else {
-					// anumはminnum>0のため0が設定できないので-1(空)に戻す
-					cell.setAnum(-1);
+				cell.setdata(prop, empty);
+				clist.add(cell);
+			}
+			clist.draw();
+		},
+
+		// 指定した形状と、同じ色でそれ以降(より大きいID)に置いた形状を
+		// まとめて削除する (IDは配置順に増加するため)
+		removeShapeFrom: function(prop, id) {
+			var bd = this.board;
+			var clist = new this.klass.CellList();
+			var empty = prop === "anum" || prop === "anum2" ? -1 : 0;
+			for (var i = 0; i < bd.cell.length; i++) {
+				var cell = bd.cell[i];
+				if (cell[prop] < id) {
+					continue;
 				}
+				cell.setdata(prop, empty);
 				clist.add(cell);
 			}
 			clist.draw();
@@ -353,16 +408,30 @@
 			for (var i = 0; i < offsets.length; i++) {
 				var o = offsets[i];
 				var c = bd.getc(cell.bx + 2 * o.x, cell.by + 2 * o.y);
-				if (c.isnull || c.ques === 7 || c.qnum < 1 || c[prop] > 0) {
+				// 形状のすべてのマスは「点」のあるマスでなければならない
+				// (点: 1黒点 2空心点 3青点 4青赤点 8赤点。
+				//  起点マス6/7は除く。三角マーク5は点ではないので覆えない)
+				if (
+					c.isnull ||
+					c.ques === 7 ||
+					(c.qnum !== 1 &&
+						c.qnum !== 2 &&
+						c.qnum !== 3 &&
+						c.qnum !== 4 &&
+						c.qnum !== 6 &&
+						c.qnum !== 7 &&
+						c.qnum !== 8) ||
+					c[prop] > 0
+				) {
 					return false;
 				}
 			}
 
 			// 同じ色の形状は、起点から順番に鎖状に配置する。
 			// 最初の形状は起点マスを覆い、以降の形状は
-			// 「直前に置いた形状」(最大のIDを持つ形状)の
+			// 「直前に置いた形状」(最大のIDを持つ形状) の
 			// 非三角マスと辺で隣接していなければならない。
-			var isBlue = prop === "qans";
+			var isBlue = prop === "qans" || prop === "qans2";
 			var startMarker = isBlue ? 6 : 7;
 			var hasStart = false,
 				lastshape = 0;
@@ -426,28 +495,6 @@
 			return max + 1;
 		},
 
-		// ピース追加ボタンのクリックを処理する
-		inputbankadd: function() {
-			var bank = this.board.bank;
-			var r = this.puzzle.painter.bankratio;
-			var bx = this.inputPoint.bx / (r * 2);
-			var by = (this.inputPoint.by - (this.board.maxby + 1)) / (r * 2);
-			var btn = bank.addButton;
-
-			if (
-				bx >= btn.x - 0.25 &&
-				by >= btn.y - 0.25 &&
-				bx < btn.x + btn.w + 0.75 &&
-				by < btn.y + btn.h + 0.75
-			) {
-				var piece = new this.klass.BankPiece();
-				piece.deserialize("22u");
-				bank.setPiece(piece, bank.pieces.length);
-				return true;
-			}
-			return false;
-		},
-
 		inputpiece: function() {
 			var piece = this.getbank();
 			if (!piece || piece.index === null) {
@@ -507,26 +554,87 @@
 	Board: {
 		cols: 8,
 		rows: 8,
-		// solverオーバーレイの図形境界線を描画するための境界オブジェクト
-		// (外枠も含めるため2を指定)
-		hasborder: 2
+		hasborder: 2,
+
+		setminmax: function() {
+			// ツイン盤面: 右側の盤面 (オフセット 2*cols+2) までカーソルを動かせる
+			this.minbx = 0;
+			this.minby = 0;
+			this.maxbx = 4 * this.cols + 2;
+			this.maxby = 2 * this.rows;
+
+			this.puzzle.cursor.setminmax();
+		},
+
+		initBoardSize: function(col, row) {
+			this.common.initBoardSize.call(this, col, row);
+
+			// バンクは左右2つの盤面分の横幅を確保
+			if (this.bank) {
+				this.bank.width =
+					(2 * this.cols + 1) / this.puzzle.painter.bankratio;
+				this.bank.performLayout();
+			}
+		}
 	},
 
 	Bank: {
 		enabled: true,
-		allowAdd: function() {
-			return this.pieces.length < 4;
+		allowAdd: false,
+
+		// 2つの盤面それぞれに青・赤が1つずつ: [青1, 赤1, 青2, 赤2]
+		performLayout: function() {
+			if (!this.pieces || !this.width) {
+				return;
+			}
+
+			// 右盤面のグリッド左端の位置 (バンク座標)。
+			// バンクは bankratio 倍の縮尺で描画されるため、
+			// 盤面のセル座標 (cols+1) を bankratio で割って換算する。
+			// initialize時はまだbankにboardが紐付いていないことがある
+			var cols = !!this.board ? this.board.cols : this.puzzle.board.cols;
+			var r = this.puzzle.painter.bankratio;
+			var off = (cols + 1) / r;
+			var x = 0,
+				y = 0,
+				nexty = 0;
+			var len = this.pieces.length;
+
+			for (var i = 0; i < len; i++) {
+				var p = this.pieces[i];
+				if (i === 2) {
+					// 右盤面のバンクは右盤面の直下に揃える
+					// (左盤面のバンクと重ならない位置まで後退)
+					x = Math.max(off, x + 1);
+				}
+				p.x = x;
+				p.y = y;
+				nexty = Math.max(nexty, y + p.h + 1);
+				p.index = i;
+				x += p.w + 1;
+			}
+
+			// 形状の追加操作は行わない
+			this.addButton.index = null;
+
+			this.height = nexty;
 		},
 
 		defaultPreset: function() {
-			return ["22u"];
+			return ["22u", "22u", "22u", "22u"];
 		},
 
 		presets: [
-			{ name: "preset.square", shortkey: "s", constant: ["22u"] },
-			{ name: "preset.domino", shortkey: "d", constant: ["12o"] },
-			{ name: "preset.two_dominoes", shortkey: "w", constant: ["12o", "12o"] },
-			{ name: "preset.two_squares", shortkey: "q", constant: ["22u", "22u"] },
+			{
+				name: "preset.square",
+				shortkey: "s",
+				constant: ["22u", "22u", "22u", "22u"]
+			},
+			{
+				name: "preset.domino",
+				shortkey: "d",
+				constant: ["12o", "12o", "12o", "12o"]
+			},
 			{ name: "preset.zero", shortkey: "z", constant: [] }
 		]
 	},
@@ -535,7 +643,37 @@
 		numberAsObject: true,
 		disInputHatena: true,
 		minnum: 1,
-		maxnum: 8
+		maxnum: 8,
+		// 右側の盤面の回答状態
+		qans2: 0,
+		anum2: -1,
+		propans: ["qans", "anum", "qans2", "anum2"],
+
+		setQans2: function(val) {
+			this.setdata("qans2", val);
+		},
+		setAnum2: function(val) {
+			this.setdata("anum2", val);
+		}
+	},
+
+	// セルの履歴操作で qans2/anum2 を扱えるようにする
+	"ObjectOperation:Operation": {
+		STRPROP: {
+			U: "ques",
+			N: "qnum",
+			Z: "qnum2",
+			C: "qchar",
+			M: "anum",
+			D: "qdir",
+			A: "qans",
+			S: "qsub",
+			K: "qcmp",
+			B: "snum",
+			L: "line",
+			E: "qans2",
+			F: "anum2"
+		}
 	},
 
 	BankPiece: {
@@ -657,6 +795,10 @@
 		STARTREDCOLOR: "rgb(255, 214, 214)",
 		INVALIDCOLOR: "rgb(150, 150, 150)",
 
+		getTwinOffset: function() {
+			return this.board.cols * 2 + 2;
+		},
+
 		paint: function() {
 			this.drawBGCells();
 			this.drawShapeFills();
@@ -667,6 +809,14 @@
 			this.drawChassis();
 			this.drawBank();
 			this.drawTarget();
+		},
+
+		paintPost: function() {
+			// 共通処理 (trialマーカー + 左盤面のソルバー表示)
+			this.common.paintPost.call(this);
+			// 右盤面のソルバー表示
+			this.drawSolverOverlayCells2();
+			this.drawSolverOverlayLines2();
 		},
 
 		getBGCellColor: function(cell) {
@@ -682,12 +832,30 @@
 			return null;
 		},
 
-		getShapeFillColor: function(cell) {
+		// 盤面背景を左右両方に描く (マーカーは共有のため同じ内容)
+		drawBGCells: function() {
+			var off = this.getTwinOffset();
+			var cells = this.range.cells;
+
+			this.vinc("bg_cells", "crispEdges", true);
+			this.drawCells_common("c_bg_", this.getBGCellColor);
+
+			this.vinc("bg_cells2", "crispEdges", true);
+			for (var i = 0; i < cells.length; i++) {
+				cells[i].bx += off;
+			}
+			this.drawCells_common("c2_bg_", this.getBGCellColor);
+			for (var i = 0; i < cells.length; i++) {
+				cells[i].bx -= off;
+			}
+		},
+
+		getShapeFillColor: function(cell, blueprop, redprop) {
 			if (cell.isnull || cell.ques === 7) {
 				return null;
 			}
-			var blue = cell.qans > 0,
-				red = cell.anum > 0;
+			var blue = cell[blueprop] > 0,
+				red = cell[redprop] > 0;
 			if (blue && red) {
 				return this.BOTHFILL;
 			}
@@ -700,14 +868,67 @@
 			return null;
 		},
 
+		// 形状の塗りを盤面ごとに描く
 		drawShapeFills: function() {
+			var off = this.getTwinOffset();
+			var cells = this.range.cells;
+			var thiz = this;
+
 			this.vinc("cell_shapes", "crispEdges", true);
-			this.drawCells_common("c_shape_", this.getShapeFillColor);
+			this.drawCells_common("c_shape_", function(cell) {
+				return thiz.getShapeFillColor(cell, "qans", "anum");
+			});
+
+			this.vinc("cell_shapes2", "crispEdges", true);
+			for (var i = 0; i < cells.length; i++) {
+				cells[i].bx += off;
+			}
+			this.drawCells_common("c2_shape_", function(cell) {
+				return thiz.getShapeFillColor(cell, "qans2", "anum2");
+			});
+			for (var i = 0; i < cells.length; i++) {
+				cells[i].bx -= off;
+			}
 		},
 
+		// 格子線を左右の盤面それぞれに描く
+		drawGrid: function() {
+			var g = this.vinc("grid", "crispEdges", true);
+			var bd = this.board;
+			var off = this.getTwinOffset();
+
+			g.lineWidth = this.gw;
+			g.strokeStyle = this.gridcolor;
+
+			for (var i = 0; i <= 2 * bd.cols; i += 2) {
+				g.vid = "bdy_" + i;
+				g.strokeLine(i * this.bw, 0, i * this.bw, 2 * bd.rows * this.bh);
+				g.vid = "bdy2_" + i;
+				g.strokeLine(
+					(i + off) * this.bw,
+					0,
+					(i + off) * this.bw,
+					2 * bd.rows * this.bh
+				);
+			}
+			for (var j = 0; j <= 2 * bd.rows; j += 2) {
+				g.vid = "bdx_" + j;
+				g.strokeLine(0, j * this.bh, 2 * bd.cols * this.bw, j * this.bh);
+				g.vid = "bdx2_" + j;
+				g.strokeLine(
+					off * this.bw,
+					j * this.bh,
+					(off + 2 * bd.cols) * this.bw,
+					j * this.bh
+				);
+			}
+		},
+
+		// 形状の外枠を両盤面分描画する
 		drawShapeEdges: function() {
 			var g = this.vinc("cell_shapeedges", "auto", true);
 			var clist = this.range.cells;
+			var off = this.getTwinOffset();
 
 			g.lineWidth = Math.max(this.cw * 0.08, 2);
 			for (var i = 0; i < clist.length; i++) {
@@ -716,76 +937,93 @@
 					continue;
 				}
 
-				var px = cell.bx * this.bw,
-					py = cell.by * this.bh;
 				var top = cell.relcell(0, -2),
 					bottom = cell.relcell(0, 2),
 					left = cell.relcell(-2, 0),
 					right = cell.relcell(2, 0);
 
-				// 形状の外枠を全周(上下左右)描画する
 				var colors = [this.BLUECOLOR, this.REDCOLOR];
-				var props = ["qans", "anum"];
-				var names = ["c_se_b_", "c_se_r_"];
+				var propsets = [
+					["qans", "anum", 0],
+					["qans2", "anum2", off]
+				];
 				var dirs = ["_t_", "_r_", "_d_", "_l_"];
 
-				for (var ci = 0; ci < 2; ci++) {
-					var prop = props[ci];
-					var id = cell[prop];
-					var prefix = names[ci];
-					var color = colors[ci];
-					var has = id > 0;
+				for (var bi = 0; bi < 2; bi++) {
+					var xshift = propsets[bi][2] * this.bw;
+					var px = cell.bx * this.bw + xshift,
+						py = cell.by * this.bh;
 
-					var edges = [
-						[
-							has && (top.isnull || top.ques === 7 || top[prop] !== id),
-							px - this.bw,
-							py - this.bh,
-							px + this.bw,
-							py - this.bh
-						],
-						[
-							has && (right.isnull || right.ques === 7 || right[prop] !== id),
-							px + this.bw,
-							py - this.bh,
-							px + this.bw,
-							py + this.bh
-						],
-						[
-							has &&
-								(bottom.isnull || bottom.ques === 7 || bottom[prop] !== id),
-							px - this.bw,
-							py + this.bh,
-							px + this.bw,
-							py + this.bh
-						],
-						[
-							has && (left.isnull || left.ques === 7 || left[prop] !== id),
-							px - this.bw,
-							py - this.bh,
-							px - this.bw,
-							py + this.bh
-						]
-					];
+					for (var ci = 0; ci < 2; ci++) {
+						var prop = propsets[bi][ci];
+						var id = cell[prop];
+						var prefix = "c_se_" + (ci === 0 ? "b" : "r") + (bi + 1);
+						var color = colors[ci];
+						var has = id > 0;
 
-					for (var e = 0; e < edges.length; e++) {
-						var edge = edges[e];
-						g.vid = prefix + dirs[e] + cell.id;
-						if (edge[0]) {
-							g.strokeStyle = color;
-							g.strokeLine(edge[1], edge[2], edge[3], edge[4]);
-						} else {
-							g.vhide();
+						var edges = [
+							[
+								has && (top.isnull || top.ques === 7 || top[prop] !== id),
+								px - this.bw,
+								py - this.bh,
+								px + this.bw,
+								py - this.bh
+							],
+							[
+								has &&
+									(right.isnull ||
+										right.ques === 7 ||
+										right[prop] !== id),
+								px + this.bw,
+								py - this.bh,
+								px + this.bw,
+								py + this.bh
+							],
+							[
+								has &&
+									(bottom.isnull ||
+										bottom.ques === 7 ||
+										bottom[prop] !== id),
+								px - this.bw,
+								py + this.bh,
+								px + this.bw,
+								py + this.bh
+							],
+							[
+								has && (left.isnull || left.ques === 7 || left[prop] !== id),
+								px - this.bw,
+								py - this.bh,
+								px - this.bw,
+								py + this.bh
+							]
+						];
+
+						for (var e = 0; e < edges.length; e++) {
+							var edge = edges[e];
+							g.vid = prefix + dirs[e] + cell.id;
+							if (edge[0]) {
+								g.strokeStyle = color;
+								g.strokeLine(edge[1], edge[2], edge[3], edge[4]);
+							} else {
+								g.vhide();
+							}
 						}
 					}
 				}
 			}
 		},
 
+		// マーカーを左右両方の盤面に描く (マーカーは共有)
 		drawMarkers: function() {
-			var g = this.vinc("cell_markers", "auto", true);
+			this.drawMarkersPass("cell_markers", "c_mark_", 0);
+			this.drawMarkersPass("cell_markers2", "c2_mark_", this.getTwinOffset());
+		},
+
+		drawMarkersPass: function(layer, prefix, xoff) {
+			var g = this.vinc(layer, "auto", true);
 			var clist = this.range.cells;
 			var rdot = this.cw * 0.12;
+			var pxoff = xoff * this.bw;
 
 			for (var i = 0; i < clist.length; i++) {
 				var cell = clist[i];
@@ -793,16 +1031,16 @@
 					continue;
 				}
 
-				var px = cell.bx * this.bw,
+				var px = cell.bx * this.bw + pxoff,
 					py = cell.by * this.bh;
 
 				// ダブル点は2つの円を描くため、それぞれ別のvidを使う
-				g.vid = "c_mark_b_" + cell.id;
+				g.vid = prefix + "b_" + cell.id;
 				g.vhide();
-				g.vid = "c_mark_r_" + cell.id;
+				g.vid = prefix + "r_" + cell.id;
 				g.vhide();
 
-				g.vid = "c_mark_" + cell.id;
+				g.vid = prefix + cell.id;
 				switch (cell.qnum) {
 					case 1: // 黒点
 						g.fillStyle = "black";
@@ -819,10 +1057,10 @@
 						break;
 					case 4: // 青赤ダブル点
 						g.vhide();
-						g.vid = "c_mark_b_" + cell.id;
+						g.vid = prefix + "b_" + cell.id;
 						g.fillStyle = this.BLUECOLOR;
 						g.fillCircle(px - rdot * 0.55, py, rdot * 0.7);
-						g.vid = "c_mark_r_" + cell.id;
+						g.vid = prefix + "r_" + cell.id;
 						g.fillStyle = this.REDCOLOR;
 						g.fillCircle(px + rdot * 0.55, py, rdot * 0.7);
 						break;
@@ -866,11 +1104,21 @@
 				? mouse.getShapeOffsets(piece, mouse.orient[mouse.activepiece]).offsets
 				: [];
 			var prop = mouse.getPieceProp(mouse.activepiece);
+			var onright =
+				!!mouse.inputPoint && mouse.inputPoint.bx >= this.getTwinOffset();
+			var boardok = (mouse.activepiece >= 2) === onright;
 			var valid =
 				!!piece &&
 				!cell.isnull &&
 				cell.ques !== 7 &&
+				boardok &&
 				mouse.isPlaceable(cell, offsets, prop);
+
+			// 右側の盤面を指している場合はプレビューも右側に描く
+			var pxoff =
+				!!mouse.inputPoint && mouse.inputPoint.bx >= this.getTwinOffset()
+					? this.getTwinOffset() * this.bw
+					: 0;
 
 			this.maxpreviewcount = Math.max(offsets.length, this.maxpreviewcount);
 			for (var i = 0; i < this.maxpreviewcount; i++) {
@@ -890,12 +1138,146 @@
 				if (!c.isnull) {
 					g.fillStyle = color;
 					g.fillRect(
-						c.bx * this.bw - this.bw + 0.5,
+						c.bx * this.bw + pxoff - this.bw + 0.5,
 						c.by * this.bh - this.bh + 0.5,
 						this.cw - 1,
 						this.ch - 1
 					);
 				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		// 外枠を左右の盤面それぞれに描く
+		drawChassis: function() {
+			var g = this.vinc("chassis", "crispEdges", true);
+			var bd = this.board;
+			var off = this.getTwinOffset();
+
+			var boardWidth = bd.cols * this.cw,
+				boardHeight = bd.rows * this.ch;
+			var lw = this.lw,
+				lm = this.lm;
+			g.fillStyle = this.quescolor;
+
+			for (var b = 0; b < 2; b++) {
+				var xoff = b * off * this.bw;
+				g.vid = "chs1_" + b;
+				g.fillRect(xoff - lm, -lm, lw, boardHeight + lw);
+				g.vid = "chs2_" + b;
+				g.fillRect(xoff + boardWidth - lm, -lm, lw, boardHeight + lw);
+				g.vid = "chs3_" + b;
+				g.fillRect(xoff - lm, -lm, boardWidth + lw, lw);
+				g.vid = "chs4_" + b;
+				g.fillRect(xoff - lm, boardHeight - lm, boardWidth + lw, lw);
+			}
+		},
+
+		// カーソルを描画する (右盤面ホバー時は位置をずらす)
+		drawTarget: function() {
+			var cursor = this.puzzle.cursor;
+			var off = this.getTwinOffset();
+			var mp = this.puzzle.mouse.inputPoint;
+
+			if (!!mp && mp.bx >= off && cursor.bx < off) {
+				cursor.bx += off;
+				this.drawCursor(true, this.puzzle.editmode);
+				cursor.bx -= off;
+			} else {
+				this.drawCursor(true, this.puzzle.editmode);
+			}
+		},
+
+		//----- 右盤面のソルバー表示 -----
+
+		getSolverOverlayEntries2: function(piece) {
+			var state = piece && piece._lostSpeechSolverState2;
+			if (!state) {
+				return [];
+			}
+			return state instanceof Array ? state : [state];
+		},
+
+		hasAnswerCellState2: function(cell) {
+			return (
+				!!cell && !cell.isnull && (cell.qans2 !== 0 || cell.anum2 !== -1)
+			);
+		},
+
+		drawSolverOverlayCells2: function() {
+			var off = this.getTwinOffset();
+			var g = this.vinc("solver_cell2", "auto", true);
+			var clist = this.range.cells;
+
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var entries = this.getSolverOverlayEntries2(cell);
+				var visible =
+					entries.length > 0 && !this.hasAnswerCellState2(cell)
+						? Math.min(entries.length, this.solverCellOverlaySlots)
+						: 0;
+				var j = 0;
+
+				for (; j < visible; j++) {
+					g.vid = "c2_solver_" + cell.id + "_" + j;
+					// 右盤面の位置に描画するため一時的に座標をずらす
+					var origbx = cell.bx;
+					cell.bx += off;
+					if (!this.drawSolverOverlayCellEntry(g, cell, entries[j])) {
+						g.vhide();
+					}
+					cell.bx = origbx;
+				}
+				for (; j < this.solverCellOverlaySlots; j++) {
+					g.vid = "c2_solver_" + cell.id + "_" + j;
+					g.vhide();
+				}
+			}
+		},
+
+		drawSolverOverlayLines2: function() {
+			var off = this.getTwinOffset();
+			var g = this.vinc("solver_line2", "crispEdges");
+			var blist = this.range.borders;
+			var lm = Math.max(this.lm * 0.72, 1);
+
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var entries = this.getSolverOverlayEntries2(border);
+				var entry = entries.length > 0 ? entries[0] : null;
+				g.vid = "b2_solver_line_" + border.id;
+				if (entry) {
+					var px = (border.bx + off) * this.bw;
+					var py = border.by * this.bh;
+					var kind = this.getSolverOverlayBorderKind(entry);
+					var isvert = border.isVert();
+					g.fillStyle = this.getSolverOverlayEntryColor(
+						entry,
+						this.solverLineColor
+					);
+					if (kind === "doubleLine" && isvert) {
+						var offset = Math.max(lm * 0.8, 2);
+						g.fillRectCenter(px - offset, py, lm * 0.7, this.bh + lm);
+						g.vid = "b2_solver_line2_" + border.id;
+						g.fillRectCenter(px + offset, py, lm * 0.7, this.bh + lm);
+					} else if (kind === "doubleLine") {
+						var offset2 = Math.max(lm * 0.8, 2);
+						g.fillRectCenter(px, py - offset2, this.bw + lm, lm * 0.7);
+						g.vid = "b2_solver_line2_" + border.id;
+						g.fillRectCenter(px, py + offset2, this.bw + lm, lm * 0.7);
+					} else if (isvert) {
+						g.fillRectCenter(px, py, lm, this.bh + lm);
+						g.vid = "b2_solver_line2_" + border.id;
+						g.vhide();
+					} else {
+						g.fillRectCenter(px, py, this.bw + lm, lm);
+						g.vid = "b2_solver_line2_" + border.id;
+						g.vhide();
+					}
+				} else {
+					g.vhide();
+					g.vid = "b2_solver_line2_" + border.id;
 					g.vhide();
 				}
 			}
@@ -1005,6 +1387,7 @@
 					cell.qnum = +ca;
 				}
 			});
+			// 盤面1の回答 (qans/anum)
 			this.decodeCell(function(cell, ca) {
 				if (!ca || ca === ".") {
 					return;
@@ -1019,6 +1402,24 @@
 					var m2 = ca.match(/^r(\d+)$/);
 					if (m2) {
 						cell.anum = +m2[1];
+					}
+				}
+			});
+			// 盤面2の回答 (qans2/anum2)
+			this.decodeCell(function(cell, ca) {
+				if (!ca || ca === ".") {
+					return;
+				}
+				var m = ca.match(/^b(\d+)(r(\d+))?$/);
+				if (m) {
+					cell.qans2 = +m[1];
+					if (m[3] !== void 0) {
+						cell.anum2 = +m[3];
+					}
+				} else {
+					var m2 = ca.match(/^r(\d+)$/);
+					if (m2) {
+						cell.anum2 = +m2[1];
 					}
 				}
 			});
@@ -1044,6 +1445,16 @@
 				}
 				return !!ca ? ca + " " : ". ";
 			});
+			this.encodeCell(function(cell) {
+				var ca = "";
+				if (cell.qans2 > 0) {
+					ca += "b" + cell.qans2;
+				}
+				if (cell.anum2 > 0) {
+					ca += "r" + cell.anum2;
+				}
+				return !!ca ? ca + " " : ". ";
+			});
 		}
 	},
 
@@ -1059,7 +1470,7 @@
 			"checkNoContainment"
 		],
 
-		// 指定したプロパティ(qans/anum)の形状IDごとのセル一覧を返す
+		// 指定したプロパティ(qans/anum/qans2/anum2)の形状IDごとのセル一覧を返す
 		getShapeMap: function(prop) {
 			var map = {};
 			var bd = this.board;
@@ -1087,10 +1498,37 @@
 					case 2:
 						return total > 1;
 					case 3:
+						// 青点: ちょうど1つの青の図形 (赤なし)
 						return blue !== 1 || red > 0;
 					case 4:
 						return blue !== 1 || red !== 1;
 					case 8:
+						// 赤点: ちょうど1つの赤の図形 (青なし)
+						return red !== 1 || blue > 0;
+				}
+				return false;
+			}, "nmDotNe");
+
+			if (this.checkOnly && this.failcode.length > 0) {
+				return;
+			}
+
+			this.checkAllCell(function(cell) {
+				var blue = cell.qans2 > 0 ? 1 : 0,
+					red = cell.anum2 > 0 ? 1 : 0;
+				var total = blue + red;
+				switch (cell.qnum) {
+					case 1:
+						return total !== 1;
+					case 2:
+						return total > 1;
+					case 3:
+						// 青点: ちょうど1つの青の図形 (赤なし)
+						return blue !== 1 || red > 0;
+					case 4:
+						return blue !== 1 || red !== 1;
+					case 8:
+						// 赤点: ちょうど1つの赤の図形 (青なし)
 						return red !== 1 || blue > 0;
 				}
 				return false;
@@ -1099,8 +1537,10 @@
 
 		checkNoDotNe: function() {
 			this.checkAllCell(function(cell) {
-				var covered = cell.qans > 0 || cell.anum > 0;
-				return covered && cell.qnum < 1;
+				var covered =
+					cell.qans > 0 || cell.anum > 0 || cell.qans2 > 0 || cell.anum2 > 0;
+				// 点のないマス (無印・三角マーク) を図形が覆ってはいけない
+				return covered && (cell.qnum < 1 || cell.qnum === 5);
 			}, "nmNoDotNe");
 		},
 
@@ -1111,19 +1551,18 @@
 				hasRed = false;
 
 			for (var i = 0; i < bd.cell.length; i++) {
-				var cell = bd.cell[i];
-				if (cell.qnum === 6) {
+				if (bd.cell[i].qnum === 6) {
 					blueStarts++;
-				} else if (cell.qnum === 7) {
+				} else if (bd.cell[i].qnum === 7) {
 					redStarts++;
 				}
-				if (cell.anum > 0) {
+				if (bd.cell[i].anum > 0 || bd.cell[i].anum2 > 0) {
 					hasRed = true;
 				}
 			}
 
-			// 起点は青がちょうど1つ、赤はあっても1つ
-			// 起点のない色の図形は置けない
+			// 青起点はちょうど1つ。赤起点は任意で、
+			// 赤起点が無い場合は赤の図形を置かない
 			if (blueStarts !== 1 || redStarts > 1 || (redStarts === 0 && hasRed)) {
 				this.failcode.add("nmStartNe");
 				if (this.checkOnly) {
@@ -1133,13 +1572,13 @@
 				return;
 			}
 
-			// 各起点マスは自分の色の図形に覆われている
+			// 各起点マスは両方の盤面で自分の色の図形に覆われている
 			this.checkAllCell(function(cell) {
 				if (cell.qnum === 6) {
-					return cell.qans <= 0;
+					return cell.qans <= 0 || cell.qans2 <= 0;
 				}
 				if (cell.qnum === 7) {
-					return cell.anum <= 0;
+					return cell.anum <= 0 || cell.anum2 <= 0;
 				}
 				return false;
 			}, "nmStartNe");
@@ -1147,31 +1586,44 @@
 
 		checkShapesMatchBank: function() {
 			var bank = this.board.bank;
-			var maps = [this.getShapeMap("qans"), this.getShapeMap("anum")];
+			var boards = [
+				{ blue: "qans", red: "anum", bluepiece: 0, redpiece: 1 },
+				{ blue: "qans2", red: "anum2", bluepiece: 2, redpiece: 3 }
+			];
+
+			for (var b = 0; b < 2; b++) {
+				if (!this.checkBoardShapesMatchBank(boards[b], bank)) {
+					if (this.checkOnly) {
+						return;
+					}
+				}
+			}
+		},
+
+		checkBoardShapesMatchBank: function(board, bank) {
+			var maps = [this.getShapeMap(board.blue), this.getShapeMap(board.red)];
+			var pieces = [board.bluepiece, board.redpiece];
+			var ok = true;
 
 			for (var color = 0; color < 2; color++) {
 				for (var id in maps[color]) {
 					var clist = maps[color][id];
 					var canon = clist.getBlockShapes().canon;
 
-					var matched = false;
-					for (var b = 0; b < bank.pieces.length; b++) {
-						if (b % 2 === color && bank.pieces[b].canonize() === canon) {
-							matched = true;
-							break;
-						}
-					}
-					if (matched) {
+					var piece = bank.pieces[pieces[color]];
+					if (!!piece && piece.canonize() === canon) {
 						continue;
 					}
 
 					this.failcode.add("bankInvalid");
+					ok = false;
 					if (this.checkOnly) {
-						return;
+						return false;
 					}
 					clist.seterr(1);
 				}
 			}
+			return ok;
 		},
 
 		checkConnectivity: function() {
@@ -1180,6 +1632,14 @@
 				return;
 			}
 			this.checkColorConnectivity("anum");
+			if (this.checkOnly && this.failcode.length > 0) {
+				return;
+			}
+			this.checkColorConnectivity("qans2");
+			if (this.checkOnly && this.failcode.length > 0) {
+				return;
+			}
+			this.checkColorConnectivity("anum2");
 		},
 
 		checkColorConnectivity: function(prop) {
@@ -1222,7 +1682,7 @@
 			// 「次の形状は直前の形状の隣にしか置けない」ため、
 			// 起点マスを覆う形状から出発して全形状を一筆書きで
 			// 訪れる順序(ハミルトン路)が存在しなければならない
-			var startMarker = prop === "qans" ? 6 : 7;
+			var startMarker = prop === "qans" || prop === "qans2" ? 6 : 7;
 			var startId = null;
 			for (var s = 0; s < bd.cell.length; s++) {
 				if (bd.cell[s].qnum === startMarker && bd.cell[s][prop] > 0) {
@@ -1294,36 +1754,87 @@
 		},
 
 		checkNoContainment: function() {
-			var mapBlue = this.getShapeMap("qans"),
-				mapRed = this.getShapeMap("anum");
+			var maps = {
+				blue1: this.getShapeMap("qans"),
+				red1: this.getShapeMap("anum"),
+				blue2: this.getShapeMap("qans2"),
+				red2: this.getShapeMap("anum2")
+			};
+			var props = {
+				blue1: "qans",
+				red1: "anum",
+				blue2: "qans2",
+				red2: "anum2"
+			};
+			// 各盤面内の青-赤2組 + 左右の盤面をまたぐ4組
+			var pairs = [
+				["blue1", "red1", "csContained"],
+				["blue2", "red2", "csContained"],
+				["blue1", "blue2", "csCrossContained"],
+				["blue1", "red2", "csCrossContained"],
+				["red1", "blue2", "csCrossContained"],
+				["red1", "red2", "csCrossContained"]
+			];
 
-			for (var b in mapBlue) {
-				var blueCells = mapBlue[b];
-				for (var r in mapRed) {
-					var redCells = mapRed[r];
+			for (var p = 0; p < pairs.length; p++) {
+				var nameA = pairs[p][0],
+					nameB = pairs[p][1],
+					code = pairs[p][2];
+				var mapA = maps[nameA],
+					mapB = maps[nameB];
+				var propA = props[nameA],
+					propB = props[nameB];
 
-					var containedInRed = true;
-					for (var i = 0; i < blueCells.length; i++) {
-						if (blueCells[i].anum !== +r) {
-							containedInRed = false;
+				for (var a in mapA) {
+					var cellsA = mapA[a];
+					// 起点マス (青起点6・赤起点7) を含む形状は包含判定から除外
+					var aHasStart = false;
+					for (var i0 = 0; i0 < cellsA.length; i0++) {
+						if (cellsA[i0].qnum === 6 || cellsA[i0].qnum === 7) {
+							aHasStart = true;
 							break;
 						}
 					}
-					var containedInBlue = true;
-					for (var j = 0; j < redCells.length; j++) {
-						if (redCells[j].qans !== +b) {
-							containedInBlue = false;
-							break;
-						}
+					if (aHasStart) {
+						continue;
 					}
-
-					if (containedInRed || containedInBlue) {
-						this.failcode.add("csContained");
-						if (this.checkOnly) {
-							return;
+					for (var b in mapB) {
+						var cellsB = mapB[b];
+						// 起点マスを含む形状は包含判定から除外
+						var bHasStart = false;
+						for (var j0 = 0; j0 < cellsB.length; j0++) {
+							if (cellsB[j0].qnum === 6 || cellsB[j0].qnum === 7) {
+								bHasStart = true;
+								break;
+							}
 						}
-						blueCells.seterr(1);
-						redCells.seterr(1);
+						if (bHasStart) {
+							continue;
+						}
+
+						var containedAinB = true;
+						for (var i = 0; i < cellsA.length; i++) {
+							if (cellsA[i][propB] !== +b) {
+								containedAinB = false;
+								break;
+							}
+						}
+						var containedBinA = true;
+						for (var j = 0; j < cellsB.length; j++) {
+							if (cellsB[j][propA] !== +a) {
+								containedBinA = false;
+								break;
+							}
+						}
+
+						if (containedAinB || containedBinA) {
+							this.failcode.add(code);
+							if (this.checkOnly) {
+								return;
+							}
+							cellsA.seterr(1);
+							cellsB.seterr(1);
+						}
 					}
 				}
 			}

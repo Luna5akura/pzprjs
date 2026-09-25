@@ -412,6 +412,10 @@ function clearGenericSolverOverlay() {
 				board.border[i]._solverState = null;
 				changed++;
 			}
+			if (board.border[i]._lostSpeechSolverState2) {
+				board.border[i]._lostSpeechSolverState2 = null;
+				changed++;
+			}
 		}
 		for (var j = 0; j < board.cell.length; j++) {
 			if (board.cell[j]._solverState) {
@@ -420,6 +424,10 @@ function clearGenericSolverOverlay() {
 			}
 			if (board.cell[j]._walkwalkSolverState) {
 				board.cell[j]._walkwalkSolverState = null;
+				changed++;
+			}
+			if (board.cell[j]._lostSpeechSolverState2) {
+				board.cell[j]._lostSpeechSolverState2 = null;
 				changed++;
 			}
 		}
@@ -1190,6 +1198,70 @@ function isWalkWalkPuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "walkwalk";
 }
 
+function isLostSpeechPuzzle() {
+	return window.ui && ui.puzzle && ui.puzzle.pid === "lostspeech";
+}
+
+// ツイン盤面の右側の盤面のxオフセット (仮想座標)
+function lostSpeechBoard2Offset() {
+	return ui.puzzle.board.cols * 2 + 2;
+}
+
+function hasLostSpeechBoard2CellState(cell) {
+	return (
+		!!cell &&
+		!cell.isnull &&
+		(cell.qans2 !== 0 || cell.anum2 !== -1)
+	);
+}
+
+function appendLostSpeechBoard2State(piece, entry) {
+	var state = piece._lostSpeechSolverState2;
+	if (!state) {
+		state = piece._lostSpeechSolverState2 = [];
+	} else if (!Array.isArray(state)) {
+		state = piece._lostSpeechSolverState2 = [{ color: "green", item: state }];
+	}
+	state.push({ color: entry.color, item: entry.item });
+	return 1;
+}
+
+// ツイン盤面の右側の盤面用: 座標を折り返して右盤面の状態として適用する。
+// バックエンドはセル単位のオフセット (2w+2) を加算して右盤面のエントリを
+// 出力するが、エントリの座標はセル座標の2倍 (仮想座標) なので、
+// 折り返しにはその2倍を引く。
+function applyLostSpeechBoard2Entry(entry) {
+	var kind = getItemKind(entry.item);
+	var off = lostSpeechBoard2Offset() * 2;
+	var shifted = {
+		x: entry.x - off,
+		y: entry.y,
+		color: entry.color,
+		item: entry.item
+	};
+
+	if (isSolverOverlayCellKind(kind) && isCellCoordinate(shifted)) {
+		var cell = ui.puzzle.board.getc(shifted.x, shifted.y);
+		if (cell.isnull) {
+			return 0;
+		}
+		if (hasLostSpeechBoard2CellState(cell)) {
+			return 0;
+		}
+		return appendLostSpeechBoard2State(cell, entry);
+	}
+
+	if (getGenericSolverOverlayKind(entry) && isBorderCoordinate(shifted)) {
+		var border = ui.puzzle.board.getb(shifted.x, shifted.y);
+		if (border.isnull) {
+			return 0;
+		}
+		return appendLostSpeechBoard2State(border, entry);
+	}
+
+	return null;
+}
+
 function isSolverOverlayCircleKind(kind) {
 	return (
 		kind === "dot" ||
@@ -1369,6 +1441,10 @@ function applyEntry(entry) {
 	entry = normalizeSolverEntryCoordinate(entry);
 	if (!isAnswerColor(entry)) {
 		return null;
+	}
+
+	if (isLostSpeechPuzzle() && entry.x >= lostSpeechBoard2Offset() * 2) {
+		return applyLostSpeechBoard2Entry(entry);
 	}
 
 	if (isSkyNeighborPuzzle() && isSkyNeighborPieceCoordinate(entry)) {

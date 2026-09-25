@@ -316,9 +316,8 @@
     "cs2x2": "2x2の黒マスのカタマリがあります。",
     "cs3.aqre": "黒マスが4マス連続しています。",
     "csAdjacent": "黒マスがタテヨコに連続しています。",
-    "csContained.lostspeech": "別の色の図形に完全に含まれている図形があります。",
+    "csContained.lostspeech": "同じ盤面で、別の色の図形に完全に含まれている図形があります。",
     "csConnOut.kurodoko": "盤面の外につながっていない黒マスがあります。",
-    "csNoConn.lostspeech": "同じ色の図形が連結になっていません。",
     "csConsecGt3.tawa": "黒マスが横に3マス以上続いています。",
     "csCornerSize.nuribou": "同じ面積の黒マスのカタマリが、角を共有しています。",
     "csdDivide.scrin": "長方形で出来た輪っかに含まれていない長方形があります。",
@@ -949,5 +948,7 @@
     "colEmptyNe.fourwindswithparks": "各行・各列には空きマスが1つだけ必要です。",
     "nmAbcBox.abcbox": "ABCボックスのグループが手掛かりと一致していません。",
     "nmNotConsecutive.consecutivekakuro": "白い棒による連続条件を満たしていません。",
-    "nmNoDotNe.lostspeech": "点のないマスを図形が覆っています。"
+    "nmNoDotNe.lostspeech": "点のないマスを図形が覆っています。",
+    "csNoConn.lostspeech": "同じ色の図形が連結になっていません。",
+    "csCrossContained.lostspeech": "もう一方の盤面の解の図形に完全に含まれている図形があります（起点マスを含む形状は包含の判定から除外されます）。"
 }
