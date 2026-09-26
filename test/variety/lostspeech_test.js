@@ -20,7 +20,7 @@ describe("Variety:lostspeech", function() {
 			}),
 			["22u", "22u", "22u", "22u"]
 		);
-		assert.equal(puzzle.mouse.getInputModeList("edit").length, 11);
+		assert.equal(puzzle.mouse.getInputModeList("edit").length, 13);
 		assert.equal(puzzle.mouse.getInputModeList("play").length, 4);
 
 		var cell = puzzle.board.getc(1, 1);
@@ -102,8 +102,9 @@ describe("Variety:lostspeech", function() {
 	});
 
 	it("places, chains and cascade-removes shapes on both boards", function() {
+		// 赤起点なし (赤の図形は置かない)。マーカー: (0,0)青起点, 他は空心点
 		var puzzle = new pzpr.Puzzle().open(
-			"lostspeech/2/2/61170/4/12o/12o/12o/12o"
+			"lostspeech/2/2/62220/4/12o/12o/12o/12o"
 		);
 		puzzle.setMode("play");
 		var mouse = puzzle.mouse;
@@ -124,7 +125,7 @@ describe("Variety:lostspeech", function() {
 
 		// 鎖: 2つ目の形状は直前の形状と隣接していないと置けない
 		mouse.activepiece = 0;
-		mouse.inputPath("left", 3, 1); // (0,1)-(1,1): 1つ目の(1,0)と隣接
+		mouse.inputPath("left", 3, 1); // (1,0)-(1,1): 1つ目の(0,0)と隣接
 		assert.equal(puzzle.board.getc(3, 1).qans, 2);
 		assert.equal(puzzle.board.getc(3, 3).qans, 2);
 		assert.equal(puzzle.board.getc(1, 1).qans, 1); // 1つ目は残る
@@ -260,6 +261,144 @@ describe("Variety:lostspeech", function() {
 		assert.equal(ok.complete, true);
 	});
 
+	it("checks hollow colored dots: uncovered is fine, other colors are not", function() {
+		// 4x2盤: (0,0)青起点 (1,0)空心 (2,0)青空心点 (3,0)空心
+		//        (0,1)空心 (1,1)赤空心点 (2,1)空心 (3,1)赤起点
+		// バンクは4枚とも横ドミノ
+		var base = "lostspeech/4/2/62922a2700/4/21o/21o/21o/21o";
+
+		// 正解: 青は(0,0)-(1,0)と(2,0)-(3,0)の2枚 (青空心点を青が覆う)、
+		// 赤は(2,1)-(3,1)の1枚 (赤空心点は覆わない)。両盤面とも同じ配置。
+		var ok = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(3, 1).setQans(1);
+			p.board.getc(5, 1).setQans(2);
+			p.board.getc(7, 1).setQans(2);
+			p.board.getc(5, 3).setAnum(1);
+			p.board.getc(7, 3).setAnum(1);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(3, 1).setQans2(1);
+			p.board.getc(5, 1).setQans2(2);
+			p.board.getc(7, 1).setQans2(2);
+			p.board.getc(5, 3).setAnum2(1);
+			p.board.getc(7, 3).setAnum2(1);
+		});
+		assert.equal(ok.complete, true);
+
+		// 青空心点を覆わない場合も正しい (高々1つ: 0個でもよい)
+		var uncovered = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(3, 1).setQans(1);
+			p.board.getc(5, 3).setAnum(1);
+			p.board.getc(7, 3).setAnum(1);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(3, 1).setQans2(1);
+			p.board.getc(5, 3).setAnum2(1);
+			p.board.getc(7, 3).setAnum2(1);
+		});
+		assert.equal(uncovered.complete, true);
+
+		// 盤面1で青空心点を赤が覆う → nmDotNe
+		var wrongColor = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(3, 1).setQans(1);
+			p.board.getc(5, 3).setAnum(1);
+			p.board.getc(7, 3).setAnum(1);
+			p.board.getc(5, 1).setAnum(2);
+			p.board.getc(7, 1).setAnum(2);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(3, 1).setQans2(1);
+			p.board.getc(5, 1).setQans2(2);
+			p.board.getc(7, 1).setQans2(2);
+			p.board.getc(5, 3).setAnum2(1);
+			p.board.getc(7, 3).setAnum2(1);
+		});
+		assert.equal(wrongColor.complete, false);
+		assert.equal(wrongColor.codes[0], "nmDotNe");
+
+		// 盤面1で赤空心点を青が覆う → nmDotNe
+		var wrongColor2 = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(3, 1).setQans(1);
+			p.board.getc(1, 3).setQans(2);
+			p.board.getc(3, 3).setQans(2);
+			p.board.getc(5, 3).setAnum(1);
+			p.board.getc(7, 3).setAnum(1);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(3, 1).setQans2(1);
+			p.board.getc(5, 1).setQans2(2);
+			p.board.getc(7, 1).setQans2(2);
+			p.board.getc(5, 3).setAnum2(1);
+			p.board.getc(7, 3).setAnum2(1);
+		});
+		assert.equal(wrongColor2.complete, false);
+		assert.equal(wrongColor2.codes[0], "nmDotNe");
+	});
+
+	it("forbids shapes from covering the other color's start cell", function() {
+		// 2x6盤: (0,0)青起点 (0,5)赤起点、その他は空心点。バンクはドミノ。
+		var base = "lostspeech/2/6/622222222272000/4/12o/12o/12o/12o";
+
+		// 正解: 青の鎖は赤起点の手前で止まる
+		var ok = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(1, 3).setQans(1);
+			p.board.getc(1, 5).setQans(2);
+			p.board.getc(1, 7).setQans(2);
+			p.board.getc(1, 9).setAnum(1);
+			p.board.getc(1, 11).setAnum(1);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(1, 3).setQans2(1);
+			p.board.getc(1, 5).setQans2(2);
+			p.board.getc(1, 7).setQans2(2);
+			p.board.getc(1, 9).setAnum2(1);
+			p.board.getc(1, 11).setAnum2(1);
+		});
+		assert.equal(ok.complete, true);
+
+		// 盤面1で青が赤起点を覆う → nmStartCross
+		var badBlue = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(1, 3).setQans(1);
+			p.board.getc(1, 5).setQans(2);
+			p.board.getc(1, 7).setQans(2);
+			p.board.getc(1, 9).setQans(3);
+			p.board.getc(1, 11).setQans(3);
+			p.board.getc(1, 11).setAnum(1);
+			p.board.getc(3, 11).setAnum(1);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(1, 3).setQans2(1);
+			p.board.getc(1, 5).setQans2(2);
+			p.board.getc(1, 7).setQans2(2);
+			p.board.getc(1, 9).setAnum2(1);
+			p.board.getc(1, 11).setAnum2(1);
+		});
+		assert.equal(badBlue.complete, false);
+		assert.equal(badBlue.codes[0], "nmStartCross");
+
+		// 盤面1で赤の鎖が青起点まで伸びる → nmStartCross
+		var badRed = checkResult(new pzpr.Puzzle().open(base), function(p) {
+			p.board.getc(1, 1).setQans(1);
+			p.board.getc(3, 1).setQans(1);
+			p.board.getc(1, 9).setAnum(1);
+			p.board.getc(1, 11).setAnum(1);
+			p.board.getc(3, 9).setAnum(2);
+			p.board.getc(3, 11).setAnum(2);
+			p.board.getc(3, 5).setAnum(3);
+			p.board.getc(3, 7).setAnum(3);
+			p.board.getc(1, 5).setAnum(4);
+			p.board.getc(1, 7).setAnum(4);
+			p.board.getc(1, 1).setAnum(5);
+			p.board.getc(1, 3).setAnum(5);
+			p.board.getc(1, 1).setQans2(1);
+			p.board.getc(3, 1).setQans2(1);
+			p.board.getc(1, 9).setAnum2(1);
+			p.board.getc(1, 11).setAnum2(1);
+		});
+		assert.equal(badRed.complete, false);
+		assert.equal(badRed.codes[0], "nmStartCross");
+	});
+
 	it("requires a blue start, and makes the red shape optional", function() {
 		// 青起点がない → nmStartNe
 		var r = checkResult(
@@ -326,19 +465,20 @@ describe("Variety:lostspeech", function() {
 	});
 
 	it("rejects shapes that do not match the bank", function() {
+		// 2x3: 青起点(0,0), 赤起点(1,2)。バンクは青=2x2正方形, 赤=単セル。
 		var r = checkResult(
-			new pzpr.Puzzle().open("lostspeech/2/2/62270/4/22u/11g/22u/11g"),
+			new pzpr.Puzzle().open("lostspeech/2/3/62222700/4/22u/11g/22u/11g"),
 			function(p) {
 				// 盤面1にバンクと異なる形状 (横ドミノ) を置く
 				p.board.getc(1, 1).setQans(1);
 				p.board.getc(3, 1).setQans(1);
-				p.board.getc(3, 3).setAnum(1);
-				// 盤面2: 正しい形状
+				p.board.getc(3, 5).setAnum(1);
+				// 盤面2: 正しい形状 (赤起点を避けた2x2正方形)
 				p.board.getc(1, 1).setQans2(1);
 				p.board.getc(1, 3).setQans2(1);
 				p.board.getc(3, 1).setQans2(1);
 				p.board.getc(3, 3).setQans2(1);
-				p.board.getc(3, 3).setAnum2(1);
+				p.board.getc(3, 5).setAnum2(1);
 			}
 		);
 		assert.equal(r.complete, false);
@@ -396,24 +536,27 @@ describe("Variety:lostspeech", function() {
 		assert.equal(r.codes.indexOf("csContained") >= 0, true);
 	});
 
-	it("counts start cells for containment", function() {
-		// 3x3: 青起点(0,0), 赤起点(1,1), 空心点(0,1),(0,2),(1,0),(2,0)
-		// 赤=単セル(1,1)が青の2x2正方形に完全に含まれる → csContained
-		// (起点豁免は無い)
+	it("rejects shapes contained in other shapes that share a cell", function() {
+		// 3x3: 青起点(0,0), 青赤点(0,1), 赤起点(0,2)。バンクは青=2x2正方形, 赤=単セル。
+		// 赤の単セル(0,1)が青の2x2正方形に完全に含まれる → csContained
+		// (青赤点のため重なり自体は許されるが、包含は不可)
 		var r = checkResult(
-			new pzpr.Puzzle().open("lostspeech/3/3/62227g2h00/4/22u/11g/13s/11g"),
+			new pzpr.Puzzle().open("lostspeech/3/3/62242272200/4/22u/11g/22u/11g"),
 			function(p) {
-				// 盤面1: 青=2x2正方形, 赤=単セル(1,1)
+				// 盤面1: 青=2x2正方形, 赤=単セル(0,2)と(0,1) (青の正方形に包含)
 				p.board.getc(1, 1).setQans(1);
 				p.board.getc(1, 3).setQans(1);
 				p.board.getc(3, 1).setQans(1);
 				p.board.getc(3, 3).setQans(1);
-				p.board.getc(3, 3).setAnum(1);
-				// 盤面2: 青=縦トロミノ (0,0),(1,0),(2,0), 赤=単セル(1,1)
+				p.board.getc(1, 5).setAnum(1);
+				p.board.getc(1, 3).setAnum(2);
+				// 盤面2: 青=2x2正方形, 赤=単セル(0,2)と(0,1)
 				p.board.getc(1, 1).setQans2(1);
 				p.board.getc(1, 3).setQans2(1);
-				p.board.getc(1, 5).setQans2(1);
-				p.board.getc(3, 3).setAnum2(1);
+				p.board.getc(3, 1).setQans2(1);
+				p.board.getc(3, 3).setQans2(1);
+				p.board.getc(1, 5).setAnum2(1);
+				p.board.getc(1, 3).setAnum2(2);
 			}
 		);
 		assert.equal(r.complete, false);

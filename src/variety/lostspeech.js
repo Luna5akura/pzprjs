@@ -10,6 +10,8 @@
 //   青点      : ちょうど1つの青の形状 (赤なし)
 //   青赤点    : ちょうど1つの青と1つの赤
 //   赤点      : ちょうど1つの赤の形状 (青なし)
+//   青空心点  : 高々1つの形状 (青のみ)
+//   赤空心点  : 高々1つの形状 (赤のみ)
 // 同じ盤面内の青と赤は重なってもよいが、互いに完全に含まれない。
 // さらに、2つの解 (各盤面の形状) の間でも、どの形状も他の解のどの形状に
 // 完全に含まれてはならない。
@@ -35,8 +37,10 @@
 				"dot-black",
 				"dot-white",
 				"dot-blue",
+				"dot-blue-white",
 				"dot-double",
 				"dot-red",
+				"dot-red-white",
 				"triangle",
 				"start-blue",
 				"start-red",
@@ -146,8 +150,10 @@
 				"dot-black": 1,
 				"dot-white": 2,
 				"dot-blue": 3,
+				"dot-blue-white": 9,
 				"dot-double": 4,
 				"dot-red": 8,
+				"dot-red-white": 10,
 				triangle: 5,
 				"start-blue": 6,
 				"start-red": 7
@@ -409,7 +415,7 @@
 				var o = offsets[i];
 				var c = bd.getc(cell.bx + 2 * o.x, cell.by + 2 * o.y);
 				// 形状のすべてのマスは「点」のあるマスでなければならない
-				// (点: 1黒点 2空心点 3青点 4青赤点 8赤点。
+				// (点: 1黒点 2空心点 3青点 4青赤点 8赤点 9青空心点 10赤空心点。
 				//  起点マス6/7は除く。三角マーク5は点ではないので覆えない)
 				if (
 					c.isnull ||
@@ -420,8 +426,13 @@
 						c.qnum !== 4 &&
 						c.qnum !== 6 &&
 						c.qnum !== 7 &&
-						c.qnum !== 8) ||
-					c[prop] > 0
+						c.qnum !== 8 &&
+						c.qnum !== 9 &&
+						c.qnum !== 10) ||
+					c[prop] > 0 ||
+					// 起点マスはもう一方の色の図形で覆えない
+					(c.qnum === 6 && prop !== "qans" && prop !== "qans2") ||
+					(c.qnum === 7 && prop !== "anum" && prop !== "anum2")
 				) {
 					return false;
 				}
@@ -643,7 +654,7 @@
 		numberAsObject: true,
 		disInputHatena: true,
 		minnum: 1,
-		maxnum: 8,
+		maxnum: 10,
 		// 右側の盤面の回答状態
 		qans2: 0,
 		anum2: -1,
@@ -1067,6 +1078,16 @@
 					case 8: // 赤点
 						g.fillStyle = this.REDCOLOR;
 						g.fillCircle(px, py, rdot);
+						break;
+					case 9: // 青空心点
+						g.strokeStyle = this.BLUECOLOR;
+						g.lineWidth = Math.max(this.cw * 0.06, 1);
+						g.strokeCircle(px, py, rdot);
+						break;
+					case 10: // 赤空心点
+						g.strokeStyle = this.REDCOLOR;
+						g.lineWidth = Math.max(this.cw * 0.06, 1);
+						g.strokeCircle(px, py, rdot);
 						break;
 					case 5: // 三角
 						g.fillStyle = "black";
@@ -1505,6 +1526,12 @@
 					case 8:
 						// 赤点: ちょうど1つの赤の図形 (青なし)
 						return red !== 1 || blue > 0;
+					case 9:
+						// 青空心点: 高々1つの図形 (青のみ)
+						return total > 1 || red > 0;
+					case 10:
+						// 赤空心点: 高々1つの図形 (赤のみ)
+						return total > 1 || blue > 0;
 				}
 				return false;
 			}, "nmDotNe");
@@ -1530,6 +1557,12 @@
 					case 8:
 						// 赤点: ちょうど1つの赤の図形 (青なし)
 						return red !== 1 || blue > 0;
+					case 9:
+						// 青空心点: 高々1つの図形 (青のみ)
+						return total > 1 || red > 0;
+					case 10:
+						// 赤空心点: 高々1つの図形 (赤のみ)
+						return total > 1 || blue > 0;
 				}
 				return false;
 			}, "nmDotNe");
@@ -1582,6 +1615,19 @@
 				}
 				return false;
 			}, "nmStartNe");
+
+			// 起点マスはもう一方の色の図形に覆われてはいけない
+			this.checkAllCell(function(cell) {
+				if (cell.qnum === 6) {
+					// 青起点に赤の図形は置けない
+					return cell.anum > 0 || cell.anum2 > 0;
+				}
+				if (cell.qnum === 7) {
+					// 赤起点に青の図形は置けない
+					return cell.qans > 0 || cell.qans2 > 0;
+				}
+				return false;
+			}, "nmStartCross");
 		},
 
 		checkShapesMatchBank: function() {

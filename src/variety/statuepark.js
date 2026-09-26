@@ -9,7 +9,7 @@
 		"statuepark",
 		"statuepark-aux",
 		"pentopia",
-		"battleship",
+		"battleships",
 		"pentatouch",
 		"kissing",
 		"retroships",
@@ -164,7 +164,7 @@
 		}
 	},
 
-	"MouseEvent@battleship#1": {
+	"MouseEvent@battleships#1": {
 		inputModes: {
 			edit: ["number", "clear", "water", "completion"],
 			play: ["shade", "unshade", "clear", "completion"]
@@ -338,7 +338,7 @@
 			}
 		}
 	},
-	"MouseEvent@battleship,retroships": {
+	"MouseEvent@battleships,retroships": {
 		getNewNumber: function(cell, val) {
 			if (cell.group === "cell" && cell.qans) {
 				return cell.getShape();
@@ -481,7 +481,7 @@
 			}
 		}
 	},
-	"KeyEvent@battleship,retroships": {
+	"KeyEvent@battleships,retroships": {
 		keyinput: function(ca) {
 			if (!this.cursor.getex().isnull) {
 				this.key_inputexcell(ca);
@@ -531,10 +531,10 @@
 			return ret;
 		}
 	},
-	"Board@battleship#1": {
+	"Board@battleships#1": {
 		hasexcell: 1
 	},
-	"Board@battleship,retroships": {
+	"Board@battleships,retroships": {
 		assumeAllUnshaded: false,
 
 		UP: 1,
@@ -753,7 +753,7 @@
 		}
 	},
 
-	"Bank@battleship,retroships": {
+	"Bank@battleships,retroships": {
 		defaultPreset: function() {
 			return this.presets[1].constant;
 		},
@@ -1054,7 +1054,7 @@
 		}
 	},
 
-	"Cell@battleship,retroships": {
+	"Cell@battleships,retroships": {
 		numberAsObject: true,
 		minnum: 0,
 		maxnum: function() {
@@ -1073,7 +1073,7 @@
 				if (
 					this.qnum !== -1 &&
 					this.qans &&
-					(this.pid === "battleship" || this.qnum === 0 || this.qnum === -2)
+					(this.pid === "battleships" || this.qnum === 0 || this.qnum === -2)
 				) {
 					this.setQans(0);
 				}
@@ -1125,7 +1125,7 @@
 			);
 		}
 	},
-	"Cell@battleship#1": {
+	"Cell@battleships#1": {
 		allowShade: function() {
 			return this.qnum === -1;
 		},
@@ -1195,7 +1195,7 @@
 		}
 	},
 
-	"ExCell@battleship": {
+	"ExCell@battleships": {
 		disInputHatena: true,
 
 		maxnum: function() {
@@ -1227,7 +1227,7 @@
 		},
 		minnum: 0
 	},
-	"BoardExec@battleship,retroships": {
+	"BoardExec@battleships,retroships": {
 		adjustBoardData: function(key, d) {
 			this.adjustCellArrow(key, d);
 			this.adjustExCellTopLeft_1(key, d);
@@ -1288,7 +1288,7 @@
 	"AreaRoomGraph@regional-poly": {
 		enabled: true
 	},
-	"AreaShadeGraph@battleship,retroships": {
+	"AreaShadeGraph@battleships,retroships": {
 		relation: { "cell.qnum": "node", "cell.qans": "node" }
 	},
 	"AreaShadeGraph@placebyproduct": {
@@ -1667,7 +1667,7 @@
 		}
 	},
 
-	"Graphic@battleship,retroships": {
+	"Graphic@battleships,retroships": {
 		MODE_SHARP: 0,
 		MODE_ROUNDED: 1,
 		MODE_OUTLINE: 2,
@@ -1806,7 +1806,7 @@
 						cell.qnum > 0);
 
 				var mode;
-				if (this.pid === "battleship") {
+				if (this.pid === "battleships") {
 					mode = isCircled ? this.MODE_ROUNDED : this.MODE_SHARP;
 				} else {
 					mode = cell.isShade() ? this.MODE_ROUNDED : this.MODE_OUTLINE;
@@ -1958,6 +1958,90 @@
 			this.encodePieceBank();
 		}
 	},
+	"Graphic@battleships": {
+		paintPost: function() {
+			// 共通の solver オーバーレイ (小さなマーク) は描かず、
+			// プレイヤーの艦と同じ塗りで確定マスを描画する
+			var flag = this.drawSolverOverlayInPaintPost;
+			this.drawSolverOverlayInPaintPost = false;
+			this.common.paintPost.call(this);
+			this.drawSolverOverlayInPaintPost = flag;
+			this.drawSolverShading();
+		},
+
+		// solver が確定したマスを艦の塗りと同じスタイルで描画する
+		drawSolverShading: function() {
+			this.vinc("solver_battleships", "crispEdges", true);
+			var g = this.context;
+			var clist = this.range.cells;
+			var radius = 0.75;
+
+			var thiz = this;
+			var isshade = function(cell) {
+				return (
+					!cell.isnull &&
+					thiz.getSolverOverlayEntries(cell).length > 0 &&
+					!thiz.hasAnswerCellState(cell)
+				);
+			};
+
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i],
+					shaded = isshade(cell);
+				var px = cell.bx,
+					py = cell.by;
+
+				var sizes = {};
+				for (var dir in cell.adjacent) {
+					sizes[dir] =
+						!cell.adjborder[dir].isBorder() && isshade(cell.adjacent[dir])
+							? 1
+							: radius;
+				}
+
+				var color = this.getSolverOverlayEntryColor(
+					this.getSolverOverlayEntries(cell)[0],
+					this.shadecolor
+				);
+
+				g.vid = "c_bs_solver_h_" + cell.id;
+				if (shaded) {
+					g.fillStyle = color;
+					var gap = sizes.left === 1 ? 0 : 1;
+					var left = px - sizes.left,
+						right = px + sizes.right,
+						top = py - radius,
+						bottom = py + radius;
+					g.fillRect(
+						left * this.bw + gap,
+						top * this.bh,
+						(right - left) * this.bw - gap,
+						(bottom - top) * this.bh
+					);
+				} else {
+					g.vhide();
+				}
+
+				g.vid = "c_bs_solver_v_" + cell.id;
+				if (shaded) {
+					g.fillStyle = color;
+					var left2 = px - radius,
+						right2 = px + radius,
+						top2 = py - sizes.top,
+						bottom2 = py + sizes.bottom;
+					g.fillRect(
+						left2 * this.bw + 1,
+						top2 * this.bh,
+						(right2 - left2) * this.bw - 1,
+						(bottom2 - top2) * this.bh
+					);
+				} else {
+					g.vhide();
+				}
+			}
+		}
+	},
+
 	"Encode@pentopia,distopia,retroships": {
 		decodePzpr: function(type) {
 			this.puzzle.setConfig("pentopia_transparent", this.checkpflag("t"));
@@ -1974,7 +2058,7 @@
 			this.encodePieceBank();
 		}
 	},
-	"Encode@battleship": {
+	"Encode@battleships": {
 		decodePzpr: function(type) {
 			if (this.outbstr[0] !== "/") {
 				this.decodeNumber16ExCell();
@@ -2073,7 +2157,7 @@
 		decodeData: function() {
 			this.decodePieceBank();
 			this.decodeConfig();
-			if (this.pid === "battleship") {
+			if (this.pid === "battleships") {
 				this.decodeCellExCell(function(obj, ca) {
 					if (ca[0] === "c") {
 						obj.qcmp = 1;
@@ -2097,7 +2181,7 @@
 		encodeData: function() {
 			this.encodePieceBank();
 			this.encodeConfig();
-			if (this.pid === "battleship") {
+			if (this.pid === "battleships") {
 				this.encodeCellExCell(function(obj) {
 					if (obj.qnum >= 0) {
 						return (obj.qcmp ? "c" : "") + obj.qnum + " ";
@@ -2428,7 +2512,7 @@
 		}
 	},
 
-	"AnsCheck@pentopia,distopia,battleship,retroships,pentatouch,regional-poly,shapeminesweeper,placebyproduct#1": {
+	"AnsCheck@pentopia,distopia,battleships,retroships,pentatouch,regional-poly,shapeminesweeper,placebyproduct#1": {
 		checkShadeDiagonal: function() {
 			var bd = this.board;
 			for (var c = 0; c < bd.cell.length; c++) {
@@ -2671,14 +2755,14 @@
 		}
 	},
 
-	"AnsCheck@battleship,retroships": {
+	"AnsCheck@battleships,retroships": {
 		checklist: [
 			"checkShapeExtra",
 			"checkBankPiecesAvailable",
 			"checkBankPiecesInvalid",
 			"checkShadeDiagonal",
 			"checkShapeMissing",
-			"checkShadeCount@battleship",
+			"checkShadeCount@battleships",
 			"checkBankPiecesUsed"
 		],
 
@@ -2758,9 +2842,9 @@
 		}
 	},
 	"FailCode@retroships": {
-		bankGt: "bankGt.battleship",
-		bankInvalid: "bankInvalid.battleship",
-		bankLt: "bankLt.battleship",
-		shDiag: "shDiag.battleship"
+		bankGt: "bankGt.battleships",
+		bankInvalid: "bankInvalid.battleships",
+		bankLt: "bankLt.battleships",
+		shDiag: "shDiag.battleships"
 	}
 });

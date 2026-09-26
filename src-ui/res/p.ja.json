@@ -110,6 +110,7 @@
     "inputmode.dot-black": "黒点",
     "inputmode.dot-white": "黒白抜き点",
     "inputmode.dot-blue": "青点",
+    "inputmode.dot-blue-white": "青白抜き点",
     "inputmode.dot-double": "青赤点",
     "inputmode.triangle": "三角",
     "inputmode.start-blue": "青起点",
@@ -346,5 +347,6 @@
     "aqre_borders": "線が黒マスに触れるのは一度だけ",
     "slither_full": "全ての点に線が通る",
     "outlineshaded": "黒マスを線で囲む",
-    "inputmode.dot-red": "赤点"
+    "inputmode.dot-red": "赤点",
+    "inputmode.dot-red-white": "赤白抜き点"
 }

@@ -117,6 +117,7 @@
     "inputmode.dot-black": "Black dots",
     "inputmode.dot-white": "Hollow dots",
     "inputmode.dot-blue": "Blue dots",
+    "inputmode.dot-blue-white": "Hollow blue dots",
     "inputmode.dot-double": "Blue-red dots",
     "inputmode.triangle": "Triangles",
     "inputmode.start-blue": "Blue starts",
@@ -348,5 +349,6 @@
     "network.share": "Share this link to play with someone:",
     "list.sort.date": "Sort by date",
     "list.sort.alpha": "Sort alphabetically",
-    "inputmode.dot-red": "Red dots"
+    "inputmode.dot-red": "Red dots",
+    "inputmode.dot-red-white": "Hollow red dots"
 }

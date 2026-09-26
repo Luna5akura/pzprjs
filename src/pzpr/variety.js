@@ -103,7 +103,7 @@
 			balloon: [0, 0, "風船箱", "Balloon Box"],
 			barns: [1, 0, "バーンズ", "Barns"],
 			batten: [0, 0, "Battenberg Painting", "Battenberg Painting"],
-			battleship: [0, 0, "Battleship", "Battleship", "statuepark"],
+			battleships: [0, 0, "Battleships", "Battleships", "statuepark"],
 			bdblock: [1, 0, "ボーダーブロック", "Border Block"],
 			bdwalk: [0, 0, "ビルウォーク", "Building Walk", "haisu"],
 			blindrush: [0, 0, "猪突猛進", "Blind Rush"],
