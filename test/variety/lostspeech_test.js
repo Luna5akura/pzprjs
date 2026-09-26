@@ -504,10 +504,10 @@ describe("Variety:lostspeech", function() {
 		assert.equal(r.codes[0], "csNoConn");
 	});
 
-	it("rejects shapes contained in other shapes on the same board", function() {
+	it("allows shapes contained in other shapes on the same board", function() {
 		// 3x3: 青起点(0,0), 赤起点(1,1), 空心点(0,1),(1,0), 青赤点(0,2),(1,2)。
-		// 起点を含まない2つ目の形状どうし {(0,2),(1,2)} が同一セル集合のため
-		// 盤面内の包含制約で csContained になる。
+		// 起点を含まない2つ目の形状どうし {(0,2),(1,2)} は同一セル集合だが、
+		// 同じ盤面内の青と赤の包含は許される。
 		var r = checkResult(
 			new pzpr.Puzzle().open("lostspeech/3/3/624274i00/4/12o/12o/12o/12o"),
 			function(p) {
@@ -532,14 +532,13 @@ describe("Variety:lostspeech", function() {
 				p.board.getc(5, 3).setAnum2(2);
 			}
 		);
-		assert.equal(r.complete, false);
-		assert.equal(r.codes.indexOf("csContained") >= 0, true);
+		assert.equal(r.complete, true);
 	});
 
-	it("rejects shapes contained in other shapes that share a cell", function() {
+	it("allows shapes contained in other shapes that share a cell", function() {
 		// 3x3: 青起点(0,0), 青赤点(0,1), 赤起点(0,2)。バンクは青=2x2正方形, 赤=単セル。
-		// 赤の単セル(0,1)が青の2x2正方形に完全に含まれる → csContained
-		// (青赤点のため重なり自体は許されるが、包含は不可)
+		// 赤の単セル(0,1)が青の2x2正方形に完全に含まれるが、
+		// 同じ盤面内の青と赤の包含は許される。
 		var r = checkResult(
 			new pzpr.Puzzle().open("lostspeech/3/3/62242272200/4/22u/11g/22u/11g"),
 			function(p) {
@@ -559,8 +558,7 @@ describe("Variety:lostspeech", function() {
 				p.board.getc(1, 3).setAnum2(2);
 			}
 		);
-		assert.equal(r.complete, false);
-		assert.equal(r.codes.indexOf("csContained") >= 0, true);
+		assert.equal(r.complete, true);
 	});
 
 	it("rejects shapes contained in shapes of the other solution with the variant rule", function() {

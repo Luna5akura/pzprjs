@@ -12,9 +12,9 @@
 //   赤点      : ちょうど1つの赤の形状 (青なし)
 //   青空心点  : 高々1つの形状 (青のみ)
 //   赤空心点  : 高々1つの形状 (赤のみ)
-// 同じ盤面内の青と赤は重なってもよいが、互いに完全に含まれない。
-// さらに、2つの解 (各盤面の形状) の間でも、どの形状も他の解のどの形状に
-// 完全に含まれてはならない。
+// 同じ盤面内の青と赤は重なってもよい (互いに完全に含まれてもよい)。
+// 「this puzzle uses variant rule」が有効な場合のみ、2つの解 (各盤面の形状)
+// の間で、どの形状も他の解のどの形状にも完全に含まれてはならない。
 //
 
 (function(pidlist, classbase) {
@@ -1812,13 +1812,10 @@
 				blue2: "qans2",
 				red2: "anum2"
 			};
-			// 各盤面内の青-赤2組
-			var pairs = [
-				["blue1", "red1", "csContained"],
-				["blue2", "red2", "csContained"]
-			];
+			// 同じ盤面内の青と赤は互いに完全に含まれてもよい。
 			// 「this puzzle uses variant rule」が有効な場合のみ、
-			// 左右の盤面をまたぐ4組も禁止する
+			// 左右の盤面をまたぐ4組の包含を禁止する
+			var pairs = [];
 			if (this.puzzle.getConfig("variant")) {
 				pairs.push(
 					["blue1", "blue2", "csCrossContained"],
