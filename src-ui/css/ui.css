@@ -391,6 +391,88 @@ div#usepanel .inputmode-option[data-preview="white-dot"]::before {
   background: radial-gradient(circle at center, #fff 0 35%, transparent 40% 100%);
 }
 
+/* ---- lostspeech の入力モードのアイコン ---- */
+
+div#usepanel .inputmode-option[data-preview="dot-black"]::before,
+div#usepanel .inputmode-option[data-preview="dot-white"]::before,
+div#usepanel .inputmode-option[data-preview="dot-blue"]::before,
+div#usepanel .inputmode-option[data-preview="dot-blue-white"]::before,
+div#usepanel .inputmode-option[data-preview="dot-red"]::before,
+div#usepanel .inputmode-option[data-preview="dot-red-white"]::before {
+  border-radius: 50%;
+}
+
+div#usepanel .inputmode-option[data-preview="dot-black"]::before {
+  background: #111;
+}
+
+div#usepanel .inputmode-option[data-preview="dot-white"]::before {
+  border: 2px solid #111;
+}
+
+div#usepanel .inputmode-option[data-preview="dot-blue"]::before {
+  background: rgb(51, 102, 255);
+}
+
+div#usepanel .inputmode-option[data-preview="dot-blue-white"]::before {
+  border: 2px solid rgb(51, 102, 255);
+}
+
+div#usepanel .inputmode-option[data-preview="dot-red"]::before {
+  background: rgb(255, 51, 51);
+}
+
+div#usepanel .inputmode-option[data-preview="dot-red-white"]::before {
+  border: 2px solid rgb(255, 51, 51);
+}
+
+div#usepanel .inputmode-option[data-preview="dot-double"]::before {
+  background: radial-gradient(
+      circle at 32% 50%,
+      rgb(51, 102, 255) 0 26%,
+      transparent 27% 100%
+    ),
+    radial-gradient(
+      circle at 68% 50%,
+      rgb(255, 51, 51) 0 26%,
+      transparent 27% 100%
+    );
+}
+
+div#usepanel .inputmode-option[data-preview="triangle"]::before {
+  background: #111;
+  clip-path: polygon(50% 10%, 90% 90%, 10% 90%);
+}
+
+div#usepanel .inputmode-option[data-preview="start-blue"]::before {
+  background: rgb(210, 225, 255);
+  border: 1px solid rgb(51, 102, 255);
+  border-radius: 3px;
+}
+
+div#usepanel .inputmode-option[data-preview="start-red"]::before {
+  background: rgb(255, 214, 214);
+  border: 1px solid rgb(255, 51, 51);
+  border-radius: 3px;
+}
+
+div#usepanel .inputmode-option[data-preview="empty"]::before {
+  background: rgb(150, 150, 150);
+  border-radius: 3px;
+}
+
+div#usepanel .inputmode-option[data-preview="shade"]::before {
+  background: #555;
+  border-radius: 3px;
+}
+
+div#usepanel .inputmode-option[data-preview="unshade"]::before {
+  background: #fff;
+  border: 1px solid #555;
+  border-radius: 3px;
+}
+
+
 div#usepanel .inputmode-option[data-preview="black-dot"]::before {
   background: radial-gradient(circle at center, #111 0 35%, transparent 40% 100%);
 }

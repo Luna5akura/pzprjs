@@ -48,6 +48,29 @@ ui.toolarea = {
 				clear: { group: "tools", preview: "erase" },
 				"info-line": { group: "tools", preview: "inspect" }
 			}
+		},
+		lostspeech: {
+			groupOrder: ["dots", "marks", "tools"],
+			items: {
+				// 点 (黒→青→赤の順に、各色とも実心→空心)
+				"dot-black": { group: "dots", preview: "dot-black" },
+				"dot-white": { group: "dots", preview: "dot-white" },
+				"dot-blue": { group: "dots", preview: "dot-blue" },
+				"dot-blue-white": { group: "dots", preview: "dot-blue-white" },
+				"dot-red": { group: "dots", preview: "dot-red" },
+				"dot-red-white": { group: "dots", preview: "dot-red-white" },
+				"dot-double": { group: "dots", preview: "dot-double" },
+				// マーク
+				triangle: { group: "marks", preview: "triangle" },
+				"start-blue": { group: "marks", preview: "start-blue" },
+				"start-red": { group: "marks", preview: "start-red" },
+				// ツール
+				empty: { group: "tools", preview: "empty" },
+				clear: { group: "tools", preview: "erase" },
+				auto: { group: "tools", preview: "auto" },
+				shade: { group: "tools", preview: "shade" },
+				unshade: { group: "tools", preview: "unshade" }
+			}
 		}
 	},
 
@@ -222,10 +245,10 @@ ui.toolarea = {
 		}
 	},
 	getInputModeLayout: function(idname) {
-		if (idname !== "inputmode" || !ui.puzzle || ui.puzzle.pid !== "travelline") {
+		if (idname !== "inputmode" || !ui.puzzle || !ui.puzzle.pid) {
 			return null;
 		}
-		return this.inputModeLayouts.travelline || null;
+		return this.inputModeLayouts[ui.puzzle.pid] || null;
 	},
 	getInputModeGroupForValue: function(layout, value) {
 		var meta = layout && layout.items ? layout.items[value] : null;
@@ -256,9 +279,19 @@ ui.toolarea = {
 		var layout = this.getInputModeLayout(idname);
 		var children = toolitem.children;
 		var i;
+		var pidclass = ui.puzzle && ui.puzzle.pid
+			? "inputmode-layout-" + ui.puzzle.pid
+			: "";
 
 		container.classList.remove("inputmode-layout");
-		container.classList.remove("inputmode-layout-travelline");
+		// 前のパズルの pid 固有クラスが残らないように除去する
+		// (パズルを切り替えた際に古い "inputmode-layout-<pid>" が残るため)
+		container.className = container.className
+			.split(/\s+/)
+			.filter(function(c) {
+				return !c || c.indexOf("inputmode-layout-") !== 0;
+			})
+			.join(" ");
 
 		for (i = 0; i < children.length; i++) {
 			children[i].classList.remove("inputmode-option");
@@ -283,7 +316,9 @@ ui.toolarea = {
 		}
 
 		container.classList.add("inputmode-layout");
-		container.classList.add("inputmode-layout-travelline");
+		if (!!pidclass) {
+			container.classList.add(pidclass);
+		}
 
 		var availableGroups = [];
 		for (i = 0; i < layout.groupOrder.length; i++) {
@@ -316,7 +351,9 @@ ui.toolarea = {
 			category.className =
 				categoryKey === activeGroup ? "child childsel inputmode-category" : "child inputmode-category";
 			category.setAttribute("data-inputmode-group", categoryKey);
-			category.textContent = ui.i18n("inputmode.group.travelline." + categoryKey);
+			category.textContent = ui.i18n(
+				"inputmode.group." + ui.puzzle.pid + "." + categoryKey
+			);
 			pzpr.util.addEvent(category, "mousedown", this, function(e) {
 				toolarea.inputmodegroupclick(e);
 				if (e.type !== "click") {
