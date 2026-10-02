@@ -156,6 +156,7 @@
 			dotchi: [0, 0, "ドッチループ", "Dotchi-Loop", "country"],
 			dotchi2: [0, 0, "ドッチドッチループ", "Dotchi Dotchi Loop", "country"],
 			doubleback: [0, 0, "Double Back", "Double Back", "country"],
+			echo: [0, 0, "エコー", "Echo"],
 			easyasabc: [0, 0, "ABCプレース", "Easy as ABC"],
 			abcbox: [0, 0, "ABCボックス", "ABC-Box", "japanesesums"],
 			energywalk: [0, 0, "Energy Walk", "Energy Walk", "icewalk"],

@@ -412,6 +412,7 @@
     "ceSuspend.sukoro": "There is a cell that is not filled in number.",
     "ceSuspend.sukororoom": "There is a cell that is not filled in number.",
     "ceSuspend.view": "There is a cell that is not filled in number.",
+    "ceEchoNe.echo": "The set of distances to the shaded cells is not equal to the clue.",
     "ceTapaNe.tapa": "The number is not equal to the length of surrounding shaded cells.",
     "ceTooManyBlocks.doppelblock": "There are more than two blocks in a row or column.",
     "ceUnused.kinkonkan": "A mirror is unused.",

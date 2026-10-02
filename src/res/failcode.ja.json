@@ -297,6 +297,7 @@
     "ceSuspend.sukoro": "数字の入っていないマスがあります。",
     "ceSuspend.sukororoom": "数字の入っていないマスがあります。",
     "ceSuspend.view": "数字の入っていないマスがあります。",
+    "ceEchoNe.echo": "数字と、4方向の黒マスまでの距離の集合が一致していません。",
     "ceTapaNe.tapa": "数字と周囲の黒マスの長さが異なっています。",
     "ceTooManyBlocks.doppelblock": "3つ以上の黒マスがある行または列があります。",
     "ciNotOnCnr.loute": "白丸がブロックの角にありません。",
