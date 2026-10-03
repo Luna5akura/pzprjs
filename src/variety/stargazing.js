@@ -16,7 +16,7 @@
 
 		inputModes: {
 			edit: ["number", "clear"],
-			play: ["star", "unshade", "peke"]
+			play: ["star", "unshade"]
 		},
 
 		mouseinput_other: function() {
@@ -25,14 +25,8 @@
 			}
 		},
 		mouseinput_auto: function() {
-			if (this.puzzle.playmode) {
-				if (this.mousestart || this.mousemove) {
-					if (this.btn === "left") {
-						this.inputcell_stargazing();
-					} else if (this.btn === "right") {
-						this.inputpeke();
-					}
-				}
+			if (this.puzzle.playmode && (this.mousestart || this.mousemove)) {
+				this.inputcell_stargazing();
 			}
 		},
 
@@ -43,6 +37,13 @@
 			}
 			if (this.inputData === null) {
 				this.decIC(cell);
+			}
+
+			if (this.inputData === 1 && !cell.allowShade()) {
+				return;
+			}
+			if (this.inputData === 2 && !cell.allowUnshade()) {
+				return;
 			}
 
 			cell.setQans(this.inputData === 1 ? 1 : 0);
@@ -106,12 +107,30 @@
 			this.drawGrid();
 
 			this.drawStars();
-			this.drawPekes();
+			this.drawDashes();
 			this.drawQuesNumbers();
 
 			this.drawChassis();
 
 			this.drawTarget();
+		},
+
+		drawDashes: function() {
+			var g = this.vinc("cell_dash", "auto", true);
+			g.lineWidth = 2;
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				g.vid = "c_dash_" + cell.id;
+				if (cell.qsub === 1) {
+					var px = cell.bx * this.bw,
+						py = cell.by * this.bh;
+					g.strokeStyle = !cell.trial ? this.mbcolor : "rgb(192, 192, 192)";
+					g.strokeLine(px - 0.2 * this.bw, py, px + 0.2 * this.bw, py);
+				} else {
+					g.vhide();
+				}
+			}
 		},
 
 		drawStars: function() {
