@@ -91,6 +91,7 @@ ui.keypopup = {
 		tilepaint: [51, 0],
 		triplace: [51, 0],
 		kakuro: [51, 10],
+		evenloopkakuro: [51, 10],
 		usoone: [4, 0],
 
 		slalom: [101, 0],

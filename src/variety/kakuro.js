@@ -7,7 +7,7 @@
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["kakuro", "consecutivekakuro"], {
+})(["kakuro", "consecutivekakuro", "evenloopkakuro"], {
 	//---------------------------------------------------------
 	// マウス入力系
 	MouseEvent: {
@@ -676,6 +676,98 @@
 			this.encodeCellAnumsub();
 		}
 	},
+	//---------------------------------------------------------
+	// Even Loop Kakuro: 数字入力に加えて、偶数マスを通るループを引く
+	"Cell@evenloopkakuro": {
+		getdir4BorderLine1: function() {
+			var adb = this.adjborder,
+				cnt = 0;
+			if (adb.top.isLine()) {
+				cnt++;
+			}
+			if (adb.bottom.isLine()) {
+				cnt++;
+			}
+			if (adb.left.isLine()) {
+				cnt++;
+			}
+			if (adb.right.isLine()) {
+				cnt++;
+			}
+			return cnt;
+		}
+	},
+
+	"MouseEvent@evenloopkakuro": {
+		inputModes: {
+			edit: ["clear", "number"],
+			play: ["number", "line", "clear"]
+		},
+
+		mouseinput_auto: function() {
+			if (this.puzzle.playmode) {
+				if (this.mousestart || this.mousemove) {
+					if (this.btn === "left") {
+						// セル中央なら数字、境界線付近ならループ線
+						if (this.getpos(0.22).oncell()) {
+							if (this.mousestart) {
+								this.inputqnum();
+							}
+						} else {
+							this.inputLine();
+						}
+					}
+				}
+			} else if (this.puzzle.editmode) {
+				if (this.mousestart) {
+					this.input51();
+				}
+			}
+		}
+	},
+
+	"Graphic@evenloopkakuro": {
+		paint: function() {
+			this.drawBGCells();
+			this.drawBGExCells();
+			this.drawTargetSubNumber();
+			this.drawKakuroMissingClues();
+			this.drawKakuroMissingExClues();
+			this.drawQues51();
+
+			this.drawGrid();
+			this.drawBorders();
+			this.drawLines();
+
+			this.drawChassis_ex1(false);
+
+			this.drawSubNumbers();
+			this.drawAnsNumbers();
+			this.drawQuesNumbersOn51();
+			this.drawQuesNumbers();
+
+			this.drawCursor();
+		}
+	},
+
+	"FileIO@evenloopkakuro": {
+		decodeData: function() {
+			this.decodeCellQnum51();
+			this.decodeCellAnumsub();
+			this.decodeBorderLine();
+		},
+		encodeData: function() {
+			this.encodeCellQnum51();
+			this.encodeCellAnumsub();
+			this.encodeBorderLine();
+		}
+	},
+
+	// ループ線の判定用にLineGraphを有効化する
+	"LineGraph@evenloopkakuro": {
+		enabled: true
+	},
+
 	"AnsCheck@consecutivekakuro": {
 		checkConsecutiveBars: function() {
 			var bd = this.board;
@@ -749,6 +841,38 @@
 				clist.seterr(1);
 			}
 			return result;
+		}
+	},
+
+	// Even Loop Kakuro: カックロのルールに加えて、偶数マスを通るループの判定
+	"AnsCheck@evenloopkakuro": {
+		checklist: [
+			"checkSameNumberInLine",
+			"checkSumOfNumberInLine",
+			"checkNoNumCell+",
+			"checkLineExist+",
+			"checkBranchLine",
+			"checkCrossLine",
+			"checkOneLoop",
+			"checkEvenLoopCells"
+		],
+
+		checkEvenLoopCells: function() {
+			this.checkAllCell(function(cell) {
+				if (cell.is51cell()) {
+					// ヒントマスに線が来てはいけない
+					return cell.getdir4BorderLine1() !== 0;
+				}
+				var n = cell.anum;
+				if (n <= 0) {
+					return false;
+				}
+				var deg = cell.getdir4BorderLine1();
+				if (n % 2 === 0) {
+					return deg !== 2;
+				}
+				return deg !== 0;
+			}, "ceEvenLoopNe");
 		}
 	}
 });

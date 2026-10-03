@@ -159,6 +159,7 @@
 			echo: [0, 0, "エコー", "Echo"],
 			easyasabc: [0, 0, "ABCプレース", "Easy as ABC"],
 			abcbox: [0, 0, "ABCボックス", "ABC-Box", "japanesesums"],
+			evenloopkakuro: [0, 0, "Even Loop Kakuro", "Even Loop Kakuro", "kakuro"],
 			energywalk: [0, 0, "Energy Walk", "Energy Walk", "icewalk"],
 			evolmino: [0, 0, "シンカミノ", "Evolmino"],
 			factors: [0, 0, "因子の部屋", "Rooms of Factors"],
