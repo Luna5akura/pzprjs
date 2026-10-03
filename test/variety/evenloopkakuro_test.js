@@ -127,4 +127,50 @@ describe("Variety:evenloopkakuro", function() {
 		assert.equal(info.complete, true);
 		assert.equal(info.lastcode, null);
 	});
+
+	it("draws a center-to-center loop line by dragging across cells", function() {
+		var puzzle = new pzpr.Puzzle().open(PROBLEM_FILE);
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+
+		// セル中央からセル中央へドラッグすると、その間の境界線に
+		// ループ線が引かれる(セル中央を結ぶ線分)
+		puzzle.mouse.inputPath(3, 3, 5, 3);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), true);
+		assert.equal(puzzle.board.getc(3, 3).anum, -1);
+	});
+
+	it("erases a loop line by dragging over it again", function() {
+		var puzzle = new pzpr.Puzzle().open(PROBLEM_FILE);
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+
+		puzzle.mouse.inputPath(3, 3, 5, 3);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), true);
+		puzzle.mouse.inputPath(3, 3, 5, 3);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), false);
+	});
+
+	it("enters a number by clicking a cell twice", function() {
+		var puzzle = new pzpr.Puzzle().open(PROBLEM_FILE);
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+
+		puzzle.mouse.inputPath(3, 3, 3, 3);
+		puzzle.mouse.inputPath(3, 3, 3, 3);
+		assert.equal(puzzle.board.getc(3, 3).anum, 1);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), false);
+	});
+
+	it("erases a loop line with clear mode on the border", function() {
+		var puzzle = new pzpr.Puzzle().open(PROBLEM_FILE);
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+		puzzle.mouse.inputPath(3, 3, 5, 3);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), true);
+
+		puzzle.mouse.setInputMode("clear");
+		puzzle.mouse.inputPath(4, 3, 4, 3);
+		assert.equal(puzzle.board.getb(4, 3).isLine(), false);
+	});
 });

@@ -706,22 +706,39 @@
 
 		mouseinput_auto: function() {
 			if (this.puzzle.playmode) {
+				// ドラッグでループ線(セル中央を結ぶ)、クリックで数字入力
 				if (this.mousestart || this.mousemove) {
 					if (this.btn === "left") {
-						// セル中央なら数字、境界線付近ならループ線
-						if (this.getpos(0.22).oncell()) {
-							if (this.mousestart) {
-								this.inputqnum();
-							}
-						} else {
-							this.inputLine();
-						}
+						this.inputLine();
 					}
+				} else if (
+					this.mouseend &&
+					this.notInputted() &&
+					this.getpos(0.25).oncell()
+				) {
+					this.inputqnum();
 				}
 			} else if (this.puzzle.editmode) {
 				if (this.mousestart) {
 					this.input51();
 				}
+			}
+		},
+
+		mouseinput_clear: function() {
+			if (this.puzzle.playmode) {
+				// セルなら数字を消し、境界線付近ならループ線を消す
+				if (this.getpos(0.25).oncell()) {
+					this.inputclean_cell();
+				} else {
+					var border = this.getpos(0.22).getb();
+					if (!border.isnull && border.isLine()) {
+						border.removeLine();
+						border.draw();
+					}
+				}
+			} else {
+				this.input51_fixed();
 			}
 		}
 	},
