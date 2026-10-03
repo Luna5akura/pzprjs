@@ -375,8 +375,7 @@ function getSolverUrl() {
 	var result = "https://puzz.link/p?" + query;
 	if (isLostSpeechPuzzle()) {
 		// 「this puzzle uses variant rule」の状態を solver にも伝える
-		result +=
-			"&variant=" + (ui.puzzle.getConfig("variant") ? "1" : "0");
+		result += "&variant=" + (ui.puzzle.getConfig("variant") ? "1" : "0");
 	}
 	return result;
 }
@@ -1123,7 +1122,13 @@ function getItemKind(item) {
 }
 
 function isAnswerColor(entry) {
-	return !!entry && entry.color !== "black";
+	// Backend convention: "green" and other non-black colors mark the answer
+	// overlay (solution marks and helper decorations such as undecided-edge
+	// hints), while "black" and "white" items describe the problem layer
+	// (clues, givens, base decorations). Applying problem-layer items as
+	// overlay would draw them on top of the clues that are already on the
+	// board (overlapping marks).
+	return !!entry && entry.color !== "black" && entry.color !== "white";
 }
 
 function isSkyNeighborPuzzle() {
@@ -1217,11 +1222,7 @@ function lostSpeechBoard2Offset() {
 }
 
 function hasLostSpeechBoard2CellState(cell) {
-	return (
-		!!cell &&
-		!cell.isnull &&
-		(cell.qans2 !== 0 || cell.anum2 !== -1)
-	);
+	return !!cell && !cell.isnull && (cell.qans2 !== 0 || cell.anum2 !== -1);
 }
 
 function appendLostSpeechBoard2State(piece, entry) {
@@ -1863,6 +1864,7 @@ function invalidatePendingSolver(reason) {
 		hadPendingWork: hadPendingWork,
 		currentRequestId: solveRequestId
 	});
+	return hadPendingWork;
 }
 
 function onHistoryChange() {
@@ -1944,7 +1946,7 @@ function initializeSolverUi() {
 	});
 
 	ui.puzzle.on("ready", function() {
-		invalidatePendingSolver("puzzle reloaded");
+		var hadPendingWork = invalidatePendingSolver("puzzle reloaded");
 		if (isTravelLinePuzzle()) {
 			clearTravelLineSolverOverlay();
 		} else {
@@ -1954,6 +1956,11 @@ function initializeSolverUi() {
 		recordSolverDiagnostic("puzzle-ready", {
 			board: getSolverBoardSnapshot()
 		});
+		// 盘面被替换时，原本进行中的求解会被取消；若自动求解开启，或取消前
+		// 有求解/定时任务在途，则针对新盘面重新求解，避免旧结果残留或缺失。
+		if (hadPendingWork || getControls().auto.checked) {
+			scheduleRestartSolve();
+		}
 		refreshVisibility();
 	});
 	ui.puzzle.on("history", onHistoryChange);

@@ -11,7 +11,8 @@
 		"snakepit",
 		"wafusuma",
 		"tetrominous",
-		"numcity"
+		"numcity",
+		"snakyfillomino"
 	];
 	if (typeof module === "object" && module.exports) {
 		module.exports = [pidlist, classbase];
@@ -477,6 +478,14 @@
 	"Cell@snakepit": {
 		minnum: 2,
 
+		equalcount: function() {
+			var cell = this;
+			return this.countDir4Cell(function(adj) {
+				return cell.isSameBlock(adj);
+			});
+		}
+	},
+	"Cell@snakyfillomino": {
 		equalcount: function() {
 			var cell = this;
 			return this.countDir4Cell(function(adj) {
@@ -1383,6 +1392,79 @@
 			this.checkAllCell(function(cell) {
 				return cell.ques === 6 && cell.equalcount() === 1;
 			}, "nmMidpoint");
+		},
+
+		checkNumberBranch: function() {
+			this.checkAllCell(function(cell) {
+				return cell.equalcount() > 2;
+			}, "nmBranch");
+		},
+
+		checkNumberLoop: function() {
+			var snakes = this.board.numblkgraph.components;
+			for (var r = 0; r < snakes.length; r++) {
+				var blk = snakes[r];
+				var clist = blk.clist;
+				if (!blk.complete) {
+					continue;
+				}
+
+				var invalid = true;
+
+				for (var i = 0; i < clist.length; i++) {
+					var cell = clist[i];
+					if (cell.equalcount() !== 2) {
+						invalid = false;
+						break;
+					}
+				}
+
+				if (invalid) {
+					this.failcode.add("nmLoop");
+					clist.seterr(1);
+					if (this.checkOnly) {
+						break;
+					}
+				}
+			}
+		}
+	},
+	"AnsCheck@snakyfillomino": {
+		checklist: [
+			"check2x2SameNumber",
+			"checkNumberBranch",
+			"checkNumberLoop",
+			"checkSmallArea",
+			"checkSideAreaNumberSize",
+			"checkLargeArea",
+			"checkNumKinds",
+			"checkGivenLines",
+			"checkNoNumCell_fillomino+"
+		],
+
+		check2x2SameNumber: function() {
+			var bd = this.board;
+			allloop: for (var c = 0; c < bd.cell.length; c++) {
+				var cell = bd.cell[c],
+					bx = cell.bx,
+					by = cell.by;
+				if (bx >= bd.maxbx - 1 || by >= bd.maxby - 1) {
+					continue;
+				}
+
+				var clist = bd.cellinside(bx, by, bx + 2, by + 2);
+				for (var i = 1; i < 4; i++) {
+					if (!clist[0].isSameBlock(clist[i])) {
+						continue allloop;
+					}
+				}
+
+				this.failcode.add("nmSame2x2");
+				if (this.checkOnly) {
+					break;
+				}
+				clist.seterr(1);
+			}
 		},
 
 		checkNumberBranch: function() {
