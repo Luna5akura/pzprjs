@@ -2,17 +2,27 @@ var assert = require("assert");
 
 var pzpr = require("../../dist/js/pzpr.js");
 
-var URL6x5 = "akari-regional/6/5/2h1h2g.g0h.n.m4i288hh002";
+var URL8x8 =
+	"akari-regional/8/8/4i4l.i.h.h.i.j.g4i4k.i.j.i.g.i.h20g410820g4000001vo00000";
 
-// 正解の灯り (cspuz のテストと同じ配置)
+// 正解の灯り: 4つの領域にそれぞれ4つ
 var LIGHTS = [
-	[5, 1],
-	[3, 3],
-	[7, 3],
-	[1, 5],
-	[5, 5],
-	[3, 7],
-	[11, 9]
+	[15, 1],
+	[5, 3],
+	[11, 3],
+	[3, 5],
+	[9, 5],
+	[13, 5],
+	[1, 7],
+	[5, 7],
+	[7, 9],
+	[3, 11],
+	[11, 11],
+	[15, 11],
+	[5, 13],
+	[13, 13],
+	[7, 15],
+	[15, 15]
 ];
 
 function fillAnswer(puzzle) {
@@ -23,22 +33,22 @@ function fillAnswer(puzzle) {
 
 describe("Variety:akari-regional", function() {
 	it("restores borders, blocks and region numbers from the URL", function() {
-		var puzzle = new pzpr.Puzzle().open(URL6x5);
+		var puzzle = new pzpr.Puzzle().open(URL8x8);
 		var bd = puzzle.board;
 
-		assert.equal(bd.getc(1, 1).qnum, 2);
-		assert.equal(bd.getc(7, 1).qnum, 1);
-		assert.equal(bd.getc(1, 3).qnum, 2);
-		assert.equal(bd.getc(9, 3).qnum, 0);
-		assert.equal(bd.getc(5, 3).qnum, -2);
-		assert.equal(bd.getc(3, 5).qnum, -2);
-		assert.equal(bd.getc(9, 7).qnum, -2);
+		assert.equal(bd.getc(1, 1).qnum, 4);
+		assert.equal(bd.getc(9, 1).qnum, 4);
+		assert.equal(bd.getc(1, 9).qnum, 4);
+		assert.equal(bd.getc(9, 9).qnum, 4);
+		assert.equal(bd.getc(7, 3).qnum, -2); // (1,3)
+		assert.equal(bd.getc(15, 3).qnum, -2); // (1,7)
 		assert.equal(bd.getb(2, 1).ques, 0); // (0,0)-(0,1) は境界なし
-		assert.equal(bd.getb(1, 2).ques, 1); // (0,0)-(1,0) は境界あり
+		assert.equal(bd.getb(8, 1).ques, 1); // (0,3)-(0,4) は境界あり
+		assert.equal(bd.getb(1, 8).ques, 1); // (3,0)-(4,0) は境界あり
 	});
 
 	it("accepts a correct answer", function() {
-		var puzzle = new pzpr.Puzzle().open(URL6x5);
+		var puzzle = new pzpr.Puzzle().open(URL8x8);
 		fillAnswer(puzzle);
 
 		var info = puzzle.check(true);
@@ -66,24 +76,24 @@ describe("Variety:akari-regional", function() {
 	});
 
 	it("roundtrips lights, blocks and borders in a pzprv3 URL", function() {
-		var puzzle = new pzpr.Puzzle().open(URL6x5);
+		var puzzle = new pzpr.Puzzle().open(URL8x8);
 		fillAnswer(puzzle);
 
 		var restored = new pzpr.Puzzle().open(puzzle.getFileData());
-		assert.equal(restored.board.getc(5, 1).qans, 1);
-		assert.equal(restored.board.getc(5, 3).qnum, -2);
-		assert.equal(restored.board.getc(1, 1).qnum, 2);
-		assert.equal(restored.board.getb(1, 2).ques, 1);
+		assert.equal(restored.board.getc(5, 3).qans, 1);
+		assert.equal(restored.board.getc(7, 3).qnum, -2);
+		assert.equal(restored.board.getc(1, 1).qnum, 4);
+		assert.equal(restored.board.getb(8, 1).ques, 1);
 	});
 
 	it("keeps answers out of the compressed problem URL", function() {
-		var puzzle = new pzpr.Puzzle().open(URL6x5);
+		var puzzle = new pzpr.Puzzle().open(URL8x8);
 		fillAnswer(puzzle);
 
 		var problem = new pzpr.Puzzle().open(puzzle.getURL());
-		assert.equal(problem.board.getc(5, 1).qans, 0);
-		assert.equal(problem.board.getc(1, 1).qnum, 2);
-		assert.equal(problem.board.getc(5, 3).qnum, -2);
+		assert.equal(problem.board.getc(5, 3).qans, 0);
+		assert.equal(problem.board.getc(1, 1).qnum, 4);
+		assert.equal(problem.board.getc(7, 3).qnum, -2);
 	});
 
 	it("draws region borders by dragging and cycles numbers by clicking", function() {
@@ -114,11 +124,11 @@ describe("Variety:akari-regional", function() {
 	});
 
 	it("places lights in play mode", function() {
-		var puzzle = new pzpr.Puzzle().open(URL6x5);
+		var puzzle = new pzpr.Puzzle().open(URL8x8);
 		puzzle.setMode("play");
 		puzzle.mouse.setInputMode("auto");
 
-		puzzle.mouse.inputPath(5, 1, 5, 1);
-		assert.equal(puzzle.board.getc(5, 1).qans, 1);
+		puzzle.mouse.inputPath(5, 3, 5, 3);
+		assert.equal(puzzle.board.getc(5, 3).qans, 1);
 	});
 });

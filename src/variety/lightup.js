@@ -597,11 +597,12 @@
 
 			for (var c = 0; c < bd.cell.length; c++) {
 				var cell = bd.cell[c];
-				if (cell.isBlock() || visited[cell.id]) {
+				if (visited[cell.id]) {
 					continue;
 				}
 
-				// 太線と黒マスで囲まれた白マス連結成分(領域)を集める
+				// 太線で囲まれた領域を集める。黒マスは領域を分割せず、
+				// 領域内の灯りの数にだけ数えない。
 				var stack = [cell],
 					clist = new this.klass.CellList(),
 					lightcount = 0,
@@ -625,7 +626,7 @@
 						adb = cell2.adjborder;
 					for (var d in adc) {
 						var nb = adc[d];
-						if (nb.isnull || nb.isBlock() || visited[nb.id]) {
+						if (nb.isnull || visited[nb.id]) {
 							continue;
 						}
 						var border = adb[d];
