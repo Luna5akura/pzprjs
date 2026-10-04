@@ -29,6 +29,7 @@ ui.keypopup = {
 		paintarea: [4, 0],
 		lightup: [4, 0],
 		"akari-regional": [10, 0],
+		torch: [10, 0],
 		shakashaka: [4, 0],
 		gokigen: [4, 0],
 		wagiri: [4, 0],

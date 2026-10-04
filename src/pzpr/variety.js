@@ -505,6 +505,7 @@
 			tapa: [0, 0, "Tapa", "Tapa"],
 			tapaloop: [0, 0, "Tapa-Like Loop", "Tapa-Like Loop"],
 			tasquare: [0, 0, "たすくえあ", "Tasquare"],
+			torch: [0, 0, "Torch", "Torch"],
 			tatamibari: [1, 0, "タタミバリ", "Tatamibari"],
 			tateyoko: [1, 0, "タテボーヨコボー", "Tatebo-Yokobo"],
 			tawa: [0, 0, "たわむれんが", "Tawamurenga"],
