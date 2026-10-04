@@ -1191,36 +1191,66 @@
 
 	"Graphic@tridbchoco": {
 		paint: function() {
+			// 正三角形の大きさを盤面に合わせて計算する
+			var bd = this.board;
+			this.triS = (this.cw * bd.cols) / (bd.cols + 0.5 * bd.rows + 0.5);
+			this.triH = this.triS * 0.866;
+			this.triOX = 0;
+			this.triOY = Math.max(
+				0,
+				(this.ch * bd.rows - this.triH * (bd.rows + 1)) / 2
+			);
 			this.drawTriBGCells();
 			this.drawTriGrid();
-
 			this.drawTriBorders();
-
 			this.drawBorderQsubs();
-
 			this.drawChassis();
-
 			this.drawPekes();
-
-			this.drawQuesNumbers();
+			this.drawTriQuesNumbers();
 			this.drawTarget();
 		},
 
-		fillTri: function(g, cell) {
-			var px = cell.bx * this.bw,
-				py = cell.by * this.bh;
-			g.beginPath();
-			if (cell.isTriUp()) {
-				g.moveTo(px, py - this.bh);
-				g.lineTo(px - this.bw, py + this.bh);
-				g.lineTo(px + this.bw, py + this.bh);
-			} else {
-				g.moveTo(px, py + this.bh);
-				g.lineTo(px - this.bw, py - this.bh);
-				g.lineTo(px + this.bw, py - this.bh);
+		// 正三角形格子: セル(x,y)は x+y が偶数なら上向き、奇数なら下向きの
+		// 正三角形。隣接するセルと辺を共有して密集する。
+		// (S=三角形の一辺, H=S*√3/2)
+		getTriVertices: function(cell) {
+			var x = cell.bx >> 1,
+				y = cell.by >> 1,
+				S = this.triS,
+				H = this.triH,
+				ox = this.triOX,
+				oy = this.triOY;
+			if ((x + y) % 2 === 0) {
+				// 上向き(頂点が上)
+				return [
+					[(x + 1) * S + (y * S) / 2 + ox, y * H + oy],
+					[x * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy],
+					[(x + 1) * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy]
+				];
 			}
+			// 下向き(頂点が下)
+			return [
+				[x * S + (y * S) / 2 + ox, y * H + oy],
+				[(x + 1) * S + (y * S) / 2 + ox, y * H + oy],
+				[x * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy]
+			];
+		},
+
+		getTriCenter: function(cell) {
+			var v = this.getTriVertices(cell);
+			return [
+				(v[0][0] + v[1][0] + v[2][0]) / 3,
+				(v[0][1] + v[1][1] + v[2][1]) / 3
+			];
+		},
+
+		drawTriPolygon: function(g, cell) {
+			var v = this.getTriVertices(cell);
+			g.beginPath();
+			g.moveTo(v[0][0], v[0][1]);
+			g.lineTo(v[1][0], v[1][1]);
+			g.lineTo(v[2][0], v[2][1]);
 			g.closePath();
-			g.fill();
 		},
 
 		drawTriBGCells: function() {
@@ -1232,7 +1262,8 @@
 				g.vid = "c_bg_" + cell.id;
 				if (!!color) {
 					g.fillStyle = color;
-					this.fillTri(g, cell);
+					this.drawTriPolygon(g, cell);
+					g.fill();
 				} else {
 					g.vhide();
 				}
@@ -1246,55 +1277,63 @@
 			var clist = this.range.cells;
 			for (var i = 0; i < clist.length; i++) {
 				var cell = clist[i];
-				var px = cell.bx * this.bw,
-					py = cell.by * this.bh;
 				g.vid = "g_tri_" + cell.id;
-				g.beginPath();
-				if (cell.isTriUp()) {
-					g.moveTo(px, py - this.bh);
-					g.lineTo(px - this.bw, py + this.bh);
-					g.lineTo(px + this.bw, py + this.bh);
-				} else {
-					g.moveTo(px, py + this.bh);
-					g.lineTo(px - this.bw, py - this.bh);
-					g.lineTo(px + this.bw, py - this.bh);
-				}
-				g.closePath();
+				this.drawTriPolygon(g, cell);
 				g.stroke();
 			}
-			// 盤面の外枠
-			this.drawChassis();
 		},
 
 		drawTriBorders: function() {
 			var g = this.vinc("border", "crispEdges");
 			var blist = this.range.borders;
 			for (var i = 0; i < blist.length; i++) {
-				var border = blist[i],
-					color = this.getBorderColor_qans(border);
+				var border = blist[i];
 				g.vid = "b_qans_" + border.id;
-				if (!!color && border.qans === 1) {
+				if (border.qans === 1) {
 					var c1 = border.sidecell[0],
 						c2 = border.sidecell[1];
 					if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
 						g.vhide();
 						continue;
 					}
-					var px = border.bx * this.bw,
-						py = border.by * this.bh;
-					g.strokeStyle = color;
-					g.lineWidth = Math.max(this.lw * 2, 2);
-					if (border.isVert()) {
-						g.beginPath();
-						g.moveTo(px, py - this.bh);
-						g.lineTo(px, py + this.bh);
-						g.stroke();
-					} else {
-						g.beginPath();
-						g.moveTo(px - this.bw, py);
-						g.lineTo(px + this.bw, py);
-						g.stroke();
+					// 共有辺の両端を求める
+					var v1 = this.getTriVertices(c1),
+						v2 = this.getTriVertices(c2),
+						pts = [];
+					for (var a = 0; a < 3; a++) {
+						for (var b = 0; b < 3; b++) {
+							if (v1[a][0] === v2[b][0] && v1[a][1] === v2[b][1]) {
+								pts.push(v1[a]);
+							}
+						}
 					}
+					if (pts.length !== 2) {
+						g.vhide();
+						continue;
+					}
+					g.strokeStyle = this.getBorderColor_qans(border);
+					g.lineWidth = Math.max(this.lw * 2, 2);
+					g.beginPath();
+					g.moveTo(pts[0][0], pts[0][1]);
+					g.lineTo(pts[1][0], pts[1][1]);
+					g.stroke();
+				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		drawTriQuesNumbers: function() {
+			var g = this.vinc("cell_number", "auto");
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				g.vid = "cell_text_" + cell.id;
+				var text = this.getQuesNumberText(cell);
+				if (!!text) {
+					g.fillStyle = this.getQuesNumberColor(cell);
+					var c = this.getTriCenter(cell);
+					this.disptext(text, c[0], c[1]);
 				} else {
 					g.vhide();
 				}

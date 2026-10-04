@@ -30,6 +30,7 @@ ui.keypopup = {
 		lightup: [4, 0],
 		"akari-regional": [10, 0],
 		torch: [10, 0],
+		tridbchoco: [10, 0],
 		shakashaka: [4, 0],
 		gokigen: [4, 0],
 		wagiri: [4, 0],
