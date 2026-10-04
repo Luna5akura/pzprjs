@@ -288,6 +288,7 @@
 				"",
 				{ pzprurl: "akari", kanpen: "bijutsukan" }
 			],
+			"akari-regional": [0, 0, "Regional Akari", "Regional Akari", "lightup"],
 			lineofsight: [0, 0, "サイトライン", "Line of Sight"],
 			lither: [0, 0, "Litherslink", "Litherslink"],
 			lits: [1, 1, "ＬＩＴＳ", "LITS", "lits"],
