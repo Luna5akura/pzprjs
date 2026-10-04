@@ -69,3 +69,34 @@ describe("Variety:yinyangmines", function() {
 		assert.equal(info.complete, true);
 	});
 });
+
+describe("Variety:yinyangmines (rendering)", function() {
+	it("renders a white circle with the number 2 as a white circle", function() {
+		var puzzle = new pzpr.Puzzle().open("yinyangmines/5/5");
+		puzzle.setMode("edit");
+		var painter = puzzle.painter;
+		var cell = puzzle.board.getc(1, 1);
+		cell.setQnum(1);
+		cell.setAnum(2);
+
+		assert.equal(painter.getCircleFillColor(cell), null);
+		assert.equal(painter.getCircleStrokeColor(cell), "black");
+	});
+
+	it("renders given and answered black circles as filled", function() {
+		var puzzle = new pzpr.Puzzle().open("yinyangmines/5/5");
+		var painter = puzzle.painter;
+
+		var given = puzzle.board.getc(1, 1);
+		given.setQnum(2);
+		assert.equal(painter.getCircleFillColor(given), "black");
+		assert.equal(painter.getCircleStrokeColor(given), null);
+
+		puzzle.setMode("play");
+		var answer = puzzle.board.getc(3, 1);
+		answer.setQnum(-1);
+		answer.setAnum(2);
+		assert.equal(painter.getCircleFillColor(answer), "black");
+		assert.equal(painter.getCircleStrokeColor(answer), null);
+	});
+});

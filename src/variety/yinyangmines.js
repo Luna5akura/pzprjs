@@ -258,7 +258,11 @@
 			return null;
 		},
 		getCircleStrokeColor: function(cell) {
-			if (cell.qnum === 1 || cell.anum === 1) {
+			// しろまる: 問題のしろまる(qnum=1、数字があっても)と
+			// 回答のしろまる(qnum=-1, anum=1)。anumは問題では地雷数なので
+			// 色の判定に使わない。
+			var iswhite = cell.qnum === 1 || (cell.qnum === -1 && cell.anum === 1);
+			if (iswhite) {
 				if (cell.error === 1) {
 					return this.errcolor1;
 				} else if (cell.qnum === 1) {
@@ -277,7 +281,9 @@
 			return null;
 		},
 		getCircleFillColor: function(cell) {
-			if (cell.qnum === 2 || cell.anum === 2) {
+			// くろまる: 問題のくろまる(qnum=2)と回答のくろまる(qnum=-1, anum=2)
+			var isblack = cell.qnum === 2 || (cell.qnum === -1 && cell.anum === 2);
+			if (isblack) {
 				if (cell.error === 1) {
 					return this.errcolor1;
 				} else if (cell.qnum === 2) {
