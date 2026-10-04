@@ -521,9 +521,14 @@ function cancelBackendWorker(message) {
 	});
 	task.worker.onmessage = null;
 	task.worker.onerror = null;
+	if (task.timeoutId) {
+		clearTimeout(task.timeoutId);
+	}
 	task.worker.terminate();
 	task.reject(makeAbortError(message || "solver worker aborted"));
 }
+
+var SOLVER_WORKER_TIMEOUT_MS = 120000;
 
 function runBackendWorker(action, payload) {
 	cancelBackendWorker("superseded by a newer solver request");
@@ -532,10 +537,31 @@ function runBackendWorker(action, payload) {
 		var worker = new Worker(new URL("./solver-worker.js", import.meta.url), {
 			type: "module"
 		});
+		var timeoutId = setTimeout(function() {
+			if (backendWorkerTask && backendWorkerTask.worker === worker) {
+				backendWorkerTask = null;
+			}
+			worker.onmessage = null;
+			worker.onerror = null;
+			worker.terminate();
+			recordSolverDiagnostic("worker-timeout", {
+				taskId: taskId,
+				action: action,
+				timeoutMs: SOLVER_WORKER_TIMEOUT_MS
+			});
+			reject(
+				new Error(
+					"solver timed out after " +
+						(SOLVER_WORKER_TIMEOUT_MS / 1000) +
+						" seconds"
+				)
+			);
+		}, SOLVER_WORKER_TIMEOUT_MS);
 		backendWorkerTask = {
 			id: taskId,
 			action: action,
 			worker: worker,
+			timeoutId: timeoutId,
 			reject: reject
 		};
 		recordSolverDiagnostic("worker-start", {
@@ -545,6 +571,7 @@ function runBackendWorker(action, payload) {
 		});
 
 		worker.onmessage = function(event) {
+			clearTimeout(timeoutId);
 			if (backendWorkerTask && backendWorkerTask.worker === worker) {
 				backendWorkerTask = null;
 			}
@@ -557,6 +584,7 @@ function runBackendWorker(action, payload) {
 			resolve(event.data);
 		};
 		worker.onerror = function(event) {
+			clearTimeout(timeoutId);
 			if (backendWorkerTask && backendWorkerTask.worker === worker) {
 				backendWorkerTask = null;
 			}

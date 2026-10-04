@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "eslint --cache --quiet src src-ui && \"./git-hash.sh\" && grunt default",
-    "dev": "concurrently \"find src src-ui -type f | entr -r make\" \"find ../cspuz_core/cspuz_solver_backend/src -type f | entr -r 'cd ../cspuz_core && bash ./build_cspuz_solver_backend.sh debug && cp -r build/cspuz_solver_backend/* ../../pzprjs/dist/wasm/'\" \"cd dist && live-server --port=8080 --no-browser --quiet\"",
+    "dev": "concurrently \"find src src-ui -type f | entr -r make\" \"find ../cspuz_core/cspuz_solver_backend/src ../cspuz_core/cspuz_rs_puzzles/src -type f | entr -r 'cd ../cspuz_core && bash ./build_cspuz_solver_backend.sh debug && cp -r build/cspuz_solver_backend/* ../../pzprjs/dist/wasm/'\" \"cd dist && live-server --port=8080 --no-browser --quiet\"",
     "release": "npm run clean && eslint --cache --quiet src && grunt release",
     "clean": "del dist/* pzpr-*.{zip,tar.gz,tar.bz2,tgz}",
     "format": "prettier --write \"{src,src-ui,test}/**/*.{js,css}\"",

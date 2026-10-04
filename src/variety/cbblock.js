@@ -117,6 +117,22 @@
 		}
 	},
 
+	"KeyEvent@tridbchoco": {
+		keyinput: function(ca) {
+			var cell = this.cursor.getc();
+			if (cell.isnull || !cell.isTriInBoard()) {
+				return;
+			}
+			if (ca === "q") {
+				cell.setQues(cell.ques !== 6 ? 6 : 0);
+				this.prev = cell;
+				cell.draw();
+			} else {
+				this.key_inputqnum(ca);
+			}
+		}
+	},
+
 	"KeyEvent@nikoji,mirrorbk": {
 		enablemake: true
 	},
@@ -1041,14 +1057,43 @@
 	//---------------------------------------------------------
 	// Triangular Double Choco: 盤面が三角形格子
 	"Board@tridbchoco": {
-		cols: 8,
-		rows: 8
+		cols: 17,
+		rows: 8,
+
+		// 盤面の形: 頂点が上向きの大きな正三角形。
+		// 頂点の列apexは偶数(頂点のセルを△にするため)、行数rowsは偶数
+		// (白と灰色の総数が一致するため)に丸める。
+		getTriRegion: function() {
+			var apex = (this.cols - 1) >> 1;
+			if (apex & 1) {
+				apex--;
+			}
+			var rows = Math.min(this.rows, apex + 1, this.cols - apex);
+			if (rows & 1) {
+				rows--;
+			}
+			return { apex: apex, rows: rows };
+		}
 	},
 
 	"Cell@tridbchoco": {
 		// 上向き三角形(△)かどうか (x+yが偶数のセル)
 		isTriUp: function() {
 			return !!(((this.bx + this.by) >> 1) & 1);
+		},
+
+		// 盤面(正三角形)の中のセルかどうか
+		isTriInBoard: function() {
+			var r = this.board.getTriRegion();
+			var x = this.bx >> 1,
+				y = this.by >> 1;
+			return y < r.rows && x >= r.apex - y && x <= r.apex + y;
+		},
+
+		// 数字の最大値: 盤面(正三角形)のセル数の半分
+		maxnum: function() {
+			var r = this.board.getTriRegion();
+			return (r.rows * r.rows) >> 1;
 		},
 
 		// 三角形格子での隣接判定
@@ -1083,13 +1128,19 @@
 		},
 
 		isnodevalid: function(nodeobj) {
-			return true;
+			return nodeobj.isTriInBoard();
 		},
 
 		isedgevalidbylinkobj: function(border) {
 			var c1 = border.sidecell[0],
 				c2 = border.sidecell[1];
-			if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+			if (
+				c1.isnull ||
+				c2.isnull ||
+				!c1.isTriInBoard() ||
+				!c2.isTriInBoard() ||
+				!c1.isTriAdjacentTo(c2)
+			) {
 				return false;
 			}
 			return border.qans === 0 && c1.ques === c2.ques;
@@ -1124,10 +1175,20 @@
 			nodeobj.blocknodes = [];
 		},
 
+		isnodevalid: function(nodeobj) {
+			return nodeobj.isTriInBoard();
+		},
+
 		isedgevalidbylinkobj: function(border) {
 			var c1 = border.sidecell[0],
 				c2 = border.sidecell[1];
-			if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+			if (
+				c1.isnull ||
+				c2.isnull ||
+				!c1.isTriInBoard() ||
+				!c2.isTriInBoard() ||
+				!c1.isTriAdjacentTo(c2)
+			) {
 				return false;
 			}
 			return border.qans === 0;
@@ -1161,58 +1222,295 @@
 	},
 
 	"MouseEvent@tridbchoco": {
-		inputborder: function() {
-			var pos = this.getpos(0.35);
-			if (this.prevPos.equals(pos)) {
-				return;
+		// マウス位置を三角形格子の座標 (tx: S単位, ty: H単位) に変換する
+		getTriPos: function() {
+			var pc = this.puzzle.painter;
+			if (!(pc.triS > 0)) {
+				pc.computeTriMetrics();
 			}
+			var px = this.inputPoint.bx * pc.bw + pc.x0;
+			var py = this.inputPoint.by * pc.bh + pc.y0;
+			return {
+				tx: (px - pc.triOX) / pc.triS,
+				ty: (py - pc.triOY) / pc.triH
+			};
+		},
 
-			var border = this.prevPos.getborderobj(pos);
-			if (!border.isnull) {
+		// マウス位置を含む三角形セルを返す (盤外ならnull)
+		getTriCellAt: function(y, v, u) {
+			var bd = this.board;
+			if (y < 0 || y >= bd.rows) {
+				return null;
+			}
+			// 整数の頂点列 k (セルx=2k-2) と半整数の頂点列 k+0.5 (セルx=2k+1)
+			var k = Math.round(u);
+			var xc = 2 * k - 2;
+			if (xc >= 0 && xc < bd.cols) {
+				var cell = bd.getc(xc * 2 + 1, y * 2 + 1);
+				if (cell.isTriInBoard()) {
+					var limit = cell.isTriUp() ? 0.5 * v : 0.5 * (1 - v);
+					if (Math.abs(u - k) <= limit + 1e-9) {
+						return cell;
+					}
+				}
+			}
+			var k2 = Math.round(u - 0.5);
+			var xc2 = 2 * k2 - 1;
+			if (xc2 >= 0 && xc2 < bd.cols) {
+				var cell2 = bd.getc(xc2 * 2 + 1, y * 2 + 1);
+				if (cell2.isTriInBoard()) {
+					var limit2 = cell2.isTriUp() ? 0.5 * v : 0.5 * (1 - v);
+					if (Math.abs(u - (k2 + 0.5)) <= limit2 + 1e-9) {
+						return cell2;
+					}
+				}
+			}
+			return null;
+		},
+
+		getTriCell: function() {
+			var pos = this.getTriPos();
+			var y = Math.floor(pos.ty);
+			var v = pos.ty - y,
+				u = pos.tx;
+			var cell = this.getTriCellAt(y, v, u);
+			if (cell) {
+				return cell;
+			}
+			// 行の境界線上は上下どちらのセルにも属しうる
+			if (v < 1e-6) {
+				return this.getTriCellAt(y - 1, 1, u);
+			}
+			if (v > 1 - 1e-6) {
+				return this.getTriCellAt(y + 1, 0, u);
+			}
+			return null;
+		},
+
+		getcell: function() {
+			return this.getTriCell() || this.board.nullobj;
+		},
+
+		// マウス位置を最寄りの格子頂点にスナップする ([x, y], S/H単位)。
+		// 頂点は yが整数・xが0.5刻みで、かつ 2x-y が偶数の位置だけにある。
+		// 盤面の外ならnull
+		getTriVertex: function() {
+			var pc = this.puzzle.painter;
+			if (!(pc.triS > 0)) {
+				pc.computeTriMetrics();
+			}
+			var bd = this.board;
+			var m = bd.getTriRegion().rows;
+			var pos = this.getTriPos();
+			var vy = Math.round(pos.ty);
+			if (vy < 0 || vy > m) {
+				return null;
+			}
+			var vx = Math.round(pos.tx * 2) / 2;
+			if ((Math.round(vx * 2) - vy) % 2 !== 0) {
+				// この位置に頂点はないので、tx に近い側の頂点へ寄せる
+				vx += pos.tx > vx ? 0.5 : -0.5;
+			}
+			if (
+				vx < pc.getTriLeftX(vy) - 1e-9 ||
+				vx > pc.getTriRightX(vy) + 1e-9
+			) {
+				return null;
+			}
+			return [vx, vy];
+		},
+
+		// 頂点対 → 境界線オブジェクトの対応表を作る (盤面の辺ごと)
+		getTriEdgeMap: function() {
+			var bd = this.board;
+			if (this.triEdgeMap && this.triEdgeMapBoard === bd) {
+				return this.triEdgeMap;
+			}
+			var pc = this.puzzle.painter;
+			if (!(pc.triS > 0)) {
+				pc.computeTriMetrics();
+			}
+			var map = {};
+			for (var id = 0; id < bd.border.length; id++) {
+				var border = bd.border[id];
 				var c1 = border.sidecell[0],
 					c2 = border.sidecell[1];
-				if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
-					this.prevPos = pos;
-					return;
+				if (
+					c1.isnull ||
+					c2.isnull ||
+					!c1.isTriInBoard() ||
+					!c2.isTriInBoard() ||
+					!c1.isTriAdjacentTo(c2)
+				) {
+					continue;
 				}
-				if (this.inputData === null) {
-					this.inputData = border.isBorder() ? 0 : 1;
+				var v1 = pc.getTriVertices(c1),
+					v2 = pc.getTriVertices(c2);
+				var pts = [];
+				for (var a = 0; a < 3; a++) {
+					for (var b = 0; b < 3; b++) {
+						if (v1[a][0] === v2[b][0] && v1[a][1] === v2[b][1]) {
+							pts.push(v1[a]);
+						}
+					}
 				}
-				if (this.inputData === 1) {
-					border.setBorder();
-				} else if (this.inputData === 0) {
-					border.removeBorder();
+				if (pts.length !== 2) {
+					continue;
 				}
-				border.draw();
+				var p1 = [
+					Math.round(((pts[0][0] - pc.triOX) / pc.triS) * 2) / 2,
+					Math.round((pts[0][1] - pc.triOY) / pc.triH)
+				];
+				var p2 = [
+					Math.round(((pts[1][0] - pc.triOX) / pc.triS) * 2) / 2,
+					Math.round((pts[1][1] - pc.triOY) / pc.triH)
+				];
+				map[p1[0] + "," + p1[1] + "|" + p2[0] + "," + p2[1]] = border;
+				map[p2[0] + "," + p2[1] + "|" + p1[0] + "," + p1[1]] = border;
 			}
-			this.prevPos = pos;
+			this.triEdgeMap = map;
+			this.triEdgeMapBoard = bd;
+			return map;
+		},
+
+		// 隣接する頂点対 (辺の両端) から境界線オブジェクトを得る
+		getTriBorderAt: function(v1, v2) {
+			var map = this.getTriEdgeMap();
+			return (
+				map[v1[0] + "," + v1[1] + "|" + v2[0] + "," + v2[1]] ||
+				this.board.nullobj
+			);
+		},
+
+		inputborder: function() {
+			var vertex = this.getTriVertex();
+			if (!vertex) {
+				return;
+			}
+			if (this.mousestart) {
+				// 始点(端点)を記録するだけで、まだ線は引かない
+				this.prevTriVertex = vertex;
+				return;
+			}
+			var prev = this.prevTriVertex;
+			this.prevTriVertex = vertex;
+			if (!prev || (prev[0] === vertex[0] && prev[1] === vertex[1])) {
+				return;
+			}
+			var border = this.getTriBorderAt(prev, vertex);
+			if (border.isnull) {
+				return;
+			}
+			if (this.inputData === null) {
+				this.inputData = border.isBorder() ? 0 : 1;
+			}
+			if (this.inputData === 1) {
+				border.setBorder();
+			} else if (this.inputData === 0) {
+				border.removeBorder();
+			}
+			border.draw();
+		},
+
+		inputQsubLine: function() {
+			var vertex = this.getTriVertex();
+			if (!vertex) {
+				return;
+			}
+			if (this.mousestart) {
+				this.prevTriVertex = vertex;
+				return;
+			}
+			var prev = this.prevTriVertex;
+			this.prevTriVertex = vertex;
+			if (!prev || (prev[0] === vertex[0] && prev[1] === vertex[1])) {
+				return;
+			}
+			var border = this.getTriBorderAt(prev, vertex);
+			if (border.isnull) {
+				return;
+			}
+			if (this.inputData === null) {
+				this.inputData = border.qsub === 0 ? 1 : 0;
+			}
+			if (this.inputData === 1) {
+				border.setQsub(1);
+			} else if (this.inputData === 0) {
+				border.setQsub(0);
+			}
+			border.draw();
 		}
 	},
 
 	"Graphic@tridbchoco": {
+		// 三角形の盤面は正方形マスの盤面より縦長になるので、
+		// キャンバス(および外枠の中心位置)を盤面の縦横比に合わせる。
+		// 正三角形の盤面は、底辺が rows 個の三角形の辺、高さが rows 個の
+		// 三角形の高さ (1辺の √3/2 倍) なので、縦幅と同じ「セル数」に
+		// 換算した横幅を返す。
+		getBoardCols: function() {
+			return this.board.getTriRegion().rows / 0.8660254037844386;
+		},
+		getBoardRows: function() {
+			return this.board.getTriRegion().rows;
+		},
+
 		paint: function() {
-			// 正三角形の大きさを盤面に合わせて計算する
-			var bd = this.board;
-			this.triS = (this.cw * bd.cols) / (bd.cols + 0.5 * bd.rows + 0.5);
-			this.triH = this.triS * 0.866;
-			this.triOX = this.cw / 2;
-			this.triOY = Math.max(
-				0,
-				(this.ch * bd.rows - this.triH * (bd.rows + 0.5)) / 2
-			);
+			this.computeTriMetrics();
 			this.drawTriBGCells();
 			this.drawTriGrid();
 			this.drawTriChassis();
 			this.drawTriBorders();
-			this.drawBorderQsubs();
-			this.drawPekes();
+			this.drawTriBorderQsubs();
+			this.drawTriPekes();
 			this.drawTriQuesNumbers();
-			this.drawTarget();
+			this.drawTriTarget();
 		},
 
-		// 正三角形格子: セル(x,y)は x+y が偶数なら上向き、奇数なら下向きの
-		// 正三角形。隣接するセルと辺を共有して密集する。
+		// 背景: 正三角形の盤面は正方形マスとは寸法が異なるので、
+		// キャンバス全体を背景色で塗る (三角形の底辺が背景から
+		// はみ出さないようにする)
+		flushCanvas: function() {
+			var g = this.vinc("background", "crispEdges", true);
+			g.vid = "BG";
+			g.fillStyle = this.bgcolor;
+			g.fillRect(
+				-this.x0 - 0.5,
+				-this.y0 - 0.5,
+				this.canvasWidth + 1,
+				this.canvasHeight + 1
+			);
+		},
+
+		// 盤面全体の大きさと位置を計算する。
+		// 三角形格子: セル(x,y)は x+y が偶数なら△(頂点が上)、奇数なら▽。
+		// 三角形は列ごとに縦に積み重なり、隣接セル同士が辺を隙間なく共有する。
+		// 盤面は頂点が上向きの大きな正三角形。
 		// (S=三角形の一辺, H=S*√3/2)
+		computeTriMetrics: function() {
+			var bd = this.board;
+			var r = bd.getTriRegion();
+			var m = r.rows;
+			var cw = this.cw,
+				ch = this.ch;
+			var canvasW = this.canvasWidth || cw * (m / 0.8660254037844386 + 2 * this.margin);
+			var canvasH = this.canvasHeight || ch * (m + 2 * this.margin);
+			var pad = cw * 0.5;
+			var S = Math.min(
+				(canvasW - pad) / m,
+				(canvasH - pad) / (m * 0.8660254037844386)
+			);
+			this.triS = S;
+			this.triH = S * 0.8660254037844386;
+			// 三角形は x座標 [1*S, (apex+1)*S] の範囲にあり、
+			// その中心をキャンバスの中央に合わせる
+			this.triOX = (canvasW - (r.apex + 2) * S) / 2;
+			this.triOY = (canvasH - m * this.triH) / 2;
+		},
+
+		// 三角形セルの頂点座標
+		// up:   [頂点(上), 底辺左, 底辺右]
+		// down: [上辺左, 上辺右, 頂点(下)]
 		getTriVertices: function(cell) {
 			var x = cell.bx >> 1,
 				y = cell.by >> 1,
@@ -1221,18 +1519,16 @@
 				ox = this.triOX,
 				oy = this.triOY;
 			if ((x + y) % 2 === 0) {
-				// 上向き(頂点が上)
 				return [
-					[(x + 1) * S + (y * S) / 2 + ox, y * H + oy],
-					[x * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy],
-					[(x + 1) * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy]
+					[(x / 2 + 1) * S + ox, y * H + oy],
+					[(x / 2 + 0.5) * S + ox, (y + 1) * H + oy],
+					[(x / 2 + 1.5) * S + ox, (y + 1) * H + oy]
 				];
 			}
-			// 下向き(頂点が下)
 			return [
-				[x * S + (y * S) / 2 + ox, y * H + oy],
-				[(x + 1) * S + (y * S) / 2 + ox, y * H + oy],
-				[x * S + ((y + 1) * S) / 2 + ox, (y + 1) * H + oy]
+				[((x + 1) / 2) * S + ox, y * H + oy],
+				[((x + 3) / 2) * S + ox, y * H + oy],
+				[((x + 2) / 2) * S + ox, (y + 1) * H + oy]
 			];
 		},
 
@@ -1260,7 +1556,7 @@
 				var cell = clist[i],
 					color = this.getBGCellColor_icebarn(cell);
 				g.vid = "c_bg_" + cell.id;
-				if (!!color) {
+				if (!!color && cell.isTriInBoard()) {
 					g.fillStyle = color;
 					this.drawTriPolygon(g, cell);
 					g.fill();
@@ -1270,146 +1566,288 @@
 			}
 		},
 
-		// 破線のグリッド(dbchocoと同じ書式)を三角形格子の辺に沿って描く。
-		// 各辺は一度だけ描く(隣接セルと共有する辺はどちらか一方から)。
-		getTriEdges: function(cell) {
-			var v = this.getTriVertices(cell);
-			return [
-				[v[0], v[1]],
-				[v[1], v[2]],
-				[v[2], v[0]]
-			];
+		// 破線パターンが途切れず流れるように、折れ線を1本のパスとして
+		// 破線描画する (点線のオン/オフ区間を自前で計算してpathに焼き込む)
+		strokeTriDashedPath: function(g, pts, dashOn, dashOff) {
+			var n = pts.length >> 1;
+			if (n < 2) {
+				return;
+			}
+			var total = 0,
+				segLens = [];
+			for (var i = 0; i + 1 < n; i++) {
+				var dx = pts[(i + 1) << 1] - pts[i << 1],
+					dy = pts[(i + 1) << 1 | 1] - pts[i << 1 | 1];
+				var len = Math.sqrt(dx * dx + dy * dy);
+				segLens.push(len);
+				total += len;
+			}
+
+			// パターン: on/2, off, on, off, ..., on, off, on/2
+			// 線の両端が「線」で始まり「線」で終わるようにする
+			var step = dashOn + dashOff;
+			var dashCount = Math.max(Math.round(total / step), 2);
+			var pattern = [dashOn / 2, dashOff];
+			for (i = 1; i < dashCount; i++) {
+				pattern.push(dashOn, dashOff);
+			}
+			pattern.push(dashOn / 2 + Math.max(0, total - dashCount * step));
+
+			g.beginPath();
+			var seg = 0,
+				segpos = 0,
+				pi = 0,
+				left = pattern[0],
+				drawing = true,
+				moving = false;
+			while (seg < segLens.length && pi < pattern.length) {
+				var slen = segLens[seg],
+					remain = slen - segpos;
+				var take = Math.min(left, remain);
+				var u0 = segpos / slen,
+					u1 = (segpos + take) / slen;
+				var ax = pts[seg << 1],
+					ay = pts[seg << 1 | 1];
+				var bx = pts[(seg + 1) << 1],
+					by = pts[(seg + 1) << 1 | 1];
+				var x0 = ax + (bx - ax) * u0,
+					y0 = ay + (by - ay) * u0;
+				var x1 = ax + (bx - ax) * u1,
+					y1 = ay + (by - ay) * u1;
+				if (drawing) {
+					if (!moving) {
+						g.moveTo(x0, y0);
+						moving = true;
+					}
+					g.lineTo(x1, y1);
+				} else {
+					moving = false;
+				}
+				segpos += take;
+				left -= take;
+				if (left <= 1e-9) {
+					pi++;
+					if (pi < pattern.length) {
+						left = pattern[pi];
+						drawing = !drawing;
+					}
+				}
+				if (segpos >= slen - 1e-9) {
+					seg++;
+					segpos = 0;
+				}
+			}
+			g.stroke();
 		},
 
+		// 三角形の左辺のx座標 (行yの位置, S単位)
+		getTriLeftX: function(y) {
+			var apex = this.board.getTriRegion().apex;
+			return (apex + 2 - (apex & 1)) / 2 - 0.5 * y;
+		},
+
+		// 三角形の右辺のx座標 (行yの位置, S単位)
+		getTriRightX: function(y) {
+			var apex = this.board.getTriRegion().apex;
+			return (apex + 2 + (apex & 1)) / 2 + 0.5 * y;
+		},
+
+		// 点線のグリッド: 横線と、列を仕切るジグザグ線をそれぞれ1本の
+		// 折れ線として描く。破線が辺ごとに分断されず線全体でつながる。
 		drawTriGrid: function() {
 			var g = this.vinc("grid", "crispEdges", true);
-			var dasharray = this.getDashArray();
+			var bd = this.board;
+			var r = bd.getTriRegion();
+			var m = r.rows;
+			var S = this.triS,
+				H = this.triH,
+				ox = this.triOX,
+				oy = this.triOY;
 			g.lineWidth = this.gw;
 			g.strokeStyle = this.gridcolor;
-			var clist = this.range.cells;
-			for (var i = 0; i < clist.length; i++) {
-				var cell = clist[i],
-					edges = this.getTriEdges(cell);
-				for (var e = 0; e < 3; e++) {
-					var v1 = edges[e][0],
-						v2 = edges[e][1];
-					// この辺を共有する三角隣接セルがこのセルより前なら描画済み
-					var nb = this.getTriEdgeNeighbor(cell, v1, v2);
-					if (
-						nb &&
-						(nb.bx < cell.bx || (nb.bx === cell.bx && nb.by < cell.by))
-					) {
-						continue;
-					}
-					g.vid = "g_tri_" + cell.id + "_" + e;
-					g.strokeDashedLine(v1[0], v1[1], v2[0], v2[1], dasharray);
-				}
-			}
-		},
+			var step = S / 10;
+			var dashOn = step * 0.625,
+				dashOff = step * 0.375;
 
-		// 辺(v1,v2)を共有する隣接セルを返す
-		getTriEdgeNeighbor: function(cell, v1, v2) {
-			var adc = cell.adjacent;
-			for (var d in adc) {
-				var nb = adc[d];
-				if (nb.isnull || !cell.isTriAdjacentTo(nb)) {
+			// 横方向の線 (y=1..m-1)
+			for (var y = 1; y < m; y++) {
+				var xa = this.getTriLeftX(y) * S + ox;
+				var xb = this.getTriRightX(y) * S + ox;
+				var yy = y * H + oy;
+				g.vid = "grid_h_" + y;
+				this.strokeTriDashedPath(g, [xa, yy, xb, yy], dashOn, dashOff);
+			}
+			// 列の境界のジグザグ線: セルxとセルx+1の間 (x=0..cols-2)
+			// 両側のセルが盤内に入る行から描き始める。
+			// 偶数番目の境界は行ごとに右へ、奇数番目は左へジグザグする
+			for (var x = 0; x < bd.cols - 1; x++) {
+				var y0 = Math.max(
+					Math.abs(x - r.apex),
+					Math.abs(x + 1 - r.apex)
+				);
+				if (y0 >= m) {
 					continue;
 				}
-				var nv = this.getTriVertices(nb);
-				var cnt = 0;
-				for (var a = 0; a < 3; a++) {
-					for (var b = 0; b < 2; b++) {
-						var p = b === 0 ? v1 : v2;
-						if (
-							Math.abs(nv[a][0] - p[0]) < 0.01 &&
-							Math.abs(nv[a][1] - p[1]) < 0.01
-						) {
-							cnt++;
-						}
-					}
+				var k = x % 2 === 0 ? x / 2 + 1 : (x + 3) / 2;
+				var sign = x % 2 === 0 ? 1 : -1;
+				var pts = [];
+				for (var y2 = y0; y2 <= m; y2++) {
+					pts.push((k + sign * 0.5 * (y2 & 1)) * S + ox, y2 * H + oy);
 				}
-				if (cnt === 2) {
-					return nb;
-				}
+				g.vid = "grid_v_" + x;
+				this.strokeTriDashedPath(g, pts, dashOn, dashOff);
 			}
-			return null;
 		},
 
-		// 外枠: 盤面の平行四辺形に沿って描く
+		// 外枠: 正三角形の輪郭を1本の閉じたパスで描く
 		drawTriChassis: function() {
+			var g = this.vinc("chassis", "crispEdges", true);
 			var bd = this.board,
-				g = this.vinc("chassis", "crispEdges", true),
 				S = this.triS,
 				H = this.triH,
 				ox = this.triOX,
-				oy = this.triOY,
-				W = bd.cols,
-				R = bd.rows;
-			var x0 = ox,
-				y0 = oy,
-				x1 = ox + W * S + ((R - 1) * S) / 2 + S / 2,
-				y1 = oy + R * H;
-			var topRight = ox + W * S - S / 2,
-				bottomLeft = ox + ((R - 1) * S) / 2 + S / 2;
-			var lw = this.lw;
-			g.fillStyle = this.quescolor;
-			var lines = [
-				[x0, y0, topRight, y0],
-				[topRight, y0, x1, y1],
-				[x1, y1, bottomLeft, y1],
-				[bottomLeft, y1, x0, y0]
-			];
-			for (var i = 0; i < 4; i++) {
-				g.vid = "chst_" + i;
-				var l = lines[i],
-					dx = l[2] - l[0],
-					dy = l[3] - l[1],
-					len = Math.sqrt(dx * dx + dy * dy) || 1;
-				var nx = -dy / len,
-					ny = dx / len;
-				g.beginPath();
-				g.moveTo(l[0] + nx * lw, l[1] + ny * lw);
-				g.lineTo(l[2] + nx * lw, l[3] + ny * lw);
-				g.lineTo(l[2] - nx * lw, l[3] - ny * lw);
-				g.lineTo(l[0] - nx * lw, l[1] - ny * lw);
-				g.closePath();
-				g.fill();
+				oy = this.triOY;
+			var m = bd.getTriRegion().rows;
+			g.strokeStyle = this.quescolor;
+			g.lineWidth = this.lw;
+			g.vid = "tri_chassis";
+			g.beginPath();
+			// 頂点 → 右辺 → 底辺 → 左辺
+			g.moveTo(this.getTriLeftX(0) * S + ox, oy);
+			g.lineTo(this.getTriRightX(0) * S + ox, oy);
+			for (var y = 1; y <= m; y++) {
+				g.lineTo(this.getTriRightX(y) * S + ox, y * H + oy);
 			}
+			g.lineTo(this.getTriLeftX(m) * S + ox, m * H + oy);
+			for (var y2 = m - 1; y2 >= 0; y2--) {
+				g.lineTo(this.getTriLeftX(y2) * S + ox, y2 * H + oy);
+			}
+			g.closePath();
+			g.stroke();
 		},
 
 		drawTriBorders: function() {
 			var g = this.vinc("border", "crispEdges");
 			var blist = this.range.borders;
+			var lm = (this.lw + this.addlw) / 2;
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];
 				g.vid = "b_qans_" + border.id;
 				if (border.qans === 1) {
-					var c1 = border.sidecell[0],
-						c2 = border.sidecell[1];
-					if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+					var pts = this.getTriBorderEnds(border);
+					if (!pts) {
 						g.vhide();
 						continue;
 					}
-					var v1 = this.getTriVertices(c1),
-						v2 = this.getTriVertices(c2),
-						pts = [];
-					for (var a = 0; a < 3; a++) {
-						for (var b = 0; b < 3; b++) {
-							if (v1[a][0] === v2[b][0] && v1[a][1] === v2[b][1]) {
-								pts.push(v1[a]);
-							}
-						}
-					}
-					if (pts.length !== 2) {
-						g.vhide();
-						continue;
-					}
-					g.strokeStyle = this.getBorderColor_qans(border);
-					g.lineWidth = Math.max(this.lw * 2, 2);
+					// 端点を少し延長した四角形を塗る。頂点で隣接する線分同士が
+					// 重なり合い、継ぎ目が途切れずつながって見える。
+					var dx = pts[2] - pts[0],
+						dy = pts[3] - pts[1];
+					var len = Math.sqrt(dx * dx + dy * dy) || 1;
+					var ex = (dx / len) * lm,
+						ey = (dy / len) * lm;
+					var nx = (-dy / len) * lm,
+						ny = (dx / len) * lm;
+					g.fillStyle = this.getBorderColor_qans(border);
 					g.beginPath();
-					g.moveTo(pts[0][0], pts[0][1]);
-					g.lineTo(pts[1][0], pts[1][1]);
-					g.stroke();
+					g.moveTo(pts[0] - ex + nx, pts[1] - ey + ny);
+					g.lineTo(pts[2] + ex + nx, pts[3] + ey + ny);
+					g.lineTo(pts[2] + ex - nx, pts[3] + ey - ny);
+					g.lineTo(pts[0] - ex - nx, pts[1] - ey - ny);
+					g.closePath();
+					g.fill();
+				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		// 境界線が共有している三角形の辺の両端 [x0,y0,x1,y1] を返す
+		getTriBorderEnds: function(border) {
+			var c1 = border.sidecell[0],
+				c2 = border.sidecell[1];
+			if (
+				c1.isnull ||
+				c2.isnull ||
+				!c1.isTriInBoard() ||
+				!c2.isTriInBoard() ||
+				!c1.isTriAdjacentTo(c2)
+			) {
+				return null;
+			}
+			var v1 = this.getTriVertices(c1),
+				v2 = this.getTriVertices(c2);
+			var pts = [];
+			for (var a = 0; a < 3; a++) {
+				for (var b = 0; b < 3; b++) {
+					if (v1[a][0] === v2[b][0] && v1[a][1] === v2[b][1]) {
+						pts.push(v1[a]);
+					}
+				}
+			}
+			if (pts.length !== 2) {
+				return null;
+			}
+			return [pts[0][0], pts[0][1], pts[1][0], pts[1][1]];
+		},
+
+		// 境界線上の補助記号(qsub=1): 辺の中点に辺と垂直な短い線分
+		drawTriBorderQsubs: function() {
+			var g = this.vinc("border_qsub", "crispEdges", true);
+			var blist = this.range.borders;
+			var m = Math.max(this.cw * 0.15, this.triS * 0.15);
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				g.vid = "b_qsub1_" + border.id;
+				if (border.qsub === 1) {
+					var pts = this.getTriBorderEnds(border);
+					if (!pts) {
+						g.vhide();
+						continue;
+					}
+					var mx = (pts[0] + pts[2]) / 2,
+						my = (pts[1] + pts[3]) / 2;
+					var dx = pts[2] - pts[0],
+						dy = pts[3] - pts[1];
+					var len = Math.sqrt(dx * dx + dy * dy) || 1;
+					var nx = (-dy / len) * m * 0.5,
+						ny = (dx / len) * m * 0.5;
+					var hw = 0.4;
+					g.fillStyle = !border.trial ? this.pekecolor : this.linetrialcolor;
+					g.beginPath();
+					g.moveTo(mx - nx - dx / len * hw, my - ny - dy / len * hw);
+					g.lineTo(mx + nx - dx / len * hw, my + ny - dy / len * hw);
+					g.lineTo(mx + nx + dx / len * hw, my + ny + dy / len * hw);
+					g.lineTo(mx - nx + dx / len * hw, my - ny + dy / len * hw);
+					g.closePath();
+					g.fill();
+				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		// 境界線上の×印(qsub=2)
+		drawTriPekes: function() {
+			var g = this.vinc("border_peke", "auto", true);
+			var size = Math.max(this.triS * 0.18 + 1, 4);
+			g.lineWidth = (1 + this.cw / 40) | 0;
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				g.vid = "b_peke_" + border.id;
+				if (border.qsub === 2) {
+					var pts = this.getTriBorderEnds(border);
+					if (!pts) {
+						g.vhide();
+						continue;
+					}
+					g.strokeStyle = !border.trial ? this.pekecolor : this.trialcolor;
+					g.strokeCross(
+						(pts[0] + pts[2]) / 2,
+						(pts[1] + pts[3]) / 2,
+						size - 1
+					);
 				} else {
 					g.vhide();
 				}
@@ -1423,7 +1861,7 @@
 				var cell = clist[i];
 				g.vid = "cell_text_" + cell.id;
 				var text = this.getQuesNumberText(cell);
-				if (!!text) {
+				if (!!text && cell.isTriInBoard()) {
 					g.fillStyle = this.getQuesNumberColor(cell);
 					var c = this.getTriCenter(cell);
 					this.disptext(text, c[0], c[1]);
@@ -1431,6 +1869,163 @@
 					g.vhide();
 				}
 			}
+		},
+
+		// カーソル位置のセルを三角形の枠で囲む
+		// solver オーバーレイ: 三角形格子の辺・セルの位置に合わせて描く
+		drawSolverOverlayCells: function() {
+			var g = this.vinc("solver_cell", "auto", true);
+			var clist = this.range.cells;
+
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var entries = this.getSolverOverlayEntries(cell);
+				var visible =
+					entries.length > 0 && !this.hasAnswerCellState(cell)
+						? Math.min(entries.length, this.solverCellOverlaySlots)
+						: 0;
+				var j = 0;
+
+				for (; j < visible; j++) {
+					g.vid = "c_solver_" + cell.id + "_" + j;
+					if (!this.drawTriSolverOverlayCellEntry(g, cell, entries[j])) {
+						g.vhide();
+					}
+				}
+
+				for (; j < this.solverCellOverlaySlots; j++) {
+					g.vid = "c_solver_" + cell.id + "_" + j;
+					g.vhide();
+				}
+
+				g.vid = "c_solver_" + cell.id;
+				g.vhide();
+			}
+		},
+
+		drawTriSolverOverlayCellEntry: function(g, cell, entry) {
+			// 灰色マスは盤面自体にすでに表示されているので、
+			// solver オーバーレイでは何も描かない
+			return false;
+		},
+
+		drawSolverOverlayLines: function() {
+			var g = this.vinc("solver_line", "crispEdges");
+			var blist = this.range.borders;
+			var lm = Math.max(this.lm * 0.72, 1);
+
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var entry = this.getSolverOverlayBorderEntry(border, [
+					"line",
+					"wall",
+					"doubleLine"
+				]);
+				g.vid = "b_solver_line_" + border.id;
+				if (entry && !this.hasAnswerLineState(border)) {
+					var pts = this.getTriBorderEnds(border);
+					if (!pts) {
+						g.vhide();
+						g.vid = "b_solver_line2_" + border.id;
+						g.vhide();
+						continue;
+					}
+					var dx = pts[2] - pts[0],
+						dy = pts[3] - pts[1];
+					var len = Math.sqrt(dx * dx + dy * dy) || 1;
+					var nx = (-dy / len) * lm,
+						ny = (dx / len) * lm;
+					g.fillStyle = this.getSolverOverlayEntryColor(
+						entry,
+						this.solverLineColor
+					);
+					g.beginPath();
+					g.moveTo(pts[0] + nx, pts[1] + ny);
+					g.lineTo(pts[2] + nx, pts[3] + ny);
+					g.lineTo(pts[2] - nx, pts[3] - ny);
+					g.lineTo(pts[0] - nx, pts[1] - ny);
+					g.closePath();
+					g.fill();
+					g.vid = "b_solver_line2_" + border.id;
+					g.vhide();
+				} else {
+					g.vhide();
+					g.vid = "b_solver_line2_" + border.id;
+					g.vhide();
+				}
+			}
+		},
+
+		drawSolverOverlayPekes: function() {
+			var g = this.vinc("solver_peke", "auto", true);
+			var size = this.cw * 0.13 + 1;
+			if (size < 4) {
+				size = 4;
+			}
+			g.lineWidth = Math.max((1 + this.cw / 45) | 0, 1);
+			g.strokeStyle = this.solverPekeColor;
+
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i];
+				var entry = this.getSolverOverlayBorderEntry(border, ["cross"]);
+				g.vid = "b_solver_peke_" + border.id;
+				if (entry && !this.hasAnswerLineState(border)) {
+					var pts = this.getTriBorderEnds(border);
+					if (!pts) {
+						g.vhide();
+						continue;
+					}
+					g.strokeStyle = this.getSolverOverlayEntryColor(
+						entry,
+						this.solverPekeColor
+					);
+					g.strokeCross(
+						(pts[0] + pts[2]) / 2,
+						(pts[1] + pts[3]) / 2,
+						size - 1
+					);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		drawTriTarget: function() {
+			var g = this.vinc("target_cursor", "crispEdges");
+			var cell = this.puzzle.cursor.getc();
+			g.vid = "ti1_";
+			if (
+				cell.isnull ||
+				!cell.isTriInBoard() ||
+				this.outputImage ||
+				!this.puzzle.getConfig("cursor")
+			) {
+				g.vhide();
+				return;
+			}
+			var t = Math.max(this.cw / 16, 2) | 0;
+			g.strokeStyle = this.puzzle.editmode
+				? this.targetColorEdit
+				: this.targetColorPlay;
+			g.lineWidth = t;
+			// 境界線や外枠を隠さないように、枠を内側へ少し寄せる
+			var v = this.getTriVertices(cell);
+			var c = this.getTriCenter(cell);
+			var inset = t * 0.6;
+			var p = [];
+			for (var i = 0; i < 3; i++) {
+				var dx = c[0] - v[i][0],
+					dy = c[1] - v[i][1];
+				var len = Math.sqrt(dx * dx + dy * dy) || 1;
+				p.push([v[i][0] + (dx / len) * inset, v[i][1] + (dy / len) * inset]);
+			}
+			g.beginPath();
+			g.moveTo(p[0][0], p[0][1]);
+			g.lineTo(p[1][0], p[1][1]);
+			g.lineTo(p[2][0], p[2][1]);
+			g.closePath();
+			g.stroke();
 		}
 	},
 
@@ -1440,8 +2035,7 @@
 			"checkSmallNumberArea",
 			"checkLargeBlock",
 			"checkEqualShapes",
-			"checkLargeNumberArea",
-			"checkBorderDeadend"
+			"checkLargeNumberArea"
 		],
 
 		isEqualShapes: function(clist) {
@@ -1451,7 +2045,12 @@
 					adb = cell.adjborder;
 				for (var d in adc) {
 					var nb = adc[d];
-					if (nb.isnull || !cell.isTriAdjacentTo(nb) || cell.ques === nb.ques) {
+					if (
+						nb.isnull ||
+						!nb.isTriInBoard() ||
+						!cell.isTriAdjacentTo(nb) ||
+						cell.ques === nb.ques
+					) {
 						continue;
 					}
 					var bd = adb[d];
@@ -1474,71 +2073,67 @@
 			);
 		},
 
-		// 三角形格子の合同(回転6種×鏡映)で正規化した形状の文字列を返す
+		// 三角形格子(セルの隣接グラフ)の合同変換12種で正規化した形状の
+		// 文字列を返す。各変換は (x,y) -> ((a*x+b*y+tx)/2, (c*x+d*y+ty)/2)
+		// の形で、平行移動(tx,ty)はセルの向き(x+yの偶奇)によって異なる。
 		getTriShapeCanon: function(clist) {
 			var pts = [];
 			for (var i = 0; i < clist.length; i++) {
 				pts.push([clist[i].bx >> 1, clist[i].by >> 1]);
 			}
-			var rots = [
-				function(p) {
-					return [p[0], p[1]];
-				},
-				function(p) {
-					return [p[0] - p[1], p[0] + p[1]];
-				},
-				function(p) {
-					return [-p[1], p[0]];
-				},
-				function(p) {
-					return [-p[0], -p[1]];
-				},
-				function(p) {
-					return [p[1] - p[0], -p[0]];
-				},
-				function(p) {
-					return [p[1], -p[0] - p[1]];
-				}
+			var maps = [
+				[2, 0, 0, 2, 0, 0, 0, 0], // 恒等変換
+				[-2, 0, 0, 2, 0, 0, 0, 0], // 鏡映
+				[-1, -3, 1, -1, 0, 0, 1, 1], // 120°回転系
+				[-1, 3, -1, -1, 0, 0, -1, 1],
+				[1, -3, -1, -1, 0, 0, 1, 1],
+				[1, 3, 1, -1, 0, 0, -1, 1],
+				[-2, 0, 0, -2, 0, 2, 0, 2], // 180°回転
+				[-1, -3, -1, 1, 0, 2, 1, 1], // 60°回転系
+				[-1, 3, 1, 1, 0, -2, -1, -3],
+				[1, -3, 1, 1, 0, 2, 1, 1],
+				[1, 3, -1, 1, 0, -2, -1, -3],
+				[2, 0, 0, -2, 0, 2, 0, 2] // 鏡映
 			];
-			var mirror = function(p) {
-				return [p[0] + p[1], -p[1]];
-			};
 
 			var best = null;
-			for (var m = 0; m < 2; m++) {
-				for (var r = 0; r < 6; r++) {
-					var rot = rots[r];
-					var t = pts.map(
-						m
-							? function(p) {
-									return rot(mirror(p));
-							  }
-							: rot
-					);
-					var minx = Infinity,
-						miny = Infinity;
-					for (var j = 0; j < t.length; j++) {
-						if (t[j][0] < minx) {
-							minx = t[j][0];
-						}
-						if (t[j][1] < miny) {
-							miny = t[j][1];
-						}
+			for (var m = 0; m < 12; m++) {
+				var mm = maps[m];
+				var t = [];
+				for (var j = 0; j < pts.length; j++) {
+					var x = pts[j][0],
+						y = pts[j][1];
+					var up = (x + y) % 2 === 0;
+					var tx = up ? mm[4] : mm[6],
+						ty = up ? mm[5] : mm[7];
+					t.push([
+						(mm[0] * x + mm[1] * y + tx) / 2,
+						(mm[2] * x + mm[3] * y + ty) / 2
+					]);
+				}
+				var minx = Infinity,
+					miny = Infinity;
+				for (j = 0; j < t.length; j++) {
+					if (t[j][0] < minx) {
+						minx = t[j][0];
 					}
-					for (var j2 = 0; j2 < t.length; j2++) {
-						t[j2] = [t[j2][0] - minx, t[j2][1] - miny];
+					if (t[j][1] < miny) {
+						miny = t[j][1];
 					}
-					t.sort(function(a, b) {
-						return a[0] - b[0] || a[1] - b[1];
-					});
-					var key = t
-						.map(function(p) {
-							return p[0] + "," + p[1];
-						})
-						.join("/");
-					if (best === null || key < best) {
-						best = key;
-					}
+				}
+				for (j = 0; j < t.length; j++) {
+					t[j] = [t[j][0] - minx, t[j][1] - miny];
+				}
+				t.sort(function(a, b) {
+					return a[0] - b[0] || a[1] - b[1];
+				});
+				var key = t
+					.map(function(p) {
+						return p[0] + "," + p[1];
+					})
+					.join("/");
+				if (best === null || key < best) {
+					best = key;
 				}
 			}
 			return best;
