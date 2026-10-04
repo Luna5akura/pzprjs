@@ -31,14 +31,11 @@
 		},
 		mouseinput_auto: function() {
 			if (this.puzzle.playmode && (this.mousestart || this.mousemove)) {
+				// 左クリック/ドラッグで白丸、右クリック/ドラッグで黒丸
 				if (this.btn === "left") {
-					this.dragmarks();
+					this.inputMinesCircle(1);
 				} else if (this.btn === "right") {
-					if (this.isBorderMode()) {
-						this.inputborder();
-					} else {
-						this.inputQsubLine();
-					}
+					this.inputMinesCircle(2);
 				}
 			} else if (this.puzzle.editmode) {
 				if (this.mousestart || this.mousemove) {
@@ -47,6 +44,27 @@
 					this.inputqnum_mines();
 				}
 			}
+		},
+
+		/* 白丸(1)/黒丸(2)のトグル入力。数字入りしろまるは変更しない */
+		inputMinesCircle: function(num) {
+			var cell = this.getcell();
+			if (cell.isnull || cell === this.mouseCell) {
+				return;
+			}
+			if (cell.qnum === 1 && cell.anum >= 0) {
+				/* 数字入りのしろまる(問題のヒント)は変更しない */
+				return;
+			}
+			var val = cell.getNum();
+			if (this.inputData === null) {
+				this.inputData = val === num ? -1 : num;
+			}
+			if (val !== num || this.inputData === -1) {
+				cell.setNum(this.inputData);
+				cell.draw();
+			}
+			this.mouseCell = cell;
 		},
 
 		dragmarks: function() {
