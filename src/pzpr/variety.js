@@ -144,6 +144,7 @@
 			"curvedata-aux": [0, 0, "図形の編集", "Edit shape"],
 			curving: [0, 0, "カービングロード", "Curving Road"],
 			dbchoco: [0, 0, "ダブルチョコ", "Double Choco", "cbblock"],
+			tridbchoco: [0, 0, "Triangular Double Choco", "Triangular Double Choco", "cbblock"],
 			detour: [0, 0, "Detour", "Detour", "country"],
 			diamond: [0, 0, "Diamond Chain", "Diamond Chain"],
 			disloop: [0, 0, "Disorderly Loop", "Disorderly Loop", "tapaloop"],

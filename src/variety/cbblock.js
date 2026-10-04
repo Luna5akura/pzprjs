@@ -10,7 +10,7 @@
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["cbblock", "dbchoco", "nikoji", "mirrorbk"], {
+})(["cbblock", "dbchoco", "tridbchoco", "nikoji", "mirrorbk"], {
 	//---------------------------------------------------------
 	// マウス入力系
 	"MouseEvent@cbblock": {
@@ -31,7 +31,7 @@
 			}
 		}
 	},
-	"MouseEvent@dbchoco": {
+	"MouseEvent@dbchoco,tridbchoco": {
 		inputModes: {
 			edit: ["shade", "number", "clear"],
 			play: ["border", "subline"]
@@ -102,7 +102,7 @@
 		autoplay_func: "border"
 	},
 
-	"KeyEvent@dbchoco": {
+	"KeyEvent@dbchoco,tridbchoco": {
 		enablemake: true,
 
 		keyinput: function(ca) {
@@ -175,7 +175,7 @@
 		rows: 10
 	},
 
-	"Cell@dbchoco": {
+	"Cell@dbchoco,tridbchoco": {
 		maxnum: function() {
 			var bd = this.board;
 			return (bd.cols * bd.rows) >> 1;
@@ -370,7 +370,7 @@
 		}
 	},
 
-	"Graphic@dbchoco": {
+	"Graphic@dbchoco,tridbchoco": {
 		bgcellcolor_func: "icebarn",
 		icecolor: "rgb(204,204,204)",
 
@@ -514,7 +514,7 @@
 		}
 	},
 
-	"Encode@dbchoco": {
+	"Encode@dbchoco,tridbchoco": {
 		decodePzpr: function(type) {
 			this.decodeDBChoco();
 		},
@@ -601,7 +601,7 @@
 		}
 	},
 
-	"FileIO@dbchoco": {
+	"FileIO@dbchoco,tridbchoco": {
 		decodeData: function() {
 			this.decodeCell(function(cell, ca) {
 				if (ca.charAt(0) === "-") {
@@ -1036,6 +1036,380 @@
 				}
 				new this.klass.CellList(border.sidecell).seterr(1);
 			}
+		}
+	},
+	//---------------------------------------------------------
+	// Triangular Double Choco: 盤面が三角形格子
+	"Board@tridbchoco": {
+		cols: 8,
+		rows: 8
+	},
+
+	"Cell@tridbchoco": {
+		// 上向き三角形(△)かどうか (x+yが偶数のセル)
+		isTriUp: function() {
+			return !!(((this.bx + this.by) >> 1) & 1);
+		},
+
+		// 三角形格子での隣接判定
+		// 左右は常に隣接。上下は△なら下、▽なら上とだけ隣接する
+		isTriAdjacentTo: function(cell2) {
+			var dx = cell2.bx - this.bx,
+				dy = cell2.by - this.by;
+			if (Math.abs(dx) === 2 && dy === 0) {
+				return true;
+			}
+			if (dx !== 0 || Math.abs(dy) !== 2) {
+				return false;
+			}
+			if (dy === 2) {
+				return this.isTriUp();
+			}
+			return cell2.isTriUp();
+		}
+	},
+
+	"AreaTileGraph@tridbchoco": {
+		enabled: true,
+		relation: { "border.qans": "separator", "cell.ques": "node" },
+		setComponentRefs: function(obj, component) {
+			obj.tile = component;
+		},
+		getObjNodeList: function(nodeobj) {
+			return nodeobj.tilenodes;
+		},
+		resetObjNodeList: function(nodeobj) {
+			nodeobj.tilenodes = [];
+		},
+
+		isnodevalid: function(nodeobj) {
+			return true;
+		},
+
+		isedgevalidbylinkobj: function(border) {
+			var c1 = border.sidecell[0],
+				c2 = border.sidecell[1];
+			if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+				return false;
+			}
+			return border.qans === 0 && c1.ques === c2.ques;
+		},
+
+		setExtraData: function(component) {
+			this.klass.AreaGraphBase.prototype.setExtraData.call(this, component);
+
+			if (this.rebuildmode || component.clist.length === 0) {
+				return;
+			}
+
+			var block = component.clist[0].block;
+			if (block) {
+				this.board.blockgraph.setComponentInfo(block);
+			}
+		}
+	},
+
+	"AreaBlockGraph@tridbchoco": {
+		enabled: true,
+		getComponentRefs: function(obj) {
+			return obj.block;
+		},
+		setComponentRefs: function(obj, component) {
+			obj.block = component;
+		},
+		getObjNodeList: function(nodeobj) {
+			return nodeobj.blocknodes;
+		},
+		resetObjNodeList: function(nodeobj) {
+			nodeobj.blocknodes = [];
+		},
+
+		isedgevalidbylinkobj: function(border) {
+			var c1 = border.sidecell[0],
+				c2 = border.sidecell[1];
+			if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+				return false;
+			}
+			return border.qans === 0;
+		},
+
+		setExtraData: function(component) {
+			var cnt = 0;
+			var clist = (component.clist = new this.klass.CellList(
+				component.getnodeobjs()
+			));
+			component.size = clist.length;
+
+			var tiles = this.board.tilegraph.components;
+			for (var i = 0; i < tiles.length; i++) {
+				tiles[i].count = 0;
+			}
+			for (var i = 0; i < clist.length; i++) {
+				if (!clist[i].tile) {
+					component.dotcnt = 0;
+					return;
+				}
+				clist[i].tile.count++;
+			}
+			for (var i = 0; i < tiles.length; i++) {
+				if (tiles[i].count > 0) {
+					cnt++;
+				}
+			}
+			component.dotcnt = cnt;
+		}
+	},
+
+	"MouseEvent@tridbchoco": {
+		inputborder: function() {
+			var pos = this.getpos(0.35);
+			if (this.prevPos.equals(pos)) {
+				return;
+			}
+
+			var border = this.prevPos.getborderobj(pos);
+			if (!border.isnull) {
+				var c1 = border.sidecell[0],
+					c2 = border.sidecell[1];
+				if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+					this.prevPos = pos;
+					return;
+				}
+				if (this.inputData === null) {
+					this.inputData = border.isBorder() ? 0 : 1;
+				}
+				if (this.inputData === 1) {
+					border.setBorder();
+				} else if (this.inputData === 0) {
+					border.removeBorder();
+				}
+				border.draw();
+			}
+			this.prevPos = pos;
+		}
+	},
+
+	"Graphic@tridbchoco": {
+		paint: function() {
+			this.drawTriBGCells();
+			this.drawTriGrid();
+
+			this.drawTriBorders();
+
+			this.drawBorderQsubs();
+
+			this.drawChassis();
+
+			this.drawPekes();
+
+			this.drawQuesNumbers();
+			this.drawTarget();
+		},
+
+		fillTri: function(g, cell) {
+			var px = cell.bx * this.bw,
+				py = cell.by * this.bh;
+			g.beginPath();
+			if (cell.isTriUp()) {
+				g.moveTo(px, py - this.bh);
+				g.lineTo(px - this.bw, py + this.bh);
+				g.lineTo(px + this.bw, py + this.bh);
+			} else {
+				g.moveTo(px, py + this.bh);
+				g.lineTo(px - this.bw, py - this.bh);
+				g.lineTo(px + this.bw, py - this.bh);
+			}
+			g.closePath();
+			g.fill();
+		},
+
+		drawTriBGCells: function() {
+			var g = this.vinc("cell_bg", "crispEdges", true);
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i],
+					color = this.getBGCellColor_icebarn(cell);
+				g.vid = "c_bg_" + cell.id;
+				if (!!color) {
+					g.fillStyle = color;
+					this.fillTri(g, cell);
+				} else {
+					g.vhide();
+				}
+			}
+		},
+
+		drawTriGrid: function() {
+			var g = this.vinc("grid", "crispEdges", true);
+			g.strokeStyle = this.getGridColor();
+			g.lineWidth = this.lw;
+			var clist = this.range.cells;
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i];
+				var px = cell.bx * this.bw,
+					py = cell.by * this.bh;
+				g.vid = "g_tri_" + cell.id;
+				g.beginPath();
+				if (cell.isTriUp()) {
+					g.moveTo(px, py - this.bh);
+					g.lineTo(px - this.bw, py + this.bh);
+					g.lineTo(px + this.bw, py + this.bh);
+				} else {
+					g.moveTo(px, py + this.bh);
+					g.lineTo(px - this.bw, py - this.bh);
+					g.lineTo(px + this.bw, py - this.bh);
+				}
+				g.closePath();
+				g.stroke();
+			}
+			// 盤面の外枠
+			this.drawChassis();
+		},
+
+		drawTriBorders: function() {
+			var g = this.vinc("border", "crispEdges");
+			var blist = this.range.borders;
+			for (var i = 0; i < blist.length; i++) {
+				var border = blist[i],
+					color = this.getBorderColor_qans(border);
+				g.vid = "b_qans_" + border.id;
+				if (!!color && border.qans === 1) {
+					var c1 = border.sidecell[0],
+						c2 = border.sidecell[1];
+					if (c1.isnull || c2.isnull || !c1.isTriAdjacentTo(c2)) {
+						g.vhide();
+						continue;
+					}
+					var px = border.bx * this.bw,
+						py = border.by * this.bh;
+					g.strokeStyle = color;
+					g.lineWidth = Math.max(this.lw * 2, 2);
+					if (border.isVert()) {
+						g.beginPath();
+						g.moveTo(px, py - this.bh);
+						g.lineTo(px, py + this.bh);
+						g.stroke();
+					} else {
+						g.beginPath();
+						g.moveTo(px - this.bw, py);
+						g.lineTo(px + this.bw, py);
+						g.stroke();
+					}
+				} else {
+					g.vhide();
+				}
+			}
+		}
+	},
+
+	"AnsCheck@tridbchoco": {
+		checklist: [
+			"checkSingleBlock",
+			"checkSmallNumberArea",
+			"checkLargeBlock",
+			"checkEqualShapes",
+			"checkLargeNumberArea",
+			"checkBorderDeadend"
+		],
+
+		isEqualShapes: function(clist) {
+			for (var i = 0; i < clist.length; i++) {
+				var cell = clist[i],
+					adc = cell.adjacent,
+					adb = cell.adjborder;
+				for (var d in adc) {
+					var nb = adc[d];
+					if (nb.isnull || !cell.isTriAdjacentTo(nb) || cell.ques === nb.ques) {
+						continue;
+					}
+					var bd = adb[d];
+					if (bd.isnull || bd.qans !== 0) {
+						continue;
+					}
+					return !this.isDifferentShapeBlock(cell.tile, nb.tile);
+				}
+			}
+			return false;
+		},
+
+		isDifferentShapeBlock: function(area1, area2) {
+			if (area1.clist.length !== area2.clist.length) {
+				return true;
+			}
+			return (
+				this.getTriShapeCanon(area1.clist) !==
+				this.getTriShapeCanon(area2.clist)
+			);
+		},
+
+		// 三角形格子の合同(回転6種×鏡映)で正規化した形状の文字列を返す
+		getTriShapeCanon: function(clist) {
+			var pts = [];
+			for (var i = 0; i < clist.length; i++) {
+				pts.push([clist[i].bx >> 1, clist[i].by >> 1]);
+			}
+			var rots = [
+				function(p) {
+					return [p[0], p[1]];
+				},
+				function(p) {
+					return [p[0] - p[1], p[0] + p[1]];
+				},
+				function(p) {
+					return [-p[1], p[0]];
+				},
+				function(p) {
+					return [-p[0], -p[1]];
+				},
+				function(p) {
+					return [p[1] - p[0], -p[0]];
+				},
+				function(p) {
+					return [p[1], -p[0] - p[1]];
+				}
+			];
+			var mirror = function(p) {
+				return [p[0] + p[1], -p[1]];
+			};
+
+			var best = null;
+			for (var m = 0; m < 2; m++) {
+				for (var r = 0; r < 6; r++) {
+					var rot = rots[r];
+					var t = pts.map(
+						m
+							? function(p) {
+									return rot(mirror(p));
+							  }
+							: rot
+					);
+					var minx = Infinity,
+						miny = Infinity;
+					for (var j = 0; j < t.length; j++) {
+						if (t[j][0] < minx) {
+							minx = t[j][0];
+						}
+						if (t[j][1] < miny) {
+							miny = t[j][1];
+						}
+					}
+					for (var j2 = 0; j2 < t.length; j2++) {
+						t[j2] = [t[j2][0] - minx, t[j2][1] - miny];
+					}
+					t.sort(function(a, b) {
+						return a[0] - b[0] || a[1] - b[1];
+					});
+					var key = t
+						.map(function(p) {
+							return p[0] + "," + p[1];
+						})
+						.join("/");
+					if (best === null || key < best) {
+						best = key;
+					}
+				}
+			}
+			return best;
 		}
 	}
 });
