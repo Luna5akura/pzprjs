@@ -11,6 +11,7 @@
 	//---------------------------------------------------------
 	// マウス入力系
 	MouseEvent: {
+		use: true,
 		inputModes: {
 			edit: ["number", "clear"],
 			play: ["shade", "unshade", "clear"]
@@ -99,6 +100,8 @@
 	Graphic: {
 		hideHatena: true,
 		fgcellcolor_func: "qnum",
+		bgcellcolor_func: "qsub1",
+		enablebcolor: true,
 
 		paint: function() {
 			this.drawBGCells();

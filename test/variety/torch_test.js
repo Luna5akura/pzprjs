@@ -156,3 +156,49 @@ describe("Variety:torch", function() {
 		assert.equal(puzzle.board.getc(1, 1).qans, 0);
 	});
 });
+
+describe("Variety:torch (aux marks)", function() {
+	it("marks cells as definitely white with the right button in play mode", function() {
+		var puzzle = new pzpr.Puzzle().open("torch/5/5");
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+
+		puzzle.mouse.inputPath("right", 1, 1, 1, 1);
+		assert.equal(puzzle.board.getc(1, 1).qsub, 1);
+		assert.equal(
+			puzzle.painter.getBGCellColor(puzzle.board.getc(1, 1)),
+			"rgb(160, 255, 160)"
+		);
+
+		// もう一度右クリックで消去
+		puzzle.mouse.inputPath("right", 1, 1, 1, 1);
+		assert.equal(puzzle.board.getc(1, 1).qsub, 0);
+	});
+
+	it("does not mark given black cells", function() {
+		var puzzle = new pzpr.Puzzle().open("torch/5/5/h0i010i0r");
+		puzzle.setMode("play");
+		puzzle.mouse.setInputMode("auto");
+
+		puzzle.mouse.inputPath("right", 5, 3, 5, 3);
+		assert.equal(puzzle.board.getc(5, 3).qsub, 0);
+		assert.equal(puzzle.board.getc(5, 3).qnum, 1);
+	});
+
+	it("ignores green marks in the answer check", function() {
+		var puzzle = new pzpr.Puzzle().open("torch/5/5/h0i010i0r");
+		[
+			[1, 1],
+			[1, 3],
+			[1, 9],
+			[3, 1],
+			[3, 9],
+			[9, 9]
+		].forEach(function(e) {
+			puzzle.board.getc(e[0], e[1]).setQsub(1);
+		});
+
+		var info = puzzle.check(true);
+		assert.equal(info.complete, true);
+	});
+});
