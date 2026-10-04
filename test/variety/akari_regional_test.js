@@ -86,7 +86,7 @@ describe("Variety:akari-regional", function() {
 		assert.equal(problem.board.getc(5, 3).qnum, -2);
 	});
 
-	it("draws region borders by dragging and toggles blocks by clicking", function() {
+	it("draws region borders by dragging and cycles numbers by clicking", function() {
 		var puzzle = new pzpr.Puzzle().open("akari-regional/3/3");
 		puzzle.setMode("edit");
 		puzzle.mouse.setInputMode("auto");
@@ -95,11 +95,24 @@ describe("Variety:akari-regional", function() {
 		puzzle.mouse.inputPath(0, 2, 2, 2);
 		assert.equal(puzzle.board.getb(1, 2).ques, 1);
 
-		// クリックで黒マスを置く/消す
+		// クリックで数字を巡回入力: 黒マス(-2) → 0 → 1 → 2
+		// (1回目のクリックはカーソル移動)
+		puzzle.mouse.inputPath(3, 1, 3, 1);
+		assert.equal(puzzle.board.getc(3, 1).qnum, -1);
 		puzzle.mouse.inputPath(3, 1, 3, 1);
 		assert.equal(puzzle.board.getc(3, 1).qnum, -2);
 		puzzle.mouse.inputPath(3, 1, 3, 1);
-		assert.equal(puzzle.board.getc(3, 1).qnum, -1);
+		assert.equal(puzzle.board.getc(3, 1).qnum, 0);
+		puzzle.mouse.inputPath(3, 1, 3, 1);
+		assert.equal(puzzle.board.getc(3, 1).qnum, 1);
+		puzzle.mouse.inputPath(3, 1, 3, 1);
+		assert.equal(puzzle.board.getc(3, 1).qnum, 2);
+
+		// クリックでカーソルが置かれるためキーボード入力もできる
+		puzzle.key.inputKeys("7");
+		assert.equal(puzzle.board.getc(3, 1).qnum, 7);
+		puzzle.key.inputKeys("-");
+		assert.equal(puzzle.board.getc(3, 1).qnum, -2);
 	});
 
 	it("places lights in play mode", function() {

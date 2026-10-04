@@ -28,6 +28,7 @@ ui.keypopup = {
 		fillmat: [4, 0],
 		paintarea: [4, 0],
 		lightup: [4, 0],
+		"akari-regional": [10, 0],
 		shakashaka: [4, 0],
 		gokigen: [4, 0],
 		wagiri: [4, 0],
@@ -483,7 +484,8 @@ ui.keypopup = {
 		} else if (
 			pid === "rectslider" ||
 			pid === "aquapelago" ||
-			pid === "mrtile"
+			pid === "mrtile" ||
+			pid === "akari-regional"
 		) {
 			cap = "■";
 		} else if (pid === "patchwork") {

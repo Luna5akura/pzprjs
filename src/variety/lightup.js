@@ -455,22 +455,14 @@
 					this.inputqcmp();
 				}
 			} else if (this.puzzle.editmode) {
-				// ドラッグで領域の境界線、クリックで黒マス(数字なし)
+				// ドラッグで領域の境界線、クリックで数字入力
+				// (クリックの巡回: 黒マス(-2) → 0 → 1 → 2 → …)
 				if (this.mousestart || this.mousemove) {
 					this.inputborder();
 				} else if (this.mouseend && this.notInputted()) {
-					this.inputAkariBlock();
+					this.inputqnum();
 				}
 			}
-		},
-
-		inputAkariBlock: function() {
-			var cell = this.getcell();
-			if (cell.isnull) {
-				return;
-			}
-			cell.setQnum(cell.qnum === -2 ? -1 : -2);
-			cell.draw();
 		}
 	},
 
