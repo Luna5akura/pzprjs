@@ -1195,16 +1195,16 @@
 			var bd = this.board;
 			this.triS = (this.cw * bd.cols) / (bd.cols + 0.5 * bd.rows + 0.5);
 			this.triH = this.triS * 0.866;
-			this.triOX = 0;
+			this.triOX = this.cw / 2;
 			this.triOY = Math.max(
 				0,
-				(this.ch * bd.rows - this.triH * (bd.rows + 1)) / 2
+				(this.ch * bd.rows - this.triH * (bd.rows + 0.5)) / 2
 			);
 			this.drawTriBGCells();
 			this.drawTriGrid();
+			this.drawTriChassis();
 			this.drawTriBorders();
 			this.drawBorderQsubs();
-			this.drawChassis();
 			this.drawPekes();
 			this.drawTriQuesNumbers();
 			this.drawTarget();
@@ -1270,16 +1270,110 @@
 			}
 		},
 
+		// 破線のグリッド(dbchocoと同じ書式)を三角形格子の辺に沿って描く。
+		// 各辺は一度だけ描く(隣接セルと共有する辺はどちらか一方から)。
+		getTriEdges: function(cell) {
+			var v = this.getTriVertices(cell);
+			return [
+				[v[0], v[1]],
+				[v[1], v[2]],
+				[v[2], v[0]]
+			];
+		},
+
 		drawTriGrid: function() {
 			var g = this.vinc("grid", "crispEdges", true);
+			var dasharray = this.getDashArray();
+			g.lineWidth = this.gw;
 			g.strokeStyle = this.gridcolor;
-			g.lineWidth = this.lw;
 			var clist = this.range.cells;
 			for (var i = 0; i < clist.length; i++) {
-				var cell = clist[i];
-				g.vid = "g_tri_" + cell.id;
-				this.drawTriPolygon(g, cell);
-				g.stroke();
+				var cell = clist[i],
+					edges = this.getTriEdges(cell);
+				for (var e = 0; e < 3; e++) {
+					var v1 = edges[e][0],
+						v2 = edges[e][1];
+					// この辺を共有する三角隣接セルがこのセルより前なら描画済み
+					var nb = this.getTriEdgeNeighbor(cell, v1, v2);
+					if (
+						nb &&
+						(nb.bx < cell.bx || (nb.bx === cell.bx && nb.by < cell.by))
+					) {
+						continue;
+					}
+					g.vid = "g_tri_" + cell.id + "_" + e;
+					g.strokeDashedLine(v1[0], v1[1], v2[0], v2[1], dasharray);
+				}
+			}
+		},
+
+		// 辺(v1,v2)を共有する隣接セルを返す
+		getTriEdgeNeighbor: function(cell, v1, v2) {
+			var adc = cell.adjacent;
+			for (var d in adc) {
+				var nb = adc[d];
+				if (nb.isnull || !cell.isTriAdjacentTo(nb)) {
+					continue;
+				}
+				var nv = this.getTriVertices(nb);
+				var cnt = 0;
+				for (var a = 0; a < 3; a++) {
+					for (var b = 0; b < 2; b++) {
+						var p = b === 0 ? v1 : v2;
+						if (
+							Math.abs(nv[a][0] - p[0]) < 0.01 &&
+							Math.abs(nv[a][1] - p[1]) < 0.01
+						) {
+							cnt++;
+						}
+					}
+				}
+				if (cnt === 2) {
+					return nb;
+				}
+			}
+			return null;
+		},
+
+		// 外枠: 盤面の平行四辺形に沿って描く
+		drawTriChassis: function() {
+			var bd = this.board,
+				g = this.vinc("chassis", "crispEdges", true),
+				S = this.triS,
+				H = this.triH,
+				ox = this.triOX,
+				oy = this.triOY,
+				W = bd.cols,
+				R = bd.rows;
+			var x0 = ox,
+				y0 = oy,
+				x1 = ox + W * S + ((R - 1) * S) / 2 + S / 2,
+				y1 = oy + R * H;
+			var topRight = ox + W * S - S / 2,
+				bottomLeft = ox + ((R - 1) * S) / 2 + S / 2;
+			var lw = this.lw;
+			g.fillStyle = this.quescolor;
+			var lines = [
+				[x0, y0, topRight, y0],
+				[topRight, y0, x1, y1],
+				[x1, y1, bottomLeft, y1],
+				[bottomLeft, y1, x0, y0]
+			];
+			for (var i = 0; i < 4; i++) {
+				g.vid = "chst_" + i;
+				var l = lines[i],
+					dx = l[2] - l[0],
+					dy = l[3] - l[1],
+					len = Math.sqrt(dx * dx + dy * dy) || 1;
+				var nx = -dy / len,
+					ny = dx / len;
+				g.beginPath();
+				g.moveTo(l[0] + nx * lw, l[1] + ny * lw);
+				g.lineTo(l[2] + nx * lw, l[3] + ny * lw);
+				g.lineTo(l[2] - nx * lw, l[3] - ny * lw);
+				g.lineTo(l[0] - nx * lw, l[1] - ny * lw);
+				g.closePath();
+				g.fill();
 			}
 		},
 
@@ -1296,7 +1390,6 @@
 						g.vhide();
 						continue;
 					}
-					// 共有辺の両端を求める
 					var v1 = this.getTriVertices(c1),
 						v2 = this.getTriVertices(c2),
 						pts = [];
