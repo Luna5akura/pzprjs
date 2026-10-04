@@ -1241,7 +1241,7 @@
 
 		drawTriGrid: function() {
 			var g = this.vinc("grid", "crispEdges", true);
-			g.strokeStyle = this.getGridColor();
+			g.strokeStyle = this.gridcolor;
 			g.lineWidth = this.lw;
 			var clist = this.range.cells;
 			for (var i = 0; i < clist.length; i++) {
