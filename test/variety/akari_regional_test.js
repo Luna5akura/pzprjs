@@ -95,10 +95,8 @@ describe("Variety:akari-regional", function() {
 		puzzle.mouse.inputPath(0, 2, 2, 2);
 		assert.equal(puzzle.board.getb(1, 2).ques, 1);
 
-		// クリックで数字を巡回入力: 黒マス(-2) → 0 → 1 → 2
-		// (1回目のクリックはカーソル移動)
-		puzzle.mouse.inputPath(3, 1, 3, 1);
-		assert.equal(puzzle.board.getc(3, 1).qnum, -1);
+		// 空きマスのクリックで黒マスを置き、続けてクリックで数字を巡回入力:
+		// 黒マス(-2) → 0 → 1 → 2
 		puzzle.mouse.inputPath(3, 1, 3, 1);
 		assert.equal(puzzle.board.getc(3, 1).qnum, -2);
 		puzzle.mouse.inputPath(3, 1, 3, 1);

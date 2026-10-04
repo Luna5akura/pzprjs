@@ -455,12 +455,20 @@
 					this.inputqcmp();
 				}
 			} else if (this.puzzle.editmode) {
-				// ドラッグで領域の境界線、クリックで数字入力
-				// (クリックの巡回: 黒マス(-2) → 0 → 1 → 2 → …)
+				// ドラッグで領域の境界線。クリックは空きマスなら黒マスを置き、
+				// それ以外は数字を巡回入力する(黒マス(-2) → 0 → 1 → 2 → …)
 				if (this.mousestart || this.mousemove) {
 					this.inputborder();
 				} else if (this.mouseend && this.notInputted()) {
-					this.inputqnum();
+					var cell = this.getcell();
+					if (!cell.isnull && cell.qnum === -1) {
+						cell.setQnum(-2);
+						cell.draw();
+						this.setcursor(cell);
+						this.mouseCell = cell;
+					} else {
+						this.inputqnum();
+					}
 				}
 			}
 		}
@@ -523,9 +531,9 @@
 			return this.quescolor;
 		},
 
-		// 数字は白マスに書かれるため通常色で表示する
+		// 数字は白マスに書かれるため通常色(黒)で表示する
 		getQuesNumberColor: function(cell) {
-			return cell.qcmp === 1 ? this.qcmpcolor : this.fontcolor;
+			return cell.qcmp === 1 ? this.qcmpcolor : this.quescolor;
 		}
 	},
 
