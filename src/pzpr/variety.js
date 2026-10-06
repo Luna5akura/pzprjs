@@ -199,12 +199,14 @@
 				"",
 				{ pzprurl: "hashi", kanpen: "hashi", alias: "bridges" }
 			],
+			hashitree: [0, 0, "橋をかけろツリー", "Hashi Tree"],
 			hebi: [1, 0, "へびいちご", "Hebi-Ichigo", "", { old: "snakes" }],
 			herugolf: [0, 0, "ヘルゴルフ", "Herugolf"],
 			heteromino: [0, 0, "ヘテロミノ", "Heteromino", "nawabari"],
 			heyablock: [0, 0, "へやブロ", "Heyablock", "shimaguni"],
 			heyabon: [1, 0, "へやぼん", "Heya-Bon", "bonsan"],
 			heyapin: [0, 0, "へやピン", "Heyapin"],
+			hexmasyu: [0, 0, "ヘックスましゅ", "Hexagonal Masyu", "hexmasyu"],
 			heyawake: [
 				0,
 				1,
@@ -228,6 +230,7 @@
 				"Crossing Ichimaga",
 				"ichimaga"
 			],
+			imbalanceloop: [0, 0, "アンバランスループ", "Imbalance Loop"],
 			interbd: [0, 0, "International Borders", "International Borders"],
 			invlitso: [0, 0, "Inverse LITSO", "Inverse LITSO", "lits"],
 			island: [0, 0, "アイランド", "Inaba's Island", "kurotto"],
@@ -368,6 +371,7 @@
 			numrope: [0, 0, "ナンバーロープ", "Number Rope", "kakuru"],
 			nuribou: [1, 0, "ぬりぼう", "Nuribou", "nurikabe"],
 			nurikabe: [0, 1, "ぬりかべ", "Nurikabe", "nurikabe"],
+			uniqnurikabe: [0, 0, "ユニークぬりかべ", "Unique Nurikabe"],
 			nurimaze: [0, 0, "ぬりめいず", "Nuri-Maze", "nurimaze"],
 			nurimisaki: [0, 0, "ぬりみさき", "Nurimisaki", "kurodoko"],
 			nuritwin: [0, 0, "ぬりツイン", "Nuritwin", "shimaguni"],
@@ -545,6 +549,7 @@
 			waterwalk: [0, 0, "ウォーターウォーク", "Water Walk", "icewalk"],
 			wblink: [0, 0, "シロクロリンク", "Shirokuro-link"],
 			wittgen: [0, 0, "デスクプレース", "Wittgenstein Briquet", "kaidan"],
+			windkabe: [0, 0, "ウィンドカベ", "Wind Kabe"],
 			yajikazu: [1, 0, "やじさんかずさん", "Yajisan-Kazusan"],
 			yajilin: [
 				0,

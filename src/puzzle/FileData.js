@@ -116,10 +116,10 @@
 						throw Error("invalid filetype");
 				}
 
-				pzl.type = filetype;
-				pzl.filever = this.filever;
-				pzl.cols = bd.cols;
-				pzl.rows = bd.rows;
+			pzl.type = filetype;
+			pzl.filever = this.filever;
+			pzl.cols = bd.cols;
+			pzl.rows = bd.rows;
 				if (filetype !== pzl.FILE_PBOX_XML) {
 					pzl.body = this.datastr;
 				} else {

@@ -1412,21 +1412,43 @@
 			border.draw();
 		},
 
+		// マウス位置を最寄りのセルの中心にスナップする
+		// (セルの中心は △:(x/2+1, y+2/3)、▽:(x/2+1, y+1/3))
+		getTriCellCenter: function() {
+			var cell = this.getTriCell();
+			if (!cell) {
+				return null;
+			}
+			var x = cell.bx >> 1,
+				y = cell.by >> 1;
+			return {
+				cell: cell,
+				cx: x / 2 + 1,
+				cy: cell.isTriUp() ? y + 2 / 3 : y + 1 / 3
+			};
+		},
+
 		inputQsubLine: function() {
-			var vertex = this.getTriVertex();
-			if (!vertex) {
+			var snapped = this.getTriCellCenter();
+			if (!snapped) {
 				return;
 			}
+			var cell = snapped.cell;
 			if (this.mousestart) {
-				this.prevTriVertex = vertex;
+				this.prevTriCell = cell;
 				return;
 			}
-			var prev = this.prevTriVertex;
-			this.prevTriVertex = vertex;
-			if (!prev || (prev[0] === vertex[0] && prev[1] === vertex[1])) {
+			var prev = this.prevTriCell;
+			this.prevTriCell = cell;
+			if (!prev || prev === cell || !prev.isTriAdjacentTo(cell)) {
 				return;
 			}
-			var border = this.getTriBorderAt(prev, vertex);
+			// セルの中心からセルの中心へドラッグしたとき、
+			// 間の辺に補助記号を付ける
+			var border = this.board.getb(
+				(prev.bx + cell.bx) >> 1,
+				(prev.by + cell.by) >> 1
+			);
 			if (border.isnull) {
 				return;
 			}
@@ -1792,10 +1814,10 @@
 		},
 
 		// 境界線上の補助記号(qsub=1): 辺の中点に辺と垂直な短い線分
+		// 補助記号 (qsub=1): 「ここは境界線ではない」を表す×印
 		drawTriBorderQsubs: function() {
 			var g = this.vinc("border_qsub", "crispEdges", true);
 			var blist = this.range.borders;
-			var m = Math.max(this.cw * 0.15, this.triS * 0.15);
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];
 				g.vid = "b_qsub1_" + border.id;
@@ -1807,20 +1829,11 @@
 					}
 					var mx = (pts[0] + pts[2]) / 2,
 						my = (pts[1] + pts[3]) / 2;
-					var dx = pts[2] - pts[0],
-						dy = pts[3] - pts[1];
-					var len = Math.sqrt(dx * dx + dy * dy) || 1;
-					var nx = (-dy / len) * m * 0.5,
-						ny = (dx / len) * m * 0.5;
-					var hw = 0.4;
-					g.fillStyle = !border.trial ? this.pekecolor : this.linetrialcolor;
-					g.beginPath();
-					g.moveTo(mx - nx - dx / len * hw, my - ny - dy / len * hw);
-					g.lineTo(mx + nx - dx / len * hw, my + ny - dy / len * hw);
-					g.lineTo(mx + nx + dx / len * hw, my + ny + dy / len * hw);
-					g.lineTo(mx - nx + dx / len * hw, my - ny + dy / len * hw);
-					g.closePath();
-					g.fill();
+					// 辺の両側のセルにまたがる大きさの×印
+					var size = Math.max(this.triS * 0.35, this.cw * 0.3);
+					g.strokeStyle = !border.trial ? this.pekecolor : this.linetrialcolor;
+					g.lineWidth = Math.max((1 + this.cw / 40) | 0, 2);
+					g.strokeCross(mx, my, size);
 				} else {
 					g.vhide();
 				}
@@ -1830,8 +1843,8 @@
 		// 境界線上の×印(qsub=2)
 		drawTriPekes: function() {
 			var g = this.vinc("border_peke", "auto", true);
-			var size = Math.max(this.triS * 0.18 + 1, 4);
-			g.lineWidth = (1 + this.cw / 40) | 0;
+			var size = Math.max(this.triS * 0.3 + 1, 6);
+			g.lineWidth = Math.max((1 + this.cw / 40) | 0, 2);
 			var blist = this.range.borders;
 			for (var i = 0; i < blist.length; i++) {
 				var border = blist[i];

@@ -607,12 +607,13 @@ if ('serviceWorker' in navigator) {
       <span>__newboard.header__</span>
       <br>
       <div id="nb_size" data-disp-pid="!sudoku">
-        <span id="nb_cols" data-disp-pid="!tawa">__newboard.cols__</span>
+        <span id="nb_cols" data-disp-pid="!tawa:!hexmasyu">__newboard.cols__</span>
         <input type="number" name="col" value="1" size=4 maxlength=3 min=1 max=999>
         <span id="nb_cols_tawa" data-disp-pid="tawa">__newboard.tawa.width__</span>
+        <span id="nb_cols_hexmasyu" data-disp-pid="hexmasyu">__newboard.hexmasyu.side__</span>
         <br>
-        <span id="nb_rows" data-disp-pid="!tawa">__newboard.rows__</span>
-        <input type="number" name="row" value="1" size=4 maxlength=3 min=1 max=999>
+        <span id="nb_rows" data-disp-pid="!tawa:!hexmasyu">__newboard.rows__</span>
+        <input type="number" name="row" value="1" size=4 maxlength=3 min=1 max=999 data-disp-pid="!hexmasyu">
         <span id="nb_rows_tawa" data-disp-pid="tawa">__newboard.tawa.height__</span>
       </div>
       <div id="nb_size_sudoku" data-disp-pid="sudoku">

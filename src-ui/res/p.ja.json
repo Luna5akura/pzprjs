@@ -263,6 +263,7 @@
     "enterFurtherTrial": "多重仮置き",
     "newboard.title": "盤面の新規作成",
     "newboard.header": "盤面を新規作成します。",
+    "newboard.hexmasyu.side": "1辺のマス数",
     "newboard.cols": "よこ",
     "newboard.tawa.width": "横幅 (黄色の数)",
     "newboard.rows": "たて",

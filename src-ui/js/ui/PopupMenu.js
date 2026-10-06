@@ -278,6 +278,9 @@ ui.popupmgr.addpopup("newboard", {
 			case "tawa":
 				this.setsize_tawa();
 				break;
+			case "hexmasyu":
+				this.setsize_hexmasyu();
+				break;
 			default:
 				this.setsize();
 				break;
@@ -297,6 +300,25 @@ ui.popupmgr.addpopup("newboard", {
 		var col = this.form.col.value | 0;
 		var row = this.form.row.value | 0;
 		return !!col && !!row ? { col: col, row: row } : null;
+	},
+
+	//---------------------------------------------------------------------------
+	// setsize_hexmasyu()   盤面のサイズをセットする (ヘックスましゅ向け: 六角形の1辺)
+	// getsize_hexmasyu()   盤面のサイズを取得する (ヘックスましゅ向け: 六角形の1辺)
+	//---------------------------------------------------------------------------
+	setsize_hexmasyu: function() {
+		var bd = ui.puzzle.board;
+		var n = bd.isHexRegular() ? bd.getHexSides().a : bd.getHexSides().a;
+		this.form.col.value = "" + n;
+		this.form.row.value = "" + n;
+	},
+	getsize_hexmasyu: function() {
+		var n = this.form.col.value | 0;
+		if (n < 1) {
+			return null;
+		}
+		// 入力は六角形の1辺のマス数。盤面は 2n-1 x 2n-1 のグリッド。
+		return { col: 2 * n - 1, row: 2 * n - 1 };
 	},
 
 	//---------------------------------------------------------------------------
@@ -440,6 +462,9 @@ ui.popupmgr.addpopup("newboard", {
 				break;
 			case "tawa":
 				obj = this.getsize_tawa();
+				break;
+			case "hexmasyu":
+				obj = this.getsize_hexmasyu();
 				break;
 			default:
 				obj = this.getsize();
@@ -944,8 +969,12 @@ ui.popupmgr.addpopup("metadata", {
 		var puzzle = ui.puzzle,
 			bd = puzzle.board,
 			meta = puzzle.metadata;
+		var size = bd.cols + "×" + bd.rows;
+		if (puzzle.pid === "hexmasyu") {
+			size = bd.hexside;
+		}
 		getEL("metadata_variety").innerHTML =
-			pzpr.variety(puzzle.pid)[pzpr.lang] + "&nbsp;" + bd.cols + "×" + bd.rows;
+			pzpr.variety(puzzle.pid)[pzpr.lang] + "&nbsp;" + size;
 		form.author.value = meta.author;
 		form.source.value = meta.source;
 		form.hard.value = meta.hard;

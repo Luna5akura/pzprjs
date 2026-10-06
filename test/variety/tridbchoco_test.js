@@ -199,6 +199,41 @@ describe("Variety:tridbchoco", function() {
 		assert.equal(bd.getb(9, 2).qans, 0);
 	});
 
+	it("draws an auxiliary mark by dragging from one cell center to another", function() {
+		var puzzle = playPuzzle();
+		var bd = puzzle.board;
+		var pc = puzzle.painter;
+		pc.computeTriMetrics();
+		var mouse = puzzle.mouse;
+		mouse.setInputMode("subline");
+
+		function toInput(x, y) {
+			return [
+				(x * pc.triS + pc.triOX - pc.x0) / pc.bw,
+				(y * pc.triH + pc.triOY - pc.y0) / pc.bh
+			];
+		}
+		// セル中心にスナップする
+		var a0 = toInput(3, 2 / 3);
+		mouse.inputPoint.init(a0[0], a0[1]);
+		var snapped = mouse.getTriCellCenter();
+		assert.equal(snapped.cell.id, bd.getc(9, 1).id); // (4,0)
+		assert.ok(Math.abs(snapped.cx - 3) < 1e-9);
+		assert.ok(Math.abs(snapped.cy - 2 / 3) < 1e-9);
+
+		// セル (4,0) の中心から (4,1) の中心へドラッグ → 補助記号が付く
+		var a = toInput(3, 2 / 3),
+			b = toInput(3, 1 + 1 / 3);
+		mouse.inputPath(a[0], a[1], b[0], b[1]);
+		assert.equal(bd.getb(9, 2).qsub, 1);
+
+		// 隣接していないセル同士 (4,1)→(4,2) では何も付かない
+		var c = toInput(3, 2 + 1 / 3);
+		mouse.inputPath(b[0], b[1], c[0], c[1]);
+		assert.equal(bd.getb(9, 4).qsub, 0);
+		assert.equal(bd.getb(9, 2).qsub, 1); // 付けた印はそのまま
+	});
+
 	it("accepts a hand-constructed valid answer", function() {
 		var puzzle = playPuzzle();
 		setSolvedAnswer(puzzle.board);

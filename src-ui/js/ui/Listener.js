@@ -135,6 +135,10 @@ ui.listener = {
 		}
 	},
 	onModeChange: function(puzzle) {
+		console.log(
+			"[ILDBG] onModeChange editmode=" + puzzle.editmode +
+			" playeronly=" + puzzle.playeronly + " inputMode=" + puzzle.mouse.inputMode
+		);
 		ui.menuconfig.list.mode.val = ui.puzzle.playmode ? "play" : "edit";
 		ui.setdisplay("mode");
 		ui.menuconfig.set("inputmode", ui.puzzle.mouse.inputMode);
@@ -145,6 +149,10 @@ ui.listener = {
 		for (var key in ui.puzzle.config.getVariants()) {
 			ui.setdisplay(key);
 		}
+		// プレイ専用 → 編集モードへの切り替えで隠れている編集メニューと
+		// キーポップアップを表示し直す
+		ui.menuarea.display();
+		ui.keypopup.create();
 		ui.keypopup.display();
 	},
 

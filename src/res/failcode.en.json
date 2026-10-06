@@ -1003,5 +1003,15 @@
     "nmNotConsecutive.consecutivekakuro": "The numbers do not satisfy the white-bar consecutive rule.",
     "nmNoDotNe.lostspeech": "A shape covers a cell without a dot.",
     "csNoConn.lostspeech": "Shapes of the same color are not connected.",
-    "csCrossContained.lostspeech": "A shape is completely contained in a shape of the solution on the other board."
+    "csCrossContained.lostspeech": "A shape is completely contained in a shape of the solution on the other board.",
+    "ilNoLineWhite": "The loop must pass through every white cell.",
+    "ilLineOnBlack": "The loop passes through a black cell.",
+    "ilNotStraight": "The loop must go straight through this clue, parallel to the arrow.",
+    "ilWrongDiff": "The difference in length is not correct.",
+    "nmArrowNe.windkabe": "The total arrow length is wrong.",
+    "arStartNe.windkabe": "An arrow does not start next to a numbered cell.",
+    "wkWallDivide": "All black cells must be connected.",
+    "wkWall2x2": "The black cells form a 2x2 block.",
+    "htLoop": "The bridges form a loop.",
+    "nuShapeDup": "Two islands have the same shape."
 }

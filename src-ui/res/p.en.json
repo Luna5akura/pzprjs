@@ -287,6 +287,7 @@
     "newboard.title": "New Board",
     "newboard.header": "Create New Board.",
     "newboard.cols": "Cols",
+    "newboard.hexmasyu.side": "Side length",
     "newboard.tawa.width": "Width (Yellows)",
     "newboard.rows": "Rows",
     "newboard.tawa.height": "Height",

@@ -210,6 +210,15 @@
 			}
 
 			if (idname === "mode") {
+				// URLつきで開かれた盤面はプレイ専用 (playeronly) になるが、
+				// メニューから編集モードへ切り替えられるようにする
+				console.log(
+					"[ILDBG] MenuConfig.set mode newval=" + newval +
+					" playeronly=" + ui.puzzle.playeronly
+				);
+				if (ui.puzzle.playeronly && newval === "edit") {
+					ui.puzzle.playeronly = false;
+				}
 				ui.puzzle.setMode(newval);
 				newval = !ui.puzzle.playmode ? "edit" : "play";
 			} else if (idname === "inputmode") {
@@ -284,7 +293,8 @@
 				return false;
 			}
 			if (name === "mode") {
-				return !ui.puzzle.playeronly;
+				// プレイ専用で開かれた盤面でも編集モードへ切り替え可能にする
+				return true;
 			} else if (this.list[name].puzzle) {
 				return ui.puzzle.validConfig(name);
 			}
@@ -315,7 +325,8 @@
 			if (idname === "keypopup") {
 				return ui.keypopup.paneltype[1] !== 0 || ui.keypopup.paneltype[3] !== 0;
 			} else if (idname === "mode") {
-				return !ui.puzzle.playeronly;
+				// プレイ専用で開かれた盤面でも編集モードへ切り替え可能にする
+				return true;
 			} else if (idname === "timer") {
 				return ui.puzzle.playeronly;
 			} else if (idname === "inputmode") {

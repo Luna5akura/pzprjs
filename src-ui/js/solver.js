@@ -202,6 +202,21 @@ function getSolverBoardSnapshot() {
 			travellineSolverState: border._travellineSolverState
 		});
 	}
+	snapshot.hexedges = [];
+	if (isHexMasyuPuzzle() && board.hexedges) {
+		for (var k = 0; k < board.hexedges.length; k++) {
+			var edge = board.hexedges[k];
+			snapshot.hexedges.push({
+				id: edge.id,
+				line: edge.isLine(),
+				qsub: edge.qsub,
+				solverState: cloneSolverDiagnosticValue(edge._solverState),
+				cells: edge.sideobj.map(function(cell) {
+					return { x: cell.bx, y: cell.by };
+				})
+			});
+		}
+	}
 	return snapshot;
 }
 
@@ -443,6 +458,14 @@ function clearGenericSolverOverlay() {
 			if (board.excell[k]._solverState) {
 				board.excell[k]._solverState = null;
 				changed++;
+			}
+		}
+		if (isHexMasyuPuzzle() && board.hexedges) {
+			for (var h = 0; h < board.hexedges.length; h++) {
+				if (board.hexedges[h]._solverState) {
+					board.hexedges[h]._solverState = null;
+					changed++;
+				}
 			}
 		}
 		if (changed > 0) {
@@ -1228,6 +1251,14 @@ function getAnswerInputModes() {
 }
 
 function isLinePuzzle() {
+	// 橋系パズルは line 入力を使うが、答えは線分集合ではなく橋の
+	// ネットワークなので通常のソルバー表示 (generic) を使う
+	if (window.ui && ui.puzzle) {
+		var pid = ui.puzzle.pid;
+		if (pid === "hashikake" || pid === "hashitree") {
+			return false;
+		}
+	}
 	var modes = getAnswerInputModes();
 	return (
 		modes.indexOf("line") >= 0 ||
@@ -1242,6 +1273,47 @@ function isWalkWalkPuzzle() {
 
 function isLostSpeechPuzzle() {
 	return window.ui && ui.puzzle && ui.puzzle.pid === "lostspeech";
+}
+
+function isHexMasyuPuzzle() {
+	return window.ui && ui.puzzle && ui.puzzle.pid === "hexmasyu";
+}
+
+// ヘックスましゅ: lineTo の dest を六角形の辺の方向に変換する
+var HEX_MASYU_DIRS = {
+	"0,1": "R",
+	"0,-1": "L",
+	"1,0": "BL",
+	"1,1": "BR",
+	"-1,0": "TR",
+	"-1,-1": "TL"
+};
+
+function applyHexMasyuLineToEntry(entry) {
+	var cell = ui.puzzle.board.getc(entry.x, entry.y);
+	if (cell.isnull) {
+		return 0;
+	}
+	var dir = HEX_MASYU_DIRS[entry.item.destY + "," + entry.item.destX];
+	if (!dir) {
+		return 0;
+	}
+	var edge = ui.puzzle.board.getHexEdgeByDir(cell, dir);
+	if (!edge) {
+		return 0;
+	}
+	if (edge.isLine() || edge.qsub === 2) {
+		return 0;
+	}
+
+	var state = edge._solverState;
+	if (!state) {
+		state = edge._solverState = [];
+	} else if (!Array.isArray(state)) {
+		state = edge._solverState = [{ color: "green", item: state }];
+	}
+	state.push({ color: entry.color, item: entry.item });
+	return 1;
 }
 
 // ツイン盤面の右側の盤面のxオフセット (仮想座標)
@@ -1483,6 +1555,15 @@ function applyEntry(entry) {
 
 	if (isLostSpeechPuzzle() && entry.x >= lostSpeechBoard2Offset() * 2) {
 		return applyLostSpeechBoard2Entry(entry);
+	}
+
+	if (
+		isHexMasyuPuzzle() &&
+		entry.item &&
+		typeof entry.item === "object" &&
+		entry.item.kind === "lineTo"
+	) {
+		return applyHexMasyuLineToEntry(entry);
 	}
 
 	if (isSkyNeighborPuzzle() && isSkyNeighborPieceCoordinate(entry)) {

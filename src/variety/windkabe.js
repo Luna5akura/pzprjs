@@ -1,14 +1,15 @@
-// Four Winds with Parks
+// Wind Kabe
 // Numbered cells emit straight arrows in the four cardinal directions.  The
-// number is the total length of the arrows starting at that cell.  Cells with
-// no number or arrow are the parks required by the row and column rule.
+// number is the total length of the arrows starting at that cell.  Every
+// cell not covered by an arrow is black (part of the wall): the black cells
+// must be connected and no 2x2 block may be entirely black.
 (function(pidlist, classbase) {
 	if (typeof module === "object" && module.exports) {
 		module.exports = [pidlist, classbase];
 	} else {
 		pzpr.classmgr.makeCustom(pidlist, classbase);
 	}
-})(["fourwindswithparks"], {
+})(["windkabe"], {
 	MouseEvent: {
 		use: true,
 		inputModes: {
@@ -393,10 +394,53 @@
 
 	Encode: {
 		decodePzpr: function() {
-			this.decodeNumber16();
+			this.decodeArrowNumber16();
+			this.board.cell.each(function(cell) {
+				if (cell.qnum === 4095 && cell.qdir >= 1 && cell.qdir <= 4) {
+					cell.qnum = -1;
+				}
+			});
 		},
 		encodePzpr: function() {
-			this.encodeNumber16();
+			var bd = this.board,
+				out = "",
+				skipped = 0;
+			for (var i = 0; i < bd.cell.length; i++) {
+				var cell = bd.cell[i],
+					dir = cell.qdir || 0,
+					num = cell.qnum;
+				var encoded = "";
+				if (dir >= 1 && dir <= 4 && num === -1) {
+					// Keep an answer arrow on an empty cell round-trippable.
+					encoded = "-" + dir.toString(16) + "fff";
+				} else if (num === -3) {
+					encoded = "+";
+				} else if (num === -2) {
+					encoded = dir.toString(16) + ".";
+				} else if (num >= 0 && num < 16 && dir >= 0 && dir <= 4) {
+					encoded = dir.toString(16) + num.toString(16);
+				} else if (num >= 16 && num < 256 && dir >= 0 && dir <= 4) {
+					encoded = (dir + 5).toString(16) + num.toString(16).padStart(2, "0");
+				} else if (num >= 256 && num < 4096 && dir >= 0 && dir <= 4) {
+					encoded = "-" + dir.toString(16) + num.toString(16).padStart(3, "0");
+				}
+				if (!encoded) {
+					skipped++;
+					continue;
+				}
+				while (skipped > 0) {
+					var run = Math.min(skipped, 26);
+					out += String.fromCharCode(96 + run);
+					skipped -= run;
+				}
+				out += encoded;
+			}
+			while (skipped > 0) {
+				var run = Math.min(skipped, 26);
+				out += String.fromCharCode(96 + run);
+				skipped -= run;
+			}
+			this.outbstr += out;
 		}
 	},
 	FileIO: {
@@ -422,7 +466,8 @@
 		checklist: [
 			"checkArrowLengthTotals",
 			"checkArrowStarts",
-			"checkEmptyRowsCols"
+			"checkWallConnected",
+			"checkWall2x2"
 		],
 		checkArrowLengthTotals: function() {
 			var dirs = [1, 2, 3, 4];
@@ -470,30 +515,81 @@
 				}
 			}, "arStartNe");
 		},
-		checkEmptyRowsCols: function() {
+
+		// 矢印のない空白セル(カベ)がすべて連結していること
+		checkWallConnected: function() {
 			var bd = this.board;
-			for (var r = 1; r <= bd.maxby; r += 2) {
-				var empty = 0;
-				for (var c = 1; c <= bd.maxbx; c += 2) {
-					var cell = bd.getc(c, r);
-					if (!cell.qdir && cell.qnum === -1) {
-						empty++;
-					}
-				}
-				if (empty !== 1) {
-					this.failcode.add("rowEmptyNe");
+			var wall = [];
+			for (var c = 0; c < bd.cell.length; c++) {
+				var cell = bd.cell[c];
+				if (cell.qnum === -1 && !cell.qdir) {
+					wall.push(cell);
 				}
 			}
-			for (var c2 = 1; c2 <= bd.maxbx; c2 += 2) {
-				var empty2 = 0;
-				for (var r2 = 1; r2 <= bd.maxby; r2 += 2) {
-					var cell2 = bd.getc(c2, r2);
-					if (!cell2.qdir && cell2.qnum === -1) {
-						empty2++;
+			if (wall.length === 0) {
+				return;
+			}
+
+			var visited = {},
+				stack = [wall[0]];
+			visited[wall[0].id] = true;
+			var count = 1;
+			while (stack.length) {
+				var cell = stack.pop();
+				var adj = cell.adjacent;
+				for (var key in adj) {
+					var nb = adj[key];
+					if (
+						!nb.isnull &&
+						!visited[nb.id] &&
+						nb.qnum === -1 &&
+						!nb.qdir
+					) {
+						visited[nb.id] = true;
+						count++;
+						stack.push(nb);
 					}
 				}
-				if (empty2 !== 1) {
-					this.failcode.add("colEmptyNe");
+			}
+			if (count < wall.length) {
+				this.failcode.add("wkWallDivide");
+				if (this.checkOnly) {
+					return;
+				}
+				for (var i = 0; i < wall.length; i++) {
+					if (!visited[wall[i].id]) {
+						wall[i].seterr(1);
+					}
+				}
+			}
+		},
+
+		// カベが2x2のカタマリを作らないこと
+		checkWall2x2: function() {
+			var bd = this.board;
+			for (var c = 0; c < bd.cell.length; c++) {
+				var cell = bd.cell[c];
+				if (cell.bx === bd.maxbx - 1 || cell.by === bd.maxby - 1) {
+					continue;
+				}
+				var right = cell.adjacent.right,
+					bottom = cell.adjacent.bottom,
+					diag = right.adjacent.bottom;
+				var cells = [cell, right, bottom, diag];
+				var i;
+				for (i = 0; i < 4; i++) {
+					if (cells[i].qnum !== -1 || !!cells[i].qdir) {
+						break;
+					}
+				}
+				if (i === 4) {
+					this.failcode.add("wkWall2x2");
+					if (this.checkOnly) {
+						return;
+					}
+					for (i = 0; i < 4; i++) {
+						cells[i].seterr(1);
+					}
 				}
 			}
 		}

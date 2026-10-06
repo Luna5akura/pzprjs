@@ -109,6 +109,16 @@ pzpr.classmgr.makeCommon({
 				return;
 			}
 			var addrtarget = this.getBoardAddress(e);
+			if (this.puzzle.pid === "imbalanceloop") {
+				console.log(
+					"[ILDBG] mousedown evt=" + e.type + " btn=" + this.btn +
+					" b=" + e.button + " which=" + e.which +
+					" pt=" + (e.pointerType || "-") +
+					" addr=" + addrtarget.bx + "," + addrtarget.by +
+					" mode=" + (this.puzzle.editmode ? "edit" : "play") +
+					" inputMode=" + this.inputMode
+				);
+			}
 			this.moveTo(addrtarget.bx, addrtarget.by);
 
 			e.stopPropagation();
@@ -116,7 +126,20 @@ pzpr.classmgr.makeCommon({
 		},
 		e_mouseup: function(e) {
 			if (!this.enableMouse || !this.btn) {
+				if (this.puzzle.pid === "imbalanceloop") {
+					console.log(
+						"[ILDBG] mouseup evt=" + e.type + " IGNORED (btn='" + this.btn + "' enableMouse=" + this.enableMouse + ")"
+					);
+				}
 				return true;
+			}
+			if (this.puzzle.pid === "imbalanceloop") {
+				console.log(
+					"[ILDBG] mouseup evt=" + e.type + " btn=" + this.btn +
+					" b=" + e.button + " which=" + e.which +
+					" pt=" + (e.pointerType || "-") +
+					" changeflag=" + this.puzzle.opemgr.changeflag
+				);
 			}
 
 			this.inputEnd();
@@ -136,6 +159,12 @@ pzpr.classmgr.makeCommon({
 				(e.type.match(/pointermove/i) && e.buttons > 0)
 			) {
 				var addrtarget = this.getBoardAddress(e);
+				if (this.puzzle.pid === "imbalanceloop") {
+					console.log(
+						"[ILDBG] mousemove evt=" + e.type + " btn=" + this.btn +
+						" addr=" + addrtarget.bx + "," + addrtarget.by
+					);
+				}
 				this.lineTo(addrtarget.bx, addrtarget.by);
 			} else {
 				this.mousereset();
@@ -145,6 +174,9 @@ pzpr.classmgr.makeCommon({
 			e.preventDefault();
 		},
 		e_mousecancel: function(e) {
+			if (this.puzzle.pid === "imbalanceloop") {
+				console.log("[ILDBG] mousecancel evt=" + e.type + " btn=" + this.btn);
+			}
 			this.mousereset();
 		},
 
@@ -248,6 +280,14 @@ pzpr.classmgr.makeCommon({
 			this.mouseend = step === 2;
 			var puzzle = this.puzzle;
 
+			if (puzzle.pid === "imbalanceloop") {
+				console.log(
+					"[ILDBG] mouseevent step=" + step + " btn=" + this.btn +
+					" start=" + this.mousestart + " move=" + this.mousemove +
+					" end=" + this.mouseend + " mode=" +
+					(puzzle.editmode ? "edit" : "play") + " inputMode=" + this.inputMode
+				);
+			}
 			puzzle.emit("mouse");
 			if (!this.cancelEvent && (this.btn === "left" || this.btn === "right")) {
 				if (this.mousestart) {
